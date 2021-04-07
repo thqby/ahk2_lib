@@ -160,13 +160,13 @@ class Socket {
 		else if (lParam & Socket.FD_ACCEPT)
 			this.HasOwnProp('onAccept') ? this.onAccept() : 0
 		else if (lParam & Socket.FD_CLOSE)
-			this.EventProcUnregister(), this.OnDisconnect()
+			this.EventProcUnregister(), this.HasOwnProp('OnDisconnect') ? this.OnDisconnect() : 0
 	}
 
 	EventProcRegister(lEvent) {
 		this.AsyncSelect(lEvent)
 		if !this.Bound {
-			this.Bound := (w, l, m, h) => (this.OnMessage(w, l, m, h))
+			this.Bound := ObjBindMethod(this, "OnMessage")
 			OnMessage(Socket.WM_SOCKET, this.Bound)
 		}
 	}
