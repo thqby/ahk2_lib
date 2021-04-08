@@ -1,9 +1,12 @@
 ﻿#Persistent
-socket := WebSocket("ws://123.207.136.134:9010/ajaxchattest", {Message: aaa, Close: bbb})
-Msgbox socket.url (socket.readyState = 1 ? "已连接" : "已断开")
+socket := WebSocket("ws://121.40.165.18:8800", {open: ccc, Message: aaa, Close: bbb})
+; Msgbox socket.url (socket.readyState = 1 ? "已连接" : "已断开")
 return
 aaa(self, event) {
 	MsgBox(event)
+}
+ccc(self, event) {
+	MsgBox('open`n' event)
 }
 bbb(self, event) {
 	MsgBox(event)

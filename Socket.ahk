@@ -1,10 +1,8 @@
 ﻿; #DllLoad "ws2_32.dll"
 class Socket {
-	static WM_SOCKET := 0x9987, MSG_PEEK := 2, FD_READ := 1, FD_ACCEPT := 8, FD_CLOSE := 32, Blocking := true, BlockSleep := 50
-	Bound := false
-	ProtocolId := 6	; IPPROTO_TCP
-	SocketType := 1	; SOCK_STREAM
-	__New(Socket := -1) {
+	static WM_SOCKET := 0x9987, MSG_PEEK := 2, FD_READ := 1, FD_ACCEPT := 8, FD_CLOSE := 32
+	Bound := false, Blocking := true, BlockSleep := 50
+	__New(Socket := -1, ProtocolId := 6, SocketType := 1) {
 		static Init := 0
 		if (!Init) {
 			DllCall("LoadLibrary", "Str", "ws2_32", "Ptr")
@@ -15,7 +13,7 @@ class Socket {
 				throw Exception("Winsock version 2.2 not available")
 			Init := true
 		}
-		this.Socket := Socket
+		this.Socket := Socket, this.ProtocolId := ProtocolId, this.SocketType := SocketType
 	}
 
 	__Delete() {
@@ -34,7 +32,7 @@ class Socket {
 				, "Int", this.SocketType, "Int", this.ProtocolId, "UInt")) != -1) {
 				if (DllCall("ws2_32\WSAConnect", "UInt", this.Socket, "Ptr", ai_addr
 					, "UInt", ai_addrlen, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Int") = 0) {
-					DllCall("ws2_32\freeaddrinfo", "Ptr", pAddrInfo)	; TODO: Error Handling
+					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: Error Handling
 					return this.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
 				}
 				this.Disconnect()
@@ -55,7 +53,7 @@ class Socket {
 				, "Int", this.SocketType, "Int", this.ProtocolId, "UInt")) != -1) {
 				if (DllCall("ws2_32\bind", "UInt", this.Socket, "Ptr", ai_addr
 					, "UInt", ai_addrlen, "Int") == 0) {
-					DllCall("ws2_32\freeaddrinfo", "Ptr", pAddrInfo)	; TODO: ERROR HANDLING
+					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: ERROR HANDLING
 					return this.EventProcRegister(Socket.FD_READ | Socket.FD_ACCEPT | Socket.FD_CLOSE)
 				}
 				this.Disconnect()
@@ -72,9 +70,7 @@ class Socket {
 	Accept() {
 		if ((s := DllCall("ws2_32\accept", "UInt", this.Socket, "Ptr", 0, "Ptr", 0, "Ptr")) == -1)
 			throw Exception("Error calling accept", , this.GetLastError())
-		Sock := Socket(s)
-		Sock.ProtocolId := this.ProtocolId
-		Sock.SocketType := this.SocketType
+		Sock := Socket(s, this.ProtocolId, this.SocketType)
 		Sock.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
 		return Sock
 	}
@@ -106,35 +102,38 @@ class Socket {
 	}
 
 	SendText(Text, Flags := 0, Encoding := "UTF-8") {
-		VarSetStrCapacity(&Buffer, StrPut(Text, Encoding) * ((Encoding = "UTF-16" || Encoding = "cp1200") ? 2 : 1))
-		Length := StrPut(Text, StrPtr(Buffer), Encoding)
-		return this.Send(StrPtr(Buffer), Length - 1)
+		buf := BufferAlloc(Length := StrPut(Text, Encoding) - ((Encoding = "UTF-16" || Encoding = "cp1200") ? 2 : 1))
+		Length := StrPut(Text, buf, Encoding)
+		return this.Send(buf, Length, Flags)
 	}
 
-	Recv(&Buffer, BufSize := 0, Flags := 0) {
-		while (!(Length := this.MsgSize()) && Socket.Blocking)
-			Sleep Socket.BlockSleep
+	Recv(&Buffer, BufSize := 0, Flags := 0, Timeout := 0) {
+		t := 0
+		while (!(Length := this.MsgSize()) && this.Blocking && (!Timeout || t < Timeout))
+			Sleep(this.BlockSleep), t += this.BlockSleep
 		if !Length
 			return 0
 		if !BufSize
 			BufSize := Length
-		VarSetStrCapacity(&Buffer, BufSize)
-		if ((r := DllCall("ws2_32\recv", "UInt", this.Socket, "Ptr", StrPtr(Buffer), "Int", BufSize, "Int", Flags)) == -1)
+		else
+			BufSize := Min(BufSize, Length)
+		Buffer := BufferAlloc(BufSize)
+		if ((r := DllCall("ws2_32\recv", "UInt", this.Socket, "Ptr", Buffer, "Int", BufSize, "Int", Flags)) == -1)
 			throw Exception("Error calling recv", , this.GetLastError())
 		return r
 	}
 
 	RecvText(BufSize := 0, Flags := 0, Encoding := "UTF-8") {
 		if (Length := this.Recv(&Buffer := 0, BufSize, flags))
-			return StrGet(StrPtr(Buffer), Length, Encoding)
+			return StrGet(Buffer, Length, Encoding)
 		return ""
 	}
 
 	RecvLine(BufSize := 0, Flags := 0, Encoding := "UTF-8", KeepEnd := false) {
 		while !(i := InStr(this.RecvText(BufSize, Flags | Socket.MSG_PEEK, Encoding), "`n")) {
-			if !Socket.Blocking
+			if (!this.Blocking)
 				return ""
-			Sleep Socket.BlockSleep
+			Sleep(this.BlockSleep)
 		}
 		if KeepEnd
 			return this.RecvText(i, Flags, Encoding)
@@ -147,7 +146,7 @@ class Socket {
 		Host := Address[1], Port := Address[2]
 		Hints := BufferAlloc(16 + (4 * A_PtrSize), 0)
 		NumPut("Int", this.SocketType, "Int", this.ProtocolId, Hints, 8)
-		if (Error := DllCall("ws2_32\getaddrinfo", "AStr", Host, "AStr", Port, "Ptr", Hints, "Ptr*", &Result := 0))
+		if (Error := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
 			throw Exception("Error calling GetAddrInfo", , Error)
 		return Result
 	}
@@ -193,14 +192,12 @@ class Socket {
 	}
 }
 
-class SocketTCP extends Socket {
-	ProtocolId := 6	; IPPROTO_TCP
-	SocketType := 1	; SOCK_STREAM
-}
-
 class SocketUDP extends Socket {
-	ProtocolId := 17	; IPPROTO_UDP
-	SocketType := 2	; SOCK_DGRAM
+	__New(socket := -1) {
+		; ProtocolId := 17	; IPPROTO_UDP
+		; SocketType := 2	; SOCK_DGRAM
+		super.__New(socket, 17, 2)
+	}
 
 	SetBroadcast(Enable) {
 		static SOL_SOCKET := 0xFFFF, SO_BROADCAST := 0x20
@@ -208,7 +205,7 @@ class SocketUDP extends Socket {
 			, "UInt", this.Socket	; SOCKET s
 			, "Int", SOL_SOCKET	; int    level
 			, "Int", SO_BROADCAST	; int    optname
-			, "UInt*", !!Enable	; *char  optval
+			, "UInt*", &Enable := !!Enable	; *char  optval
 			, "Int", 4) == -1)	; int    optlen
 			throw Exception("Error calling setsockopt", , this.GetLastError())
 	}
