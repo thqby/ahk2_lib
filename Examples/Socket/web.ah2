@@ -1,28 +1,5 @@
 #Include <Socket>
 
-; ws := Socket()
-; ws.onRecv := recv
-; ws.OnDisconnect := Disc
-; ws.Connect(['121.40.165.18', 8800])
-; ws.SendText('GET / HTTP/1.1`r`nHost: 121.40.165.18:8800`r`nConnection: Upgrade`r`nUpgrade: websocket`r`nSec-WebSocket-Version: 13`r`nSec-WebSocket-Key: w4v7O6xFTi36lq3RNcgctw==`r`n`r`n')
-; Sleep(1000)
-; ; d := DataFrame.encode({FIN: 1, Opcode: 0x8, Mask: 1, PayloadData: 'ping'})
-; ; d := DataFrame.encode({FIN: 1, Opcode: 0x9, Mask: 1, PayloadData: 'ping'})
-; d := DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: 'mczkndlkenwqlkclkzx'})
-; ; s := DataFrame.decode(d)
-; ws.RecvText()
-; F3::ws.Send(d.Ptr, d.Size)
-; F4::msgbox ws.MsgSize()
-; Disc(self) {
-; 	MsgBox(self.RecvText())
-; }
-; recv(self) {
-; 	static f := 0
-; 	len := self.Recv(&p := 0)
-; 	MsgBox(StrGet(StrPtr(p), len, 'utf-8'))
-; 	s := DataFrame.decode({ptr: StrPtr(p), size: len})
-; }
-
 class WebSocket {
 	static Client(ws, callbacks := 0, proto := '', headers := '') => WebSocket._Client.Call(ws, callbacks, proto, headers)
 	class _Client {
@@ -30,7 +7,7 @@ class WebSocket {
 		__New(ws, callbacks := 0, proto := '', headers := '') {
 			if !RegExMatch(ws, '^ws://([^/:]+)(:\d+)?(/.+)?$', &m)
 				throw Exception('不支持的ws url')
-			host := m[1], port := LTrim(m[2], ':') || '80', path := m[3] || '/', extend := ''
+			this.host := host := m[1], this.port := port := LTrim(m[2], ':') || '80', path := m[3] || '/', extend := ''
 			this.socket.Connect([host, port])
 			this.socket.OnDisconnect := ObjBindMethod(this, 'onEvent', 'Close')
 			if Type(headers) = 'String'
@@ -53,14 +30,21 @@ class WebSocket {
 			for k, v in (!callbacks ? Map() : Type(callbacks) = 'Object' ? callbacks.OwnProps() : callbacks)
 				this.callbacks[k] := v
 			this.connect()
+			ObjRelease(ObjPtr(this))
+			ObjRelease(ObjPtr(this))
 		}
 		__Delete() {
 			if (this.socket)
-				this.socket.Disconnect()
+				ObjAddRef(ObjPtrAddRef(this)), this.socket.Disconnect(), this.socket := ''
 		}
 		SendText(str) {
+			if (this.socket.Socket = -1)
+				throw Exception('websocket已断开')
 			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: str})
-			this.socket.Send(buf.Ptr, buf.Size)
+			try
+				this.socket.Send(buf.Ptr, buf.Size)
+			catch (e)
+				this.socket.OnMessage(this.socket.Socket, Socket.FD_CLOSE, Socket.WM_SOCKET, A_ScriptHwnd)
 		}
 		ping() {
 			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 0x9, Mask: 1, PayloadData: 'ping'})
@@ -71,6 +55,8 @@ class WebSocket {
 			this.socket.Send(buf.Ptr, buf.Size)
 		}
 		connect() {
+			if (this.socket.Socket = -1)
+				this.socket.Connect([this.host, this.port])
 			this.socket.DeleteProp('onRecv')
 			this.socket.SendText(this.msg)
 			this.socket.Recv(&buf := 0, 0, 0, 10000)
@@ -92,10 +78,13 @@ class WebSocket {
 		}
 		onEvent(event, sc) {
 			if (event = 'Message') {
-				if ((len := sc.Recv(&buf := 0, , , 500)) && this.callbacks.Has('Message')) {
+				if ((len := sc.Recv(&buf := 0, , , 200)) && this.callbacks.Has('Message')) {
 					frames := WebSocket.decodeDataFrames(buf)
-					for frame in frames
+					for frame in frames {
+						if (frame.Opcode = 0x8)
+							this.socket.OnMessage(this.socket.Socket, Socket.FD_CLOSE, Socket.WM_SOCKET, A_ScriptHwnd)
 						this.callbacks['Message'](this, frame)
+					}
 				}
 			} else {
 				if (event = 'Close')
@@ -189,12 +178,16 @@ class WebSocket {
 	}
 }
 
+; ws := WebSocket.Client('ws://123.207.136.134:9010/ajaxchattest', {Message: ppp}, , 'Origin: http://coolaf.com/tool/chattest`r`n')
 ws := WebSocket.Client('ws://121.40.165.18:8800', {Message: ppp})
 ; ws.SendText('fsd')
 ; ws.SendText('fsdgdfg')
 ; ws.SendText('zdw')
 ppp(sc, data) {
-	MsgBox(data.Text)
+	ToolTip(data.Text)
 }
 
+ws := ''
+
 F7:: ws.SendText(InputBox().Value)
+F4:: ws.close()

@@ -29,8 +29,8 @@ class Socket {
 			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
 			ai_addr := NumGet(Next + 0, 16 + (2 * A_PtrSize), "Ptr")
 			if ((this.Socket := DllCall("ws2_32\socket", "Int", NumGet(Next + 0, 4, "Int")
-				, "Int", this.SocketType, "Int", this.ProtocolId, "UInt")) != -1) {
-				if (DllCall("ws2_32\WSAConnect", "UInt", this.Socket, "Ptr", ai_addr
+				, "Int", this.SocketType, "Int", this.ProtocolId, "Ptr")) != -1) {
+				if (DllCall("ws2_32\WSAConnect", "Ptr", this.Socket, "Ptr", ai_addr
 					, "UInt", ai_addrlen, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Int") = 0) {
 					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: Error Handling
 					return this.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
@@ -50,8 +50,8 @@ class Socket {
 			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
 			ai_addr := NumGet(Next + 0, 16 + (2 * A_PtrSize), "Ptr")
 			if ((this.Socket := DllCall("ws2_32\socket", "Int", NumGet(Next + 0, 4, "Int")
-				, "Int", this.SocketType, "Int", this.ProtocolId, "UInt")) != -1) {
-				if (DllCall("ws2_32\bind", "UInt", this.Socket, "Ptr", ai_addr
+				, "Int", this.SocketType, "Int", this.ProtocolId, "Ptr")) != -1) {
+				if (DllCall("ws2_32\bind", "Ptr", this.Socket, "Ptr", ai_addr
 					, "UInt", ai_addrlen, "Int") == 0) {
 					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: ERROR HANDLING
 					return this.EventProcRegister(Socket.FD_READ | Socket.FD_ACCEPT | Socket.FD_CLOSE)
@@ -64,11 +64,11 @@ class Socket {
 	}
 
 	Listen(backlog := 32) {
-		return DllCall("ws2_32\listen", "UInt", this.Socket, "Int", backlog) == 0
+		return DllCall("ws2_32\listen", "Ptr", this.Socket, "Int", backlog) == 0
 	}
 
 	Accept() {
-		if ((s := DllCall("ws2_32\accept", "UInt", this.Socket, "Ptr", 0, "Ptr", 0, "Ptr")) == -1)
+		if ((s := DllCall("ws2_32\accept", "Ptr", this.Socket, "Ptr", 0, "Ptr", 0, "Ptr")) == -1)
 			throw Exception("Error calling accept", , this.GetLastError())
 		Sock := Socket(s, this.ProtocolId, this.SocketType)
 		Sock.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
@@ -82,7 +82,7 @@ class Socket {
 
 		; Unregister the socket event handler and close the socket
 		this.EventProcUnregister()
-		if (DllCall("ws2_32\closesocket", "UInt", this.Socket, "Int") == -1)
+		if (DllCall("ws2_32\closesocket", "Ptr", this.Socket, "Int") == -1)
 			throw Exception("Error closing socket", , this.GetLastError())
 		this.Socket := -1
 		return 1
@@ -90,13 +90,13 @@ class Socket {
 
 	MsgSize() {
 		static FIONREAD := 0x4004667F
-		if (DllCall("ws2_32\ioctlsocket", "UInt", this.Socket, "UInt", FIONREAD, "UInt*", &argp := 0) == -1)
+		if (DllCall("ws2_32\ioctlsocket", "Ptr", this.Socket, "UInt", FIONREAD, "UInt*", &argp := 0) == -1)
 			throw Exception("Error calling ioctlsocket", , this.GetLastError())
 		return argp
 	}
 
 	Send(pBuffer, BufSize, Flags := 0) {
-		if ((r := DllCall("ws2_32\send", "UInt", this.Socket, "Ptr", pBuffer, "Int", BufSize, "Int", Flags)) == -1)
+		if ((r := DllCall("ws2_32\send", "Ptr", this.Socket, "Ptr", pBuffer, "Int", BufSize, "Int", Flags)) == -1)
 			throw Exception("Error calling send", , this.GetLastError())
 		return r
 	}
@@ -118,7 +118,7 @@ class Socket {
 		else
 			BufSize := Min(BufSize, Length)
 		Buffer := BufferAlloc(BufSize)
-		if ((r := DllCall("ws2_32\recv", "UInt", this.Socket, "Ptr", Buffer, "Int", BufSize, "Int", Flags)) == -1)
+		if ((r := DllCall("ws2_32\recv", "Ptr", this.Socket, "Ptr", Buffer, "Int", BufSize, "Int", Flags)) == -1)
 			throw Exception("Error calling recv", , this.GetLastError())
 		return r
 	}
@@ -180,7 +180,7 @@ class Socket {
 
 	AsyncSelect(lEvent) {
 		if (DllCall("ws2_32\WSAAsyncSelect"
-			, "UInt", this.Socket	; s
+			, "Ptr", this.Socket	; s
 			, "Ptr", A_ScriptHwnd	; hWnd
 			, "UInt", Socket.WM_SOCKET	; wMsg
 			, "UInt", lEvent) == -1)	; lEvent
@@ -202,7 +202,7 @@ class SocketUDP extends Socket {
 	SetBroadcast(Enable) {
 		static SOL_SOCKET := 0xFFFF, SO_BROADCAST := 0x20
 		if (DllCall("ws2_32\setsockopt"
-			, "UInt", this.Socket	; SOCKET s
+			, "Ptr", this.Socket	; SOCKET s
 			, "Int", SOL_SOCKET	; int    level
 			, "Int", SO_BROADCAST	; int    optname
 			, "UInt*", &Enable := !!Enable	; *char  optval
