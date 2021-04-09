@@ -82,7 +82,7 @@ class WebSocket {
 			if (!RegExMatch(str, 'i)Sec-Websocket-Accept:\s?(.+)', &m) || m[1] != this.sec_accept)
 				throw Exception('websocket验证失败')
 			this.socket.onRecv := ObjBindMethod(this, 'onEvent', 'Message')
-			this.onEvent('Open', '')
+			this.onEvent('Open', ''), this.readyState := 1
 			lf := InStr(str, '`r`n`r`n'), lf := StrPut(SubStr(str, 1, lf + 3), 'utf-8') - 1
 			if (buf.Size > lf && this.callbacks.Has('Message')) {
 				frames := WebSocket.decodeDataFrames({Ptr: buf.Ptr + lf, Size: buf.Size - lf})
@@ -198,3 +198,8 @@ ppp(sc, data) {
 }
 
 F7:: ws.SendText(InputBox().Value)
+
+F6:: {
+	if (0 >= DllCall("ws2_32\recv", "UInt", ws.socket.Socket, "Ptr", Buffer := BufferAlloc(1), "Int", 1, "Int", Socket.MSG_PEEK))
+		throw Exception("Error calling recv", , ws.socket.GetLastError())
+}
