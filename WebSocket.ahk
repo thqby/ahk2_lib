@@ -1,5 +1,5 @@
 ﻿#Persistent
-socket := WebSocket("ws://121.40.165.18:8800", {open: ccc, Message: aaa, Close: bbb})
+socket := wsclient("ws://121.40.165.18:8800", {open: ccc, Message: aaa, Close: bbb})
 ; Msgbox socket.url (socket.readyState = 1 ? "已连接" : "已断开")
 return
 aaa(self, event) {
@@ -20,7 +20,7 @@ F9:: {
 F10:: {
 	socket.send(InputBox().Value)
 }
-class WebSocket
+class wsclient
 {
 	doc := "", BlockSleep := 50, Timeout := 15000
 

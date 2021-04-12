@@ -49,7 +49,7 @@ class CSQLite
 	; ===================================================================================================================
 	; PRIVATE _StrToUTF8
 	; ===================================================================================================================
-	_StrToUTF8(Str, ByRef UTF8) => (VarSetStrCapacity(UTF8, size:=StrPut(Str, "UTF-8")), StrPut(Str, StrPtr(UTF8), "UTF-8"), size)
+	_StrToUTF8(Str, &UTF8) => (VarSetStrCapacity(UTF8, size:=StrPut(Str, "UTF-8")), StrPut(Str, StrPtr(UTF8), "UTF-8"), size)
 
 	; ===================================================================================================================
 	; PRIVATE _ErrMsg
@@ -134,8 +134,8 @@ class CSQLite
 			if (Create)
 				Flags |= SQLITE_OPEN_CREATE
 		}
-		this._Path := DBPath, this._StrToUTF8(DBPath, UTF8:="")
-		if (RC := DllCall("SQLite3.dll\sqlite3_open_v2", "Ptr", StrPtr(UTF8), "Ptr*", HDB:=0, "Int", Flags, "Ptr", 0, "Cdecl Int"))
+		this._Path := DBPath, this._StrToUTF8(DBPath, &UTF8:="")
+		if (RC := DllCall("SQLite3.dll\sqlite3_open_v2", "Ptr", StrPtr(UTF8), "Ptr*", &HDB:=0, "Int", Flags, "Ptr", 0, "Cdecl Int"))
 			return (this._Path := "", this.ErrorMsg := this._ErrMsg(), this.ErrorCode := RC, false)
 		this._Handle := HDB
 		this.createScalarFunction(Func("regexp"), 2)
@@ -168,10 +168,10 @@ class CSQLite
 		if (!this._Handle)
 			return (this.ErrorMsg := "You must first Open Memory DB!", false)
 		Flags := SQLITE_OPEN_READWRITE, Flags |= SQLITE_OPEN_CREATE
-		this._StrToUTF8(isSave?(tmp:=StrReplace(DBPath, ".db", ".tmp")):DBPath, UTF8:="")
-		if (RC := DllCall("SQLite3.dll\sqlite3_open_v2", "Ptr", StrPtr(UTF8), "Ptr*", HDB, "Int", Flags, "Ptr", 0, "Cdecl Int"))
+		this._StrToUTF8(isSave?(tmp:=StrReplace(DBPath, ".db", ".tmp")):DBPath, &UTF8:="")
+		if (RC := DllCall("SQLite3.dll\sqlite3_open_v2", "Ptr", StrPtr(UTF8), "Ptr*", &HDB, "Int", Flags, "Ptr", 0, "Cdecl Int"))
 			return (this.ErrorMsg := this._ErrMsg(), this.ErrorCode := RC, false)
-		pFrom := (isSave ? this._Handle : HDB), pTo   := (isSave ? HDB : this._Handle), this._StrToUTF8("main", UTF8)
+		pFrom := (isSave ? this._Handle : HDB), pTo   := (isSave ? HDB : this._Handle), this._StrToUTF8("main", &UTF8)
 		pBackup := DllCall("SQLite3.dll\sqlite3_backup_init", "Ptr", pTo, "Ptr", StrPtr(UTF8), "Ptr", pFrom, "Ptr", StrPtr(UTF8), "Cdecl Int")
 		if (pBackup){
 			DllCall("SQLite3.dll\sqlite3_backup_step", "Ptr", pBackup, "Int", -1, "Cdecl Int")
@@ -217,14 +217,14 @@ class CSQLite
 		Ptr:=0, pfunc:=0
 		__New(funcobj, params, initflag:=0){
 			this.pfunc:=pfunc:=CallbackCreate(funcobj)
-			if (!this.Ptr:=DllCall("msvcrt\_beginthreadex", "Ptr", 0, "UInt", 0, "Ptr", pfunc, "Ptr", ObjPtrAddRef(params), "UInt", initflag, "UInt*", threadid:=0))
+			if (!this.Ptr:=DllCall("msvcrt\_beginthreadex", "Ptr", 0, "UInt", 0, "Ptr", pfunc, "Ptr", ObjPtrAddRef(params), "UInt", initflag, "UInt*", &threadid:=0))
 				throw Exception("create thread fail")
 			this.threadid:=threadid
 		}
 
 		__Delete()=>(CallbackFree(this.pfunc), (this.ExitCode=259)?this.Terminate():"", (this.Ptr?DllCall("Kernel32\CloseHandle", "Ptr", this):0))
 		Terminate(dwExitCode:=1)=>(DllCall("Kernel32\TerminateThread", "Ptr", this, "UInt", dwExitCode))
-		ExitCode[]=>(DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", Code:=0)?Code:0)
+		ExitCode[]=>(DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", &Code:=0)?Code:0)
 	}
 	ExecByThread(SQL){
 		if !(this._Handle)
@@ -233,12 +233,12 @@ class CSQLite
 		if (this._Thread.pexec)
 			return
 		this._Thread.DB:=this, this._Thread.pexec:=CSQLite.execfunc_ptr
-		this._Thread._Threadobj:=CSQLite.Thread.New(Func("_Exec"), this._Thread)
+		this._Thread._Threadobj:=CSQLite.Thread.Call(Func("_Exec"), this._Thread)
 		
 		_Exec(pinfo){
 			_Thread:=ObjFromPtr(pinfo), hdb:=_Thread.DB._Handle, pexec:=_Thread.pexec
 			while (_Thread.queue.Has(1)){
-				if (RC:=DllCall(pexec, "Ptr", hdb, "Ptr", _Thread.queue[1], "Ptr", 0, "Ptr", 0, "Ptr*", Err:=0, "Cdecl Int")){
+				if (RC:=DllCall(pexec, "Ptr", hdb, "Ptr", _Thread.queue[1], "Ptr", 0, "Ptr", 0, "Ptr*", &Err:=0, "Cdecl Int")){
 					ErrMsg:=_Thread.DB._ReturnMsg(RC), DllCall("SQLite3.dll\sqlite3_free", "Ptr", Err, "Cdecl")
 					throw Exception(ErrMsg)
 				}
@@ -252,8 +252,8 @@ class CSQLite
 		this.ErrorMsg := "", this.ErrorCode := 0, this.SQL := SQL
 		if !(this._Handle)
 			return (this.ErrorMsg := "Invalid database handle!", false)
-		this._StrToUTF8(SQL, UTF8:="")
-		RC := DllCall(CSQLite.execfunc_ptr, "Ptr", this._Handle, "Ptr", StrPtr(UTF8), "Ptr", pCallback, "Ptr", ObjPtrAddRef(this), "Ptr*", Err:=0, "Cdecl Int")
+		this._StrToUTF8(SQL, &UTF8:="")
+		RC := DllCall(CSQLite.execfunc_ptr, "Ptr", this._Handle, "Ptr", StrPtr(UTF8), "Ptr", pCallback, "Ptr", ObjPtrAddRef(this), "Ptr*", &Err:=0, "Cdecl Int")
 		if (RC) {
 			this.ErrorMsg := this._ReturnMsg(RC)
 			if (this.ErrorMsg = "")
@@ -265,13 +265,13 @@ class CSQLite
 		this.Changes := this._Changes()
 		return true
 	}
-	GetTable(SQL, ByRef TB, pcall := 0) {
+	GetTable(SQL, &TB, pcall := 0) {
 		this.ErrorMsg := "", this.ErrorCode := 0, this.SQL := SQL
 		if !(this._Handle)
 			return (this.ErrorMsg := "Invalid database handle!", false)
-		this._StrToUTF8(SQL, UTF8:=""), TB := {RowCount:0, Rows:[]}
+		this._StrToUTF8(SQL, &UTF8:=""), TB := {RowCount:0, Rows:[]}
 		RC := DllCall(CSQLite.execfunc_ptr, "Ptr", this._Handle, "Ptr", StrPtr(UTF8)
-			, "Ptr", (pcall>0?pcall:CSQLite.callback_gettable_ptr), "Ptr", ObjPtrAddRef(TB), "Ptr*", Err:=0, "Cdecl Int")
+			, "Ptr", (pcall>0?pcall:CSQLite.callback_gettable_ptr), "Ptr", ObjPtrAddRef(TB), "Ptr*", &Err:=0, "Cdecl Int")
 		if (RC) {
 			this.ErrorMsg := this._ReturnMsg(RC)
 			if (this.ErrorMsg = "")
@@ -281,7 +281,7 @@ class CSQLite
 			this.ErrorCode := RC, DllCall("SQLite3.dll\sqlite3_free", "Ptr", Err, "Cdecl")
 			return false
 		} else if (pcall<0){
-			RC := DllCall("SQlite3.dll\sqlite3_prepare_v2", "Ptr", This._Handle, "Ptr", StrPtr(UTF8), "Int", -1, "Ptr*", Stmt:=0, "Ptr", 0, "Cdecl Int")
+			RC := DllCall("SQlite3.dll\sqlite3_prepare_v2", "Ptr", This._Handle, "Ptr", StrPtr(UTF8), "Int", -1, "Ptr*", &Stmt:=0, "Ptr", 0, "Cdecl Int")
 			TB.Cols := [], TB.ColCount := DllCall("SQlite3.dll\sqlite3_column_count", "Ptr", Stmt, "Cdecl Int")
 			Loop TB.ColCount
 				TB.Cols.Push(StrGet(DllCall("SQlite3.dll\sqlite3_column_name16", "Ptr", Stmt, "Int", A_Index - 1, "Cdecl UPtr"), "UTF-16"))
@@ -300,14 +300,14 @@ class CSQLite
 			return (this.ErrorMsg := this._ErrMsg(), this.ErrorCode := err, false)
 		return true
 	}
-	LastInsertRowID(ByRef RowID) {
+	LastInsertRowID(&RowID) {
 		this.ErrorMsg := "", this.ErrorCode := 0, this.SQL := ""
 		if !(this._Handle)
 			return (this.ErrorMsg := "Invalid database handle!", false)
 		RowID := DllCall("SQLite3.dll\sqlite3_last_insert_rowid", "Ptr", this._Handle, "Cdecl Int64")
 		return true
 	}
-	TotalChanges(ByRef Rows) {
+	TotalChanges(&Rows) {
 		this.ErrorMsg := "", this.ErrorCode := 0, this.SQL := ""
 		if !(this._Handle)
 			return (this.ErrorMsg := "Invalid database handle!", false)

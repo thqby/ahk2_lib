@@ -15,15 +15,15 @@
 			if !(pfnDllGetClassObject := DllCall('GetProcAddress', 'Ptr', moduleHandle, 'AStr', 'DllGetClassObject', 'Ptr'))
 				throw Exception('当前模块无DllGetClassObject函数入口')
 			dlls[moduleHandle] := {pfn: pfnDllGetClassObject, TypeLib: '', CLSID: '', free: freedll}
-			if (!DllCall('oleaut32\LoadTypeLib', 'Str', dllpath, 'Ptr*', ptlib := 0)) {
+			if (!DllCall('oleaut32\LoadTypeLib', 'Str', dllpath, 'Ptr*', &ptlib := 0)) {
 				libID := ver := tt := ''
 				Loop ComCall(3, ptlib) { ; GetTypeInfoCount
-					ComCall(4, ptlib, 'UInt', A_Index - 1, 'Ptr*', ptinfo := 0) ; GetTypeInfo
-					ComCall(3, ptinfo, 'Ptr*', ptatt := 0) ; GetTypeAttr
+					ComCall(4, ptlib, 'UInt', A_Index - 1, 'Ptr*', &ptinfo := 0) ; GetTypeInfo
+					ComCall(3, ptinfo, 'Ptr*', &ptatt := 0) ; GetTypeAttr
 					if (5 = typekind := NumGet(ptatt, 36 + A_PtrSize, 'UInt')) ; ptatt->typekind TKIND_COCLASS
-						CLSID := CLSID || (DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', GUID := ''), GUID)
+						CLSID := CLSID || (DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', &GUID := ''), GUID)
 					else if (typekind = 4) { ; TKIND_DISPATCH
-						DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', DispatchIID := ''), oldvers := Map()
+						DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', &DispatchIID := ''), oldvers := Map()
 						try Loop Reg, 'HKEY_CLASSES_ROOT\TypeLib\' RegRead('HKEY_CLASSES_ROOT\Interface\' DispatchIID '\TypeLib'), 'K'
 							oldvers[A_LoopRegName] := true
 						DllCall('oleaut32\RegisterTypeLibForUser', 'Ptr', ptlib, 'Str', dllpath, 'Ptr', 0)
@@ -54,12 +54,12 @@
 	} else {
 		DllCall('ole32\CLSIDFromString', 'Str', CLSID, 'Ptr', _CLSID := BufferAlloc(16))
 		DllCall('ole32\CLSIDFromString', 'Str', '{00000001-0000-0000-C000-000000000046}', 'Ptr', IID_IClassFactory := BufferAlloc(16))
-		if (DllCall(dlls[moduleHandle].pfn, 'Ptr', _CLSID, 'Ptr', IID_IClassFactory, 'Ptr*', pFactory := 0, 'UInt'))
+		if (DllCall(dlls[moduleHandle].pfn, 'Ptr', _CLSID, 'Ptr', IID_IClassFactory, 'Ptr*', &pFactory := 0, 'UInt'))
 			throw Exception('无效的类字符串')
 		ObjRelease(pFactory)
 	}
 	DllCall('ole32\CLSIDFromString', 'Str', '{00000000-0000-0000-C000-000000000046}', 'Ptr', IID_IUnknown := BufferAlloc(16))
-	if (!ComCall(3, pFactory, 'Ptr', 0, 'Ptr', IID_IUnknown, 'Ptr*', pdisp := 0)) ; pFactory->CreateInstance
+	if (!ComCall(3, pFactory, 'Ptr', 0, 'Ptr', IID_IUnknown, 'Ptr*', &pdisp := 0)) ; pFactory->CreateInstance
 		return (clsids[CLSID] := pFactory, ComObject(9, pdisp)) ; IDispatch comobj
 	throw Exception('创建 COM 对象失败')
 	_exit_(*) { ; unregister type library, free library where script exit

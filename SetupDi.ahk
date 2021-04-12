@@ -31,8 +31,8 @@ SetupDiGetClassDevs(ClassGuid:=0, Enumerator:=0, hwndParent:=0, Flags:=0x4)=>Dll
  @return value: String or throw a exception
 */
 SetupDiGetDeviceProperty(DeviceInfoSet, DeviceInfoData, PropertyKey){
-	if (!DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", PropertyType:=0, "Ptr", 0, "UInt", 0, "UInt*", RequiredSize:=0, "UInt", 0) && A_LastError == 0x7A){
-		DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", PropertyType:=0, "Ptr", PropertyBuffer:=BufferAlloc(RequiredSize), "UInt", RequiredSize, "Ptr", 0, "UInt", 0)
+	if (!DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", &PropertyType:=0, "Ptr", 0, "UInt", 0, "UInt*", &RequiredSize:=0, "UInt", 0) && A_LastError == 0x7A){
+		DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", &PropertyType:=0, "Ptr", PropertyBuffer:=BufferAlloc(RequiredSize), "UInt", RequiredSize, "Ptr", 0, "UInt", 0)
 		switch PropertyType
 		{
 		case 0x07, 0x11:	; DEVPROP_TYPE_UINT32, DEVPROP_TYPE_BOOLEAN

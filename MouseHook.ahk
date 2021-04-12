@@ -16,6 +16,8 @@ class MouseHook {
 	__New(Event := unset) {
 		if IsSet(&Event)
 			this.OnEvent := Event
+		else
+			this.OnEvent := (*) => false
 		this.cb := CallbackCreate(LowLevelMouseProc, 'F')
 		ObjRelease(ObjPtr(this))
 		LowLevelMouseProc(nCode, wParam, lParam) {
@@ -52,7 +54,7 @@ class MouseHook {
 			ObjPtrAddRef(this), this.Stop(), CallbackFree(this.cb), this.cb := 0
 	}
 	Stop() => (this.Ptr ? (DllCall('UnhookWindowsHookEx', 'Ptr', this), this.Ptr := 0) : 0)
-	OnEvent(wParam, lParam) => false
+	; OnEvent(wParam, lParam) => false
 	Start() {
 		if this.Ptr
 			return

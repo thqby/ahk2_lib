@@ -1,110 +1,7 @@
 #Include <Socket>
 
-; ws := Socket()
-; ws.onRecv := recv
-; ws.OnDisconnect := Disc
-; ws.Connect(['121.40.165.18', 8800])
-; ws.SendText('GET / HTTP/1.1`r`nHost: 121.40.165.18:8800`r`nConnection: Upgrade`r`nUpgrade: websocket`r`nSec-WebSocket-Version: 13`r`nSec-WebSocket-Key: w4v7O6xFTi36lq3RNcgctw==`r`n`r`n')
-; Sleep(1000)
-; ; d := DataFrame.encode({FIN: 1, Opcode: 0x8, Mask: 1, PayloadData: 'ping'})
-; ; d := DataFrame.encode({FIN: 1, Opcode: 0x9, Mask: 1, PayloadData: 'ping'})
-; d := DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: 'mczkndlkenwqlkclkzx'})
-; ; s := DataFrame.decode(d)
-; ws.RecvText()
-; F3::ws.Send(d.Ptr, d.Size)
-; F4::msgbox ws.MsgSize()
-; Disc(self) {
-; 	MsgBox(self.RecvText())
-; }
-; recv(self) {
-; 	static f := 0
-; 	len := self.Recv(&p := 0)
-; 	MsgBox(StrGet(StrPtr(p), len, 'utf-8'))
-; 	s := DataFrame.decode({ptr: StrPtr(p), size: len})
-; }
-
 class WebSocket {
 	static Client(ws, callbacks := 0, proto := '', headers := '') => WebSocket._Client.Call(ws, callbacks, proto, headers)
-	class _Client {
-		socket := Socket(), readyState := 0
-		__New(ws, callbacks := 0, proto := '', headers := '') {
-			if !RegExMatch(ws, '^ws://([^/:]+)(:\d+)?(/.+)?$', &m)
-				throw Exception('不支持的ws url')
-			host := m[1], port := LTrim(m[2], ':') || '80', path := m[3] || '/', extend := ''
-			this.socket.Connect([host, port])
-			this.socket.OnDisconnect := ObjBindMethod(this, 'onEvent', 'Close')
-			if Type(headers) = 'String'
-				extend := headers
-			else
-				for k, v in Type(headers) = 'Object' ? headers.OwnProps() : headers
-					extend .= k ': ' v '`r`n'
-			this.msg := Format(
-				'GET {} HTTP/1.1`r`n'
-				'Host: {}`r`n'
-				'Connection: Upgrade`r`n'
-				'Upgrade: websocket`r`n'
-				'{}'
-				'Sec-WebSocket-Version: 13`r`n'
-				'Sec-WebSocket-Key: {}`r`n'
-				'`r`n',
-				path, host ':' port, extend, seckey := WebSocket.sec_key()
-			)
-			this.callbacks := Map(), this.callbacks.CaseSense := false, this.sec_accept := WebSocket.sec_accept(seckey)
-			for k, v in (!callbacks ? Map() : Type(callbacks) = 'Object' ? callbacks.OwnProps() : callbacks)
-				this.callbacks[k] := v
-			this.connect()
-		}
-		__Delete() {
-			if (this.socket)
-				this.socket.Disconnect()
-		}
-		SendText(str) {
-			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: str})
-			this.socket.Send(buf.Ptr, buf.Size)
-		}
-		ping() {
-			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 0x9, Mask: 1, PayloadData: 'ping'})
-			this.socket.Send(buf.Ptr, buf.Size)
-		}
-		close() {
-			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 0x8, Mask: 1, PayloadData: 'close'})
-			this.socket.Send(buf.Ptr, buf.Size)
-		}
-		connect() {
-			this.socket.DeleteProp('onRecv')
-			this.socket.SendText(this.msg)
-			this.socket.Recv(&buf := 0, 0, 0, 10000)
-			if (!buf)
-				throw Exception('连接超时')
-			str := StrGet(buf, 'utf-8')
-			if InStr(str, 'HTTP/1.1 101 Switching Protocols') != 1
-				throw Exception('连接失败')
-			if (!RegExMatch(str, 'i)Sec-Websocket-Accept:\s?(.+)', &m) || m[1] != this.sec_accept)
-				throw Exception('websocket验证失败')
-			this.socket.onRecv := ObjBindMethod(this, 'onEvent', 'Message')
-			this.onEvent('Open', ''), this.readyState := 1
-			lf := InStr(str, '`r`n`r`n'), lf := StrPut(SubStr(str, 1, lf + 3), 'utf-8') - 1
-			if (buf.Size > lf && this.callbacks.Has('Message')) {
-				frames := WebSocket.decodeDataFrames({Ptr: buf.Ptr + lf, Size: buf.Size - lf})
-				for frame in frames
-					this.callbacks['Message'](this, frame)
-			}
-		}
-		onEvent(event, sc) {
-			if (event = 'Message') {
-				if ((len := sc.Recv(&buf := 0, , , 500)) && this.callbacks.Has('Message')) {
-					frames := WebSocket.decodeDataFrames(buf)
-					for frame in frames
-						this.callbacks['Message'](this, frame)
-				}
-			} else {
-				if (event = 'Close')
-					this.readyState := 3, this.socket.Disconnect()
-				if this.callbacks.Has(event)
-					this.callbacks[event](this)
-			}
-		}
-	}
 
 	static decodeDataFrames(buf) {
 		frames := [], size := buf.Size, ptr := buf.Ptr
@@ -187,19 +84,111 @@ class WebSocket {
 			return o
 		}
 	}
+	class _Client {
+		_sc := Socket(), readyState := 0, host := '', port := ''
+		__New(ws, callbacks := 0, proto := '', headers := '') {
+			if !RegExMatch(ws, '^ws://([^/:]+)(:\d+)?(/.+)?$', &m)
+				throw Exception('不支持的ws url')
+			this.host := host := m[1], this.port := port := LTrim(m[2], ':') || '80', path := m[3] || '/', extend := ''
+			this._sc.Connect([host, port])
+			this._sc.OnDisconnect := ObjBindMethod(this, 'onEvent', 'Close')
+			if Type(headers) = 'String'
+				extend := headers
+			else
+				for k, v in Type(headers) = 'Object' ? headers.OwnProps() : headers
+					extend .= k ': ' v '`r`n'
+			this.msg := Format(
+				'GET {} HTTP/1.1`r`n'
+				'Host: {}`r`n'
+				'Connection: Upgrade`r`n'
+				'Upgrade: websocket`r`n'
+				'{}'
+				'Sec-WebSocket-Version: 13`r`n'
+				'Sec-WebSocket-Key: {}`r`n'
+				'`r`n',
+				path, host ':' port, extend, seckey := WebSocket.sec_key()
+			)
+			this.callbacks := Map(), this.callbacks.CaseSense := false, this.sec_accept := WebSocket.sec_accept(seckey)
+			for k, v in (!callbacks ? Map() : Type(callbacks) = 'Object' ? callbacks.OwnProps() : callbacks)
+				this.callbacks[k] := v
+			this.connect(), ObjRelease(ObjPtr(this)), ObjRelease(ObjPtr(this))
+		}
+		__Delete() {
+			if (this._sc)
+				ObjAddRef(ObjPtrAddRef(this)), this._sc.Disconnect(), this._sc := ''
+		}
+		SendText(str) {
+			if (this._sc.Ptr = -1)
+				throw Exception('websocket已断开')
+			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: str})
+			try
+				this._sc.Send(buf.Ptr, buf.Size)
+			catch (e)
+				this._sc.OnMessage(this._sc.Ptr, Socket.FD_CLOSE, Socket.WM_SOCKET, A_ScriptHwnd)
+		}
+		ping() {
+			if (this._sc.Ptr = -1)
+				return
+			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 0x9, Mask: 1, PayloadData: 'ping'})
+			this._sc.Send(buf.Ptr, buf.Size)
+		}
+		close() {
+			if (this._sc.Ptr = -1)
+				return
+			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 0x8, Mask: 1, PayloadData: 'close'})
+			this._sc.Send(buf.Ptr, buf.Size)
+		}
+		connect() {
+			if (this.readyState = 1)
+				throw Exception('WebSocket已连接')
+			if (this._sc.Ptr = -1)
+				this._sc.Connect([this.host, this.port])
+			this._sc.DeleteProp('onRecv')
+			this._sc.SendText(this.msg)
+			this._sc.Recv(&buf := 0, 0, 0, 10000)
+			if (!buf)
+				throw Exception('连接超时')
+			str := StrGet(buf, 'utf-8')
+			if InStr(str, 'HTTP/1.1 101 Switching Protocols') != 1
+				throw Exception('连接失败')
+			if (!RegExMatch(str, 'i)Sec-Websocket-Accept:\s?(.+)', &m) || m[1] != this.sec_accept)
+				throw Exception('WebSocket验证失败')
+			this.readyState := 1, this._sc.onRecv := ObjBindMethod(this, 'onEvent', 'Message'), this.onEvent('Open', '')
+			lf := InStr(str, '`r`n`r`n'), lf := StrPut(SubStr(str, 1, lf + 3), 'utf-8') - 1
+			if (buf.Size > lf && this.callbacks.Has('Message')) {
+				frames := WebSocket.decodeDataFrames({Ptr: buf.Ptr + lf, Size: buf.Size - lf})
+				for frame in frames
+					this.callbacks['Message'](this, frame)
+			}
+		}
+		onEvent(event, sc) {
+			if (event = 'Message') {
+				if ((len := sc.Recv(&buf := 0, , , 200)) && this.callbacks.Has('Message')) {
+					frames := WebSocket.decodeDataFrames(buf)
+					for frame in frames {
+						if (frame.Opcode = 0x8)
+							this._sc.OnMessage(this._sc.Ptr, Socket.FD_CLOSE, Socket.WM_SOCKET, A_ScriptHwnd)
+						this.callbacks['Message'](this, frame)
+					}
+				}
+			} else {
+				if (event = 'Close')
+					this.readyState := 3, this._sc.Disconnect()
+				if this.callbacks.Has(event)
+					this.callbacks[event](this)
+			}
+		}
+	}
 }
 
-ws := WebSocket.Client('ws://121.40.165.18:8800', {Message: ppp})
+; ws := WebSocket.Client('ws://123.207.136.134:9010/ajaxchattest', {Message: ppp}, , 'Origin: http://coolaf.com/tool/chattest`r`n')
+ws := WebSocket.Client('ws://121.40.165.18:8800', {Message: ppp, open: (*) => MsgBox('open'), close: (*) => MsgBox('close')})
 ; ws.SendText('fsd')
 ; ws.SendText('fsdgdfg')
 ; ws.SendText('zdw')
+
 ppp(sc, data) {
-	MsgBox(data.Text)
+	ToolTip(data.Text)
 }
 
 F7:: ws.SendText(InputBox().Value)
-
-F6:: {
-	if (0 >= DllCall("ws2_32\recv", "UInt", ws.socket.Socket, "Ptr", Buffer := BufferAlloc(1), "Int", 1, "Int", Socket.MSG_PEEK))
-		throw Exception("Error calling recv", , ws.socket.GetLastError())
-}

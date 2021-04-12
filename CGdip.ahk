@@ -13,7 +13,7 @@ class CGdip
 		if (!CGdip.hModule&&!DllCall("GetModuleHandle", "Str", "gdiplus", "Ptr"))
 			CGdip.hModule:=DllCall("LoadLibrary", "Str", "gdiplus")
 		si:=BufferAlloc(A_PtrSize = 8 ? 24 : 16, 0), NumPut("UInt", 1, si, 0)
-		DllCall("gdiplus\GdiplusStartup", "Ptr*", pToken:=0, "Ptr", si, "Ptr", 0), CGdip.pToken:=pToken
+		DllCall("gdiplus\GdiplusStartup", "Ptr*", &pToken:=0, "Ptr", si, "Ptr", 0), CGdip.pToken:=pToken
 		return pToken
 	}
 
@@ -37,7 +37,7 @@ class CGdip
 			Matrix_:=(Matrix[A_Index] != "") ? Matrix[A_Index] : Mod(A_Index-1, 6) ? 0 : 1
 			NumPut("float", Matrix_, ColourMatrix, (A_Index-1)*4)
 		}
-		DllCall("gdiplus\GdipCreateImageAttributes", "Ptr*", ImageAttr:=0)
+		DllCall("gdiplus\GdipCreateImageAttributes", "Ptr*", &ImageAttr:=0)
 		DllCall("gdiplus\GdipSetImageAttributesColorMatrix", "Ptr", ImageAttr, "int", 1, "int", 1, "Ptr", ColourMatrix, "Ptr", 0, "int", 0)
 		return ImageAttr
 	}
@@ -47,7 +47,7 @@ class CGdip
 	}
 	
 	static CreateRegion(){
-		DllCall("gdiplus\GdipCreateRegion", "UInt*", Region:=0)
+		DllCall("gdiplus\GdipCreateRegion", "UInt*", &Region:=0)
 		return Region
 	}
 
@@ -55,19 +55,19 @@ class CGdip
 		return DllCall("gdiplus\GdipDeleteRegion", "Ptr", Region)
 	}
 
-	static GetImageDimensions(pBitmap, ByRef Width, ByRef Height){
+	static GetImageDimensions(pBitmap, &Width, &Height){
 		Width:=0, Height:=0
-		DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "Uint*", Width)
-		DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "Uint*", Height)
+		DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "Uint*", &Width)
+		DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "Uint*", &Height)
 	}
 
 	static GetImageWidth(pBitmap){
-		DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "Uint*", Width:=0)
+		DllCall("gdiplus\GdipGetImageWidth", "Ptr", pBitmap, "Uint*", &Width:=0)
 		return Width
 	}
 
 	static GetImageHeight(pBitmap){
-		DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "Uint*", Height:=0)
+		DllCall("gdiplus\GdipGetImageHeight", "Ptr", pBitmap, "Uint*", &Height:=0)
 		return Height
 	}
 
@@ -92,13 +92,13 @@ class CGdip
 		}
 
 		static FromHDC(hdc){
-			DllCall("gdiplus\GdipCreateFromHDC", "Ptr", hdc, "Ptr*", pGraphics:=0)
-			return CGdip.Graphics.New(pGraphics)
+			DllCall("gdiplus\GdipCreateFromHDC", "Ptr", hdc, "Ptr*", &pGraphics:=0)
+			return CGdip.Graphics.Call(pGraphics)
 		}
 
 		static FromBitmap(pBitmap){
-			DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pBitmap, "Ptr*", pGraphics:=0)
-			return CGdip.Graphics.New(pGraphics)
+			DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pBitmap, "Ptr*", &pGraphics:=0)
+			return CGdip.Graphics.Call(pGraphics)
 		}
 
 		DrawRectangle(pPen, x, y, w, h){
@@ -188,16 +188,16 @@ class CGdip
 			return E
 		}
 
-		DrawString(ByRef sString, hFont, hFormat, pBrush, RectF){
+		DrawString(sString, hFont, hFormat, pBrush, RectF){
 			return DllCall("gdiplus\GdipDrawString", "Ptr", this, "Str", sString, "int", -1
 				, "Ptr", hFont, "Ptr", RectF, "Ptr", hFormat, "Ptr", pBrush)
 		}
 
-		MeasureString(ByRef sString, hFont, hFormat, RectF){
+		MeasureString(sString, hFont, hFormat, RectF){
 			RC:=BufferAlloc(16, 0)
 			DllCall("gdiplus\GdipMeasureString", "Ptr", this, "Ptr", StrPtr(sString), "int", -1
 				, "Ptr", hFont, "Ptr", RectF, "Ptr", hFormat
-				, "Ptr", RC, "Uint*", Chars:=0, "Uint*", Lines:=0)
+				, "Ptr", RC, "Uint*", &Chars:=0, "Uint*", &Lines:=0)
 			return RC.Ptr ? {x:NumGet(RC, 0, "float"), y:NumGet(RC, 4, "float"), w:NumGet(RC, 8, "float"), h:NumGet(RC, 12, "float"), chars:Chars, lines:Lines} : 0
 		}
 
@@ -309,7 +309,7 @@ class CGdip
 		GetDC(){
 			if this.hdc
 				return this.hdc
-			DllCall("gdiplus\GdipGetDC", "Ptr", this, "Ptr*", hdc:=0), this.hdc:=hdc
+			DllCall("gdiplus\GdipGetDC", "Ptr", this, "Ptr*", &hdc:=0), this.hdc:=hdc
 			return hdc
 		}
 		
@@ -351,29 +351,29 @@ class CGdip
 		}
 
 		static FromHWND(hwnd){
-			WinGetPos(,, Width, Height, hwnd)
+			WinGetPos(,, &Width, &Height, hwnd)
 			hbm:=CreateDIBSection(Width, Height), hdc:=CreateCompatibleDC(), obm:=SelectObject(hdc, hbm)
 			PrintWindow(hwnd, hdc)
-			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", pBitmap:=0)
+			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pBitmap:=0)
 			SelectObject(hdc, obm), DeleteObject(hbm), DeleteDC(hdc)
-			return CGdip.Bitmap.New(pBitmap)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
-		static FromBase64(ByRef Base64){
-			If !(DllCall("crypt32\CryptStringToBinary", "Str", Base64, "UInt", 0, "UInt", 0x01, "Ptr", 0, "UInt*", DecLen:=0, "Ptr", 0, "Ptr", 0))
+		static FromBase64(Base64){
+			If !(DllCall("crypt32\CryptStringToBinary", "Str", Base64, "UInt", 0, "UInt", 0x01, "Ptr", 0, "UInt*", &DecLen:=0, "Ptr", 0, "Ptr", 0))
 				return -1
 			Dec:=BufferAlloc(DecLen)
-			If !(DllCall("crypt32\CryptStringToBinary", "Str", Base64, "UInt", 0, "UInt", 0x01, "Ptr", Dec, "UInt*", DecLen, "Ptr", 0, "Ptr", 0))
+			If !(DllCall("crypt32\CryptStringToBinary", "Str", Base64, "UInt", 0, "UInt", 0x01, "Ptr", Dec, "UInt*", &DecLen, "Ptr", 0, "Ptr", 0))
 				return -2
 			If !(pStream:=DllCall("shlwapi\SHCreateMemStream", "Ptr", Dec, "UInt", DecLen, "UPtr"))
 				return -3
-			DllCall("gdiplus\GdipCreateBitmapFromStreamICM", "Ptr", pStream, "Ptr*", pBitmap:=0)
+			DllCall("gdiplus\GdipCreateBitmapFromStreamICM", "Ptr", pStream, "Ptr*", &pBitmap:=0)
 			DllCall("DeleteObject", "Ptr", pStream)
-			return CGdip.Bitmap.New(pBitmap)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromFile(sFile, IconNumber:=1, IconSize:=""){
-			SplitPath(sFile, , , ext)
+			SplitPath(sFile, , , &ext)
 			if (ext~="i)^(exe|dll|icl)$")
 			{
 				Sizes:=IconSize ? IconSize : 256 "|" 128 "|" 64 "|" 48 "|" 32 "|" 16
@@ -382,7 +382,7 @@ class CGdip
 				buf:=BufferAlloc(BufSize, 0)
 				Loop Parse Sizes, "|"
 				{
-					DllCall("PrivateExtractIcons", "Str", sFile, "int", IconNumber-1, "int", A_LoopField, "int", A_LoopField, "Ptr*", hIcon:=0, "Ptr*", 0, "Uint", 1, "Uint", 0)
+					DllCall("PrivateExtractIcons", "Str", sFile, "int", IconNumber-1, "int", A_LoopField, "int", A_LoopField, "Ptr*", &hIcon:=0, "Ptr*", 0, "Uint", 1, "Uint", 0)
 					if !hIcon
 						continue
 					if !DllCall("GetIconInfo", "Ptr", hIcon, "Ptr", buf)
@@ -413,17 +413,17 @@ class CGdip
 				dib:=BufferAlloc(104)
 				DllCall("GetObject", "Ptr", hbm, "int", A_PtrSize = 8 ? 104 : 84, "Ptr", dib) ; sizeof(DIBSECTION) = 76+2*(A_PtrSize=8?4:0)+2*A_PtrSize
 				Stride:=NumGet(dib, 12, "Int"), Bits:=NumGet(dib, 20 + (A_PtrSize = 8 ? 4 : 0)) ; padding
-				DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", Stride, "int", 0x26200A, "Ptr", Bits, "Ptr*", pBitmapOld:=0)
-				DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", 0, "int", 0x26200A, "Ptr", 0, "Ptr*", pBitmap:=0)
-				DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pBitmap, "Ptr*", G:=0)
+				DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", Stride, "int", 0x26200A, "Ptr", Bits, "Ptr*", &pBitmapOld:=0)
+				DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", 0, "int", 0x26200A, "Ptr", 0, "Ptr*", &pBitmap:=0)
+				DllCall("gdiplus\GdipGetImageGraphicsContext", "Ptr", pBitmap, "Ptr*", &G:=0)
 				G:=CGdip.Graphics.FromBitmap(pBitmap), G.DrawImage(pBitmapOld, 0, 0, Width, Height, 0, 0, Width, Height)
 				SelectObject(hdc, obm), DeleteObject(hbm), DeleteDC(hdc)
 				DllCall("gdiplus\GdipDisposeImage", "Ptr", pBitmapOld)
 				DestroyIcon(hIcon)
 			}
 			else
-				DllCall("gdiplus\GdipCreateBitmapFromFile", "Ptr", StrPtr(sFile), "Ptr*", pBitmap:=0)
-			return CGdip.Bitmap.New(pBitmap)
+				DllCall("gdiplus\GdipCreateBitmapFromFile", "Ptr", StrPtr(sFile), "Ptr*", &pBitmap:=0)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromScreen(Screen:=0, Raster:=""){
@@ -437,7 +437,7 @@ class CGdip
 				Screen:=SubStr(Screen, 6)
 				if !WinExist( "ahk_id " Screen)
 					return -2
-				WinGetPos(, , w, h, "ahk_id" Screen)
+				WinGetPos(, , &w, &h, "ahk_id" Screen)
 				x:=y:=0
 				hhdc:=GetDCEx(Screen, 3)
 			}
@@ -456,24 +456,24 @@ class CGdip
 			chdc:=CreateCompatibleDC(), hbm:=CreateDIBSection(w, h, chdc), obm:=SelectObject(chdc, hbm), hhdc:=hhdc ? hhdc : GetDC()
 			BitBlt(chdc, 0, 0, w, h, hhdc, x, y, Raster)
 			ReleaseDC(hhdc)
-			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", pBitmap:=0)
+			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pBitmap:=0)
 			SelectObject(chdc, obm), DeleteObject(hbm), DeleteDC(hhdc), DeleteDC(chdc)
-			return CGdip.Bitmap.New(pBitmap)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromHBITMAP(hBitmap, Palette:=0){
-			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hBitmap, "Ptr", Palette, "Ptr*", pBitmap:=0)
-			return CGdip.Bitmap.New(pBitmap)
+			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hBitmap, "Ptr", Palette, "Ptr*", &pBitmap:=0)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromHICON(hIcon){
-			DllCall("gdiplus\GdipCreateBitmapFromHICON", "Ptr", hIcon, "Ptr*", pBitmap:=0)
-			return CGdip.Bitmap.New(pBitmap)
+			DllCall("gdiplus\GdipCreateBitmapFromHICON", "Ptr", hIcon, "Ptr*", &pBitmap:=0)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static Create(Width, Height, Format:=0x26200A){
-			DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", 0, "int", Format, "Ptr", 0, "Ptr*", pBitmap:=0)
-			return CGdip.Bitmap.New(pBitmap)
+			DllCall("gdiplus\GdipCreateBitmapFromScan0", "int", Width, "int", Height, "int", 0, "int", Format, "Ptr", 0, "Ptr*", &pBitmap:=0)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromBRA(BRAFromMemIn, File, Alternate:=0){
@@ -495,7 +495,7 @@ class CGdip
 			TOC:=StrGet(BRAFromMemIn + OffsetTOC, OffsetData - OffsetTOC - 1, "CP0")
 			RX1:="mi`n)^"
 			Offset:=Size:=0
-			If RegExMatch(TOC, RX1 . (Alternate ? File "\|.+?" : "\d+\|" . File) . "\|(\d+)\|(\d+)$", FileInfo) {
+			If RegExMatch(TOC, RX1 . (Alternate ? File "\|.+?" : "\d+\|" . File) . "\|(\d+)\|(\d+)$", &FileInfo) {
 				Offset:=OffsetData + FileInfo[1]
 				Size:=FileInfo[2]
 			}
@@ -505,10 +505,10 @@ class CGdip
 			pData:=DllCall("GlobalLock", "Ptr", hData, "UPtr")
 			DllCall("RtlMoveMemory", "Ptr", pData, "Ptr", BRAFromMemIn + Offset, "Ptr", Size)
 			DllCall("GlobalUnlock", "Ptr", hData)
-			DllCall("Ole32.dll\CreateStreamOnHGlobal", "Ptr", hData, "Int", 1, "Ptr*", pStream)
-			DllCall("Gdiplus.dll\GdipCreateBitmapFromStream", "Ptr", pStream, "Ptr*", pBitmap)
+			DllCall("Ole32.dll\CreateStreamOnHGlobal", "Ptr", hData, "Int", 1, "Ptr*", &pStream)
+			DllCall("Gdiplus.dll\GdipCreateBitmapFromStream", "Ptr", pStream, "Ptr*", &pBitmap)
 			ObjRelease(pStream)
-			Return CGdip.Bitmap.New(pBitmap)
+			Return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		static FromClipboard(){
@@ -520,15 +520,15 @@ class CGdip
 			}
 			pBitmap:=0
 			if (hBitmap:=DllCall("GetClipboardData", "Uint", 2, "Ptr"))
-				DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hBitmap, "Ptr", 0, "Ptr*", pBitmap)
+				DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hBitmap, "Ptr", 0, "Ptr*", &pBitmap)
 				, DeleteObject(hBitmap)
 			DllCall("CloseClipboard")
-			return CGdip.Bitmap.New(pBitmap)
+			return CGdip.Bitmap.Call(pBitmap)
 		}
 
 		SetClipboard(){
 			off1:=A_PtrSize = 8 ? 52 : 44, off2:=A_PtrSize = 8 ? 32 : 24
-			DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", this, "Ptr*", hBitmap:=0, "int", 0xffffffff)
+			DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", this, "Ptr*", &hBitmap:=0, "int", 0xffffffff)
 			DllCall("GetObject", "Ptr", hBitmap, "int", oi:=BufferAlloc(A_PtrSize = 8 ? 104 : 84, 0), "Ptr", oi)
 			hdib:=DllCall("GlobalAlloc", "Uint", 2, "Ptr", 40+NumGet(oi, off1, "UInt"), "Ptr")
 			pdib:=DllCall("GlobalLock", "Ptr", hdib, "Ptr")
@@ -543,19 +543,19 @@ class CGdip
 		}
 
 		CreateHBITMAP(Background:=0xffffffff){
-			DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", this, "Ptr*", hbm:=0, "int", Background)
+			DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "Ptr", this, "Ptr*", &hbm:=0, "int", Background)
 			return hbm
 		}
 
 		CreateHICON(){
-			DllCall("gdiplus\GdipCreateHICONFromBitmap", "Ptr", this, "Ptr*", hIcon:=0)
+			DllCall("gdiplus\GdipCreateHICONFromBitmap", "Ptr", this, "Ptr*", &hIcon:=0)
 			return hIcon
 		}
 
 		CloneArea(x, y, w, h, Format:=0x26200A){
 			DllCall("gdiplus\GdipCloneBitmapArea"
 					, "float", x, "float", y, "float", w, "float", h
-					, "int", Format, "Ptr", this, "Ptr*", pBitmapDest:=0)
+					, "int", Format, "Ptr", this, "Ptr*", &pBitmapDest:=0)
 			return pBitmapDest
 		}
 
@@ -564,12 +564,12 @@ class CGdip
 		}
 
 		Save(sOutput, Quality:=75){
-			SplitPath(sOutput,,, Extension, Name)
+			SplitPath(sOutput,,, &Extension, &Name)
 			if !(Extension~="i)^(BMP|DIB|RLE|JPG|JPEG|JPE|JFIF|GIF|TIF|TIFF|PNG)$")
 				return -1
 			Extension:="." Extension
 
-			DllCall("gdiplus\GdipGetImageEncodersSize", "Uint*", nCount:=0, "Uint*", nSize:=0)
+			DllCall("gdiplus\GdipGetImageEncodersSize", "Uint*", &nCount:=0, "Uint*", &nSize:=0)
 			ci:=BufferAlloc(nSize)
 			DllCall("gdiplus\GdipGetImageEncoders", "Uint", nCount, "Uint", nSize, "Ptr", ci)
 			if !(nCount && nSize)
@@ -594,7 +594,7 @@ class CGdip
 				Quality:=(Quality < 0) ? 0 : (Quality > 100) ? 100 : Quality
 				if (Extension~="i)^(\.JPG|\.JPEG|\.JPE|\.JFIF)$")
 				{
-					DllCall("gdiplus\GdipGetEncoderParameterListSize", "Ptr", this, "Ptr", pCodec, "Uint*", nSize:=0)
+					DllCall("gdiplus\GdipGetEncoderParameterListSize", "Ptr", this, "Ptr", pCodec, "Uint*", &nSize:=0)
 					EncoderParameters:=BufferAlloc(nSize, 0)
 					DllCall("gdiplus\GdipGetEncoderParameterList", "Ptr", this, "Ptr", pCodec, "Uint", nSize, "Ptr", EncoderParameters)
 					Loop NumGet(EncoderParameters, "UInt")      ;%
@@ -613,7 +613,7 @@ class CGdip
 			if Name
 				E:=DllCall("gdiplus\GdipSaveImageToFile", "Ptr", this, "Ptr", StrPtr(sOutput), "Ptr", pCodec, "Uint", p)
 			else {
-				DllCall("ole32\CreateStreamOnHGlobal", "Ptr", 0, "Int", 1, "Ptr*", pStream:=0)
+				DllCall("ole32\CreateStreamOnHGlobal", "Ptr", 0, "Int", 1, "Ptr*", &pStream:=0)
 				DllCall("gdiplus\GdipSaveImageToStream", "Ptr", this, "Ptr", pStream, "Ptr", pCodec, "UInt", p)
 				return pStream
 			}
@@ -621,7 +621,7 @@ class CGdip
 		}
 
 		GetPixel(x, y){
-			DllCall("gdiplus\GdipBitmapGetPixel", "Ptr", this, "int", x, "int", y, "Uint*", ARGB:=0)
+			DllCall("gdiplus\GdipBitmapGetPixel", "Ptr", this, "int", x, "int", y, "Uint*", &ARGB:=0)
 			return ARGB
 		}
 
@@ -637,17 +637,17 @@ class CGdip
 			return CGdip.GetImageHeight(this)
 		}
 
-		GetDimensions(ByRef Width, ByRef Height){
-			CGdip.GetImageDimensions(this, Width, Height)
+		GetDimensions(&Width, &Height){
+			CGdip.GetImageDimensions(this, &Width, &Height)
 		}
 
 		GetPixelFormat(){
-			DllCall("gdiplus\GdipGetImagePixelFormat", "Ptr", this, "UInt*", Format:=0)
+			DllCall("gdiplus\GdipGetImagePixelFormat", "Ptr", this, "UInt*", &Format:=0)
 			return Format
 		}
 
-		LockBits(x, y, w, h, ByRef Stride, ByRef Scan0, ByRef BitmapData, LockMode:=3, PixelFormat:=0x26200a){
-			CreateRect(_Rect, x, y, w, h), BitmapData:=BufferAlloc(16+2*A_PtrSize, 0)
+		LockBits(x, y, w, h, &Stride, &Scan0, &BitmapData, LockMode:=3, PixelFormat:=0x26200a){
+			CreateRect(&_Rect, x, y, w, h), BitmapData:=BufferAlloc(16+2*A_PtrSize, 0)
 			_E:=DllCall("Gdiplus\GdipBitmapLockBits", "Ptr", this, "Ptr", _Rect, "Uint", LockMode, "int", PixelFormat, "Ptr", BitmapData)
 			Stride:=NumGet(BitmapData, 8, "Int")
 			Scan0:=NumGet(BitmapData, 16, "Ptr")
@@ -666,7 +666,7 @@ class CGdip
 			return NumGet(Scan0+0, (x*4)+(y*Stride), "UInt")
 		}
 
-		Pixelate(ByRef pBitmapOut, BlockSize){
+		Pixelate(pBitmapOut, BlockSize){
 			static PixelateBitmap:=""
 
 			if (PixelateBitmap = "")	{
@@ -724,14 +724,14 @@ class CGdip
 				413BD77CB233C04883C428415F415E415D415C5F5E5D5BC3
 				)"
 				PixelateBitmap:=BufferAlloc(nCount:=StrLen(MCode_PixelateBitmap)//2)
-				if (!DllCall("crypt32\CryptStringToBinary", "Str", MCode_PixelateBitmap, "Uint", 0, "Uint", 4, "Ptr", PixelateBitmap, "Uint*", nCount, "Ptr", 0, "Ptr", 0)){
+				if (!DllCall("crypt32\CryptStringToBinary", "Str", MCode_PixelateBitmap, "Uint", 0, "Uint", 4, "Ptr", PixelateBitmap, "Uint*", &nCount, "Ptr", 0, "Ptr", 0)){
 					Loop nCount
 						NumPut("UChar", ("0x" SubStr(MCode_PixelateBitmap, (2*A_Index)-1, 2)) + 0, PixelateBitmap, A_Index-1)
 				}
 				DllCall("VirtualProtect", "Ptr", PixelateBitmap, "UInt", nCount, "Uint", 0x40, "Uint*", 0)
 			}
 
-			this.GetDimensions(Width:=0, Height:=0), cBO:=CGdip.Bitmap.New(pBitmapOut, 0)
+			this.GetDimensions(&Width:=0, &Height:=0), cBO:=CGdip.Bitmap.Call(pBitmapOut, 0)
 
 			if (Width != cBO.GetWidth() || Height != cBO.GetHeight())
 				return -1
@@ -766,8 +766,8 @@ class CGdip
 			; StringFormatFlagsLineLimit               = 0x00002000
 			; StringFormatFlagsNoClip                  = 0x00004000
 			if (Format="")
-				DllCall("gdiplus\GdipStringFormatGetGenericDefault", "Ptr*", hFormat:=0)
-			else DllCall("gdiplus\GdipCreateStringFormat", "int", Format, "int", 0, "Ptr*", hFormat:=0)
+				DllCall("gdiplus\GdipStringFormatGetGenericDefault", "Ptr*", &hFormat:=0)
+			else DllCall("gdiplus\GdipCreateStringFormat", "int", Format, "int", 0, "Ptr*", &hFormat:=0)
 			if (Align){
 				; Near = 0  Center = 1  Far = 2
 				DllCall("gdiplus\GdipSetStringFormatAlign", "Ptr", hFormat, "int", Align)
@@ -801,7 +801,7 @@ class CGdip
 			; Strikeout = 8
 			FontFamilys:=CGdip.Font.FontFamilys
 			if !FontFamilys.Has(font){
-				DllCall("gdiplus\GdipCreateFontFamilyFromName", "Ptr", StrPtr(Font), "Uint", 0, "Ptr*", hFamily:=0)
+				DllCall("gdiplus\GdipCreateFontFamilyFromName", "Ptr", StrPtr(Font), "Uint", 0, "Ptr*", &hFamily:=0)
 				if (!hFamily)
 					throw "Create Font Family Failed"
 				FontFamilys[font]:={Ptr:hFamily, Fonts:Map()}
@@ -810,7 +810,7 @@ class CGdip
 			if FontFamilys[font].Fonts.Has(prop)
 				this.Ptr:=FontFamilys[font].Fonts[prop].Ptr, FontFamilys[font].Fonts[prop].RefCount++
 			else {
-				DllCall("gdiplus\GdipCreateFont", "Ptr", hFamily, "float", Size, "int", Style, "int", 0, "Ptr*", hFont:=0)
+				DllCall("gdiplus\GdipCreateFont", "Ptr", hFamily, "float", Size, "int", Style, "int", 0, "Ptr*", &hFont:=0)
 				if (!hFont){
 					if (!FontFamilys[font].Fonts.Count)
 						DllCall("gdiplus\GdipDeleteFontFamily", "Ptr", hFamily), FontFamilys.Delete(font)
@@ -869,14 +869,14 @@ class CGdip
 		static Create(ARGB, w){
 			prop:=Format("{:x}|{:.1f}", ARGB, w), Pens:=CGdip.Pen.Pens
 			if Pens.Has(prop)
-				return CGdip.Pen.New(Pens[prop].Ptr, prop)
-			DllCall("gdiplus\GdipCreatePen1", "UInt", ARGB, "float", w, "int", 2, "Ptr*", pPen:=0)
-			return CGdip.Pen.New(pPen, prop)
+				return CGdip.Pen.Call(Pens[prop].Ptr, prop)
+			DllCall("gdiplus\GdipCreatePen1", "UInt", ARGB, "float", w, "int", 2, "Ptr*", &pPen:=0)
+			return CGdip.Pen.Call(pPen, prop)
 		}
 
 		static FromBrush(pBrush, w){
-			DllCall("gdiplus\GdipCreatePen2", "Ptr", pBrush, "float", w, "int", 2, "Ptr*", pPen:=0)
-			return CGdip.Pen.New(pPen)
+			DllCall("gdiplus\GdipCreatePen2", "Ptr", pBrush, "float", w, "int", 2, "Ptr*", &pPen:=0)
+			return CGdip.Pen.Call(pPen)
 		}
 	}
 
@@ -916,23 +916,23 @@ class CGdip
 				ARGB:=Integer("0x" ARGB)
 			prop:=Format("{:x}", ARGB), SolidBrushs:=CGdip.Brush.SolidBrushs
 			if SolidBrushs.Has(prop)
-				return CGdip.Brush.New(SolidBrushs[prop].Ptr, prop)
-			DllCall("gdiplus\GdipCreateSolidFill", "UInt", ARGB, "Ptr*", pBrush:=0)
-			return CGdip.Brush.New(pBrush, prop)
+				return CGdip.Brush.Call(SolidBrushs[prop].Ptr, prop)
+			DllCall("gdiplus\GdipCreateSolidFill", "UInt", ARGB, "Ptr*", &pBrush:=0)
+			return CGdip.Brush.Call(pBrush, prop)
 		}
 
 		static HatchBrush(ARGBfront, ARGBback, HatchStyle:=0){
-			DllCall("gdiplus\GdipCreateHatchBrush", "int", HatchStyle, "UInt", ARGBfront, "UInt", ARGBback, "Ptr*", pBrush:=0)
-			return CGdip.Brush.New(pBrush)
+			DllCall("gdiplus\GdipCreateHatchBrush", "int", HatchStyle, "UInt", ARGBfront, "UInt", ARGBback, "Ptr*", &pBrush:=0)
+			return CGdip.Brush.Call(pBrush)
 		}
 
 		static TextureBrush(pBitmap, WrapMode:=1, x:=0, y:=0, w:="", h:=""){
 			pBrush:=0
 			if !(w && h)
-				DllCall("gdiplus\GdipCreateTexture", "Ptr", pBitmap, "int", WrapMode, "Ptr*", pBrush)
+				DllCall("gdiplus\GdipCreateTexture", "Ptr", pBitmap, "int", WrapMode, "Ptr*", &pBrush)
 			else
-				DllCall("gdiplus\GdipCreateTexture2", "Ptr", pBitmap, "int", WrapMode, "float", x, "float", y, "float", w, "float", h, "Ptr*", pBrush)
-			return CGdip.Brush.New(pBrush)
+				DllCall("gdiplus\GdipCreateTexture2", "Ptr", pBitmap, "int", WrapMode, "float", x, "float", y, "float", w, "float", h, "Ptr*", &pBrush)
+			return CGdip.Brush.Call(pBrush)
 		}
 
 		static LineBrush(x1, y1, x2, y2, ARGB1, ARGB2, WrapMode:=1){
@@ -941,9 +941,9 @@ class CGdip
 			; WrapModeTileFlipY = 2
 			; WrapModeTileFlipXY = 3
 			; WrapModeClamp = 4
-			CreatePointF(PointF1, x1, y1), CreatePointF(PointF2, x2, y2)
-			DllCall("gdiplus\GdipCreateLineBrush", "Ptr", PointF1, "Ptr", PointF2, "Uint", ARGB1, "Uint", ARGB2, "int", WrapMode, "Ptr*", LGpBrush:=0)
-			return CGdip.Brush.New(LGpBrush)
+			CreatePointF(&PointF1, x1, y1), CreatePointF(&PointF2, x2, y2)
+			DllCall("gdiplus\GdipCreateLineBrush", "Ptr", PointF1, "Ptr", PointF2, "Uint", ARGB1, "Uint", ARGB2, "int", WrapMode, "Ptr*", &LGpBrush:=0)
+			return CGdip.Brush.Call(LGpBrush)
 		}
 
 		static LineBrushFromRect(x, y, w, h, ARGB1, ARGB2, LinearGradientMode:=1, WrapMode:=1){
@@ -951,14 +951,14 @@ class CGdip
 			; LinearGradientModeVertical = 1
 			; LinearGradientModeForwardDiagonal = 2
 			; LinearGradientModeBackwardDiagonal = 3
-			CreateRectF(RectF, x, y, w, h)
-			DllCall("gdiplus\GdipCreateLineBrushFromRect", "Ptr", RectF, "int", ARGB1, "int", ARGB2, "int", LinearGradientMode, "int", WrapMode, "Ptr*", LGpBrush:=0)
-			return CGdip.Brush.New(LGpBrush)
+			CreateRectF(&RectF, x, y, w, h)
+			DllCall("gdiplus\GdipCreateLineBrushFromRect", "Ptr", RectF, "int", ARGB1, "int", ARGB2, "int", LinearGradientMode, "int", WrapMode, "Ptr*", &LGpBrush:=0)
+			return CGdip.Brush.Call(LGpBrush)
 		}
 
 		Clone(){
-			DllCall("gdiplus\GdipCloneBrush", "Ptr", this, "Ptr*", pBrushClone:=0)
-			return CGdip.Brush.New(pBrushClone)
+			DllCall("gdiplus\GdipCloneBrush", "Ptr", this, "Ptr*", &pBrushClone:=0)
+			return CGdip.Brush.Call(pBrushClone)
 		}
 	}
 
@@ -969,9 +969,9 @@ class CGdip
 		__New(params*){
 			if (params.Length=6)
 				DllCall("gdiplus\GdipCreateMatrix2", "float", params[1], "float", params[2], "float", params[3]
-					, "float", params[4], "float", params[5], "float", params[6], "Ptr*", Matrix:=0)
+					, "float", params[4], "float", params[5], "float", params[6], "Ptr*", &Matrix:=0)
 			else
-				DllCall("gdiplus\GdipCreateMatrix", "Ptr*", Matrix:=0)
+				DllCall("gdiplus\GdipCreateMatrix", "Ptr*", &Matrix:=0)
 			if Matrix
 				this.Ptr:=Matrix
 			else
@@ -989,12 +989,12 @@ CreateCompatibleBitmap(hdc, w, h){
 	return DllCall("gdi32\CreateCompatibleBitmap", "Ptr", hdc, "int", w, "int", h)
 }
 
-CreateDIBSection(w, h, hdc:="", bpp:=32, ByRef ppvBits:=0){
+CreateDIBSection(w, h, hdc:="", bpp:=32, &ppvBits:=0){
 	hdc2:=hdc ? hdc : GetDC()
 	bi:=BufferAlloc(40, 0)
 
 	NumPut("Uint", 40, "Uint", Integer(w), "Uint", Integer(h), "ushort", 1, "ushort", bpp, "uInt", 0, bi, 0)
-	hbm:=DllCall("CreateDIBSection", "Ptr", hdc2, "Ptr", bi, "Uint", 0, "Ptr*", ppvBits, "Ptr", 0, "Uint", 0, "Ptr")
+	hbm:=DllCall("CreateDIBSection", "Ptr", hdc2, "Ptr", bi, "Uint", 0, "Ptr*", &ppvBits, "Ptr", 0, "Uint", 0, "Ptr")
 	if !hdc
 		ReleaseDC(hdc2)
 	return hbm
@@ -1040,28 +1040,28 @@ DeleteDC(hdc){
 	return DllCall("DeleteDC", "Ptr", hdc)
 }
 
-CreateRectF(ByRef RectF, x, y, w, h){
+CreateRectF(&RectF, x, y, w, h){
 	RectF:=BufferAlloc(16)
 	NumPut("float", x, "float", y, "float", w, "float", h, RectF, 0)
 }
 
-CreateRect(ByRef Rect, x, y, w, h){
+CreateRect(&Rect, x, y, w, h){
 	Rect:=BufferAlloc(16)
 	NumPut("Uint", x, "Uint", y, "Uint", w, "Uint", h, Rect, 0)
 }
 
-CreateSizeF(ByRef SizeF, w, h){
+CreateSizeF(&SizeF, w, h){
 	SizeF:=BufferAlloc(8)
 	NumPut("float", w, "float", h, SizeF, 0)
 }
 
-CreatePointF(ByRef PointF, x, y){
+CreatePointF(&PointF, x, y){
 	PointF:=BufferAlloc(8)
 	NumPut("float", x, "float", y, PointF, 0)
 }
 
 SetSysColorToControl(hwnd, SysColor:=15){
-	WinGetPos(, , w, h, Integer(hwnd))
+	WinGetPos(, , &w, &h, Integer(hwnd))
 	bc:=DllCall("GetSysColor", "Int", SysColor, "UInt")
 	BrushClear:=CGdip.Brush.SolidFill(0xff000000 | (bc >> 16 | bc & 0xff00 | (bc & 0xff) << 16))
 	Bitmap:=CGdip.Bitmap.Create(w, h), G:=CGdip.Graphics.FromBitmap(Bitmap)
@@ -1118,7 +1118,7 @@ UpdateLayeredWindow(hwnd, hdc, x:="", y:="", w:="", h:="", Alpha:=255){
 		pt:=BufferAlloc(8), NumPut("UInt", Integer(x), "UInt", Integer(y), pt, 0)
 
 	if (w = "" || h = "")
-		WinGetPos(, , w, h, Integer(hwnd))
+		WinGetPos(, , &w, &h, Integer(hwnd))
 	
 	return DllCall("UpdateLayeredWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", ((x = "") && (y = "")) ? 0 : pt
 		, "int64*", Integer(w)|Integer(h)<<32, "Ptr", hdc, "int64*", 0, "Uint", 0, "UInt*", Alpha<<16|1<<24, "Uint", 2)
@@ -1156,7 +1156,7 @@ MDMF_GetInfo(HMON) {
 	Return False
 }
 
-GetRotatedTranslation(Width, Height, Angle, ByRef xTranslation, ByRef yTranslation){
+GetRotatedTranslation(Width, Height, Angle, &xTranslation, &yTranslation){
 	pi:=3.14159, TAngle:=Angle*(pi/180)
 
 	Bound:=(Angle >= 0) ? Mod(Angle, 360) : 360-Mod(-Angle, -360)
@@ -1170,7 +1170,7 @@ GetRotatedTranslation(Width, Height, Angle, ByRef xTranslation, ByRef yTranslati
 		xTranslation:=0, yTranslation:=-Width*Sin(TAngle)
 }
 
-GetRotatedDimensions(Width, Height, Angle, ByRef RWidth, ByRef RHeight){
+GetRotatedDimensions(Width, Height, Angle, &RWidth, &RHeight){
 	pi:=3.1415926, TAngle:=Angle*(pi/180)
 	if !(Width && Height)
 		return -1

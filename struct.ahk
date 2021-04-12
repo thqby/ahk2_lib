@@ -22,7 +22,7 @@ class struct
 							_level++
 						else if InStr(_LF, "}") && ((--_level) = 0) {
 							if !RegExMatch(_LF, "\}\s*(\w+)", &_n)
-								throw Exception("structure's name not found")
+								throw Error("structure's name not found")
 							break
 						} else if RegExMatch(_LF, "^(\w+)\s*(\*+)?\s*(\w+)(\[\d+\])?", &_m)
 							_type := struct.ahktype(_m[1] _m[2]), _submax := Max(_submax, struct.__types.%_type%), _LF := _type " " _m[3] _m[4]
@@ -67,7 +67,7 @@ class struct
 			_offset := this.__struct.%n%.offset - this.__offset
 			if params.Length {
 				if (params[1] >= this.__struct.%n%.size)
-					throw Exception("Invalid index")
+					throw Error("Invalid index")
 				_offset += params[1] * struct.__types.%(this.__struct.%n%.type)%
 			}
 			return NumGet(this.__buffer.Ptr, _offset, this.__struct.%n%.type)
@@ -78,11 +78,11 @@ class struct
 			_offset := this.__struct.%n%.offset - this.__offset
 			if params.Length {
 				if (params[1] >= this.__struct.%n%.size)
-					throw Exception("Invalid index")
+					throw Error("Invalid index")
 				_offset += params[1] * struct.__types.%(this.__struct.%n%.type)%
 			}
 			NumPut(this.__struct.%n%.type, v, this.__buffer.Ptr, _offset)
-		} else throw Exception("substruct '" n "' can't be overwritten")
+		} else throw Error("substruct '" n "' can't be overwritten")
 	}
 	data() => this.__buffer.Ptr
 	offset(n) => this.__struct.%n%.offset
@@ -117,11 +117,11 @@ class struct
 			{
 				case "BYTE", "BOOLEAN":
 					_type := "UChar"
-				case "ATOM", "LANGID", "WORD":
+				case "ATOM", "LANGID", "WORD", "INTERNET_PORT":
 					_type := "UShort"
 				case "TBYTE", "TCHAR", "WCHAR":
 					_type := "Short"
-				case "BOOL", "HFILE", "HRESULT", "INT32", "LONG", "LONG32":
+				case "BOOL", "HFILE", "HRESULT", "INT32", "LONG", "LONG32", "INTERNET_SCHEME":
 					_type := "Int"
 				case "UINT32", "ULONG", "ULONG32", "COLORREF", "DWORD", "DWORD32", "LCID", "LCTYPE", "LGRPID":
 					_type := "UInt"
@@ -138,7 +138,7 @@ class struct
 					else if (_type ~= "^(\w+_PTR|[WL]PARAM|LRESULT|(H|L?P)\w+|SC_(HANDLE|LOCK)|S?SIZE_T|VOID)$")
 						_type := (_U ? "U" : "") "Ptr"
 					if (!struct.__types.HasOwnProp(_type))
-						throw Exception("unsupport type")
+						throw Error("unsupport type: " _type)
 			}
 		}
 		return _type
@@ -149,32 +149,24 @@ class struct
 if (A_LineFile = A_ScriptFullPath) {
 	ss := struct('
 	(
-	struct {
-		short a;
-		char b;
-		struct {
-			char c;
-			struct {
-				char e;
-				INT64 f;
-			} d;
-			int e;
-		} c;
-		char *d;
-		struct {
-			char a;
-			UINT b;
-		} e;
-		struct {
-			char a;
-			UINT b;
-			WCHAR c;
-		} f;
-	};
+typedef struct {
+  DWORD           dwStructSize;
+  LPWSTR          lpszScheme;
+  DWORD           dwSchemeLength;
+  INTERNET_SCHEME nScheme;
+  LPWSTR          lpszHostName;
+  DWORD           dwHostNameLength;
+  INTERNET_PORT   nPort;
+  LPWSTR          lpszUserName;
+  DWORD           dwUserNameLength;
+  LPWSTR          lpszPassword;
+  DWORD           dwPasswordLength;
+  LPWSTR          lpszUrlPath;
+  DWORD           dwUrlPathLength;
+  LPWSTR          lpszExtraInfo;
+  DWORD           dwExtraInfoLength;
+} URL_COMPONENTS, *LPURL_COMPONENTS;
 	)')
 	MsgBox(String(ss))
-	ss.a:=4
-	; s:=8
-	; DllCall("dll", "Ptr", ss.data())
 }
 ;@Ahk2Exe-IgnoreEnd

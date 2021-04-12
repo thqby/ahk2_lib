@@ -2,8 +2,8 @@
  * @file: Audio.ahk
  * @description: Core Audio APIs, Windows 多媒体设备API
  * @author thqby
- * @date 11/01/2020
- * @version 1.0
+ * @date 2021/04/10
+ * @version 1.0.2
  ***********************************************************************/
 ; https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nn-unknwn-iunknown
 class IUnknown {
@@ -21,12 +21,18 @@ class IUnknown {
             ComObj := ComObjQuery(this.Ptr, riid)
         for Interface, iid in IUnknown.IIDs.OwnProps()
             if (riid = iid)
-                return %Interface%.New(ComObj, this)
+                return %Interface%(ComObj, this)
         return Type(ComObj) = "ComObj" ? ComObj.Ptr : ComObj
     }
 }
-CLSIDFromString(sCLSID, ByRef pCLSID := 0) => (DllCall("ole32\CLSIDFromString", "Str", sCLSID, "Ptr", pCLSID := BufferAlloc(16)), pCLSID)
-StringFromCLSID(pCLSID) => (DllCall("ole32\StringFromCLSID", "Ptr", pCLSID, "Str*", CLSID := ""), CLSID)
+CLSIDFromString(sCLSID) {
+    DllCall("ole32\CLSIDFromString", "Str", sCLSID, "Ptr", pCLSID := BufferAlloc(16))
+    return pCLSID
+}
+StringFromCLSID(pCLSID) {
+    DllCall("ole32\StringFromCLSID", "Ptr", pCLSID, "Str*", &CLSID := "")
+    return CLSID
+}
 FAILED(hr) {
     if (hr)
         throw Exception(hr)
@@ -36,26 +42,26 @@ FAILED(hr) {
 ; https://docs.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-ichannelaudiovolume
 class IChannelAudioVolume extends IUnknown {
     static IID := this.__IID := "{1C158861-B533-4B30-B1CF-E853E51C59B8}"
-    GetChannelCount(ByRef dwCount) => ComCall(3, this, "UInt*", dwCount := 0)
+    GetChannelCount(&dwCount) => ComCall(3, this, "UInt*", &dwCount := 0)
     SetChannelVolume(dwIndex, fLevel, EventContext := 0) => ComCall(4, this, "UInt", dwIndex, "Float", fLevel, "Ptr", EventContext)
-    GetChannelVolume(dwIndex, ByRef fLevel) => ComCall(5, this, "UInt", dwIndex, "Float*", fLevel := 0)
+    GetChannelVolume(dwIndex, &fLevel) => ComCall(5, this, "UInt", dwIndex, "Float*", &fLevel := 0)
     SetAllVolumes(dwCount, pfVolumes, EventContext := 0) => ComCall(4, this, "UInt", dwCount, "Ptr", pfVolumes, "Ptr", EventContext)
-    GetAllVolumes(dwCount, ByRef pfVolumes) => ComCall(5, this, "UInt", dwCount, "Ptr*", pfVolumes := 0)
+    GetAllVolumes(dwCount, &pfVolumes) => ComCall(5, this, "UInt", dwCount, "Ptr*", &pfVolumes := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/audioclient/nn-audioclient-isimpleaudiovolume
 class ISimpleAudioVolume extends IUnknown {
     static IID := this.__IID := "{87CE5498-68D6-44E5-9215-6DA47EF883D8}"
     SetMasterVolume(fLevel, EventContext := 0) => ComCall(3, this, "Float", fLevel, "Ptr", EventContext)
-    GetMasterVolume(ByRef fLevel) => ComCall(4, this, "Float*", fLevel := 0)
+    GetMasterVolume(&fLevel) => ComCall(4, this, "Float*", &fLevel := 0)
     SetMute(bMute, EventContext := 0) => ComCall(5, this, "Int", bMute, "Ptr", EventContext)
-    GetMute(ByRef bMute) => ComCall(6, this, "Int*", bMute := 0)
+    GetMute(&bMute) => ComCall(6, this, "Int*", &bMute := 0)
 }
 
 ;; mmdeviceapi.h header
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-iactivateaudiointerfaceasyncoperation
 class IActivateAudioInterfaceAsyncOperation extends IUnknown {
     static IID := this.__IID := "{72A22D78-CDE4-431D-B8CC-843A71199B6D}"
-    GetActivateResult(ByRef activateResult, ByRef activatedInterface) => ComCall(3, this, "Int*", activateResult := 0, "Ptr*", activatedInterface := 0)
+    GetActivateResult(&activateResult, &activatedInterface) => ComCall(3, this, "Int*", &activateResult := 0, "Ptr*", &activatedInterface := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-iactivateaudiointerfacecompletionhandler
 class IActivateAudioInterfaceCompletionHandler extends IUnknown {
@@ -65,18 +71,18 @@ class IActivateAudioInterfaceCompletionHandler extends IUnknown {
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdevice
 class IMMDevice extends IUnknown {
     static IID := this.__IID := "{D666063F-1587-4E43-81F1-B948E807363F}"
-    Activate(iid, dwClsCtx := 23, pActivationParams := 0, ByRef pInterface := 0) => (FAILED(ComCall(3, this, "Ptr",
+    Activate(iid, dwClsCtx := 23, pActivationParams := 0, &pInterface := 0) => (FAILED(ComCall(3, this, "Ptr",
         Type(iid) = "String" ? CLSIDFromString(iid) : iid, "UInt", dwClsCtx, "Ptr", pActivationParams, "Ptr*",
         pInterface := 0)), this.QueryInterface(Type(iid) = "String" ? iid : StringFromCLSID(iid), pInterface))
-    OpenPropertyStore(stgmAccess, ByRef pProperties) => ComCall(4, this, "UInt", stgmAccess, "Ptr*", pProperties := 0)
-    GetId(ByRef strId) => ComCall(5, this, "Str*", strId := "")
-    GetState(ByRef dwState) => ComCall(6, this, "UInt*", dwState := 0)
+    OpenPropertyStore(stgmAccess, &pProperties) => ComCall(4, this, "UInt", stgmAccess, "Ptr*", &pProperties := 0)
+    GetId(&strId) => ComCall(5, this, "Str*", &strId := "")
+    GetState(&dwState) => ComCall(6, this, "UInt*", &dwState := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdevicecollection
 class IMMDeviceCollection extends IUnknown {
     static IID := this.__IID := "{0BD7A1BE-7A1A-44DB-8397-CC5392387B5E}"
-    GetCount(ByRef cDevices) => ComCall(3, this, "UInt*", cDevices := 0)
-    Item(nDevice, ByRef pDevice := 0) => (ComCall(4, this, "UInt", nDevice, "Ptr*", pDevice := 0), IMMDevice.New(pDevice, this))
+    GetCount(&cDevices) => ComCall(3, this, "UInt*", &cDevices := 0)
+    Item(nDevice, &pDevice := 0) => (ComCall(4, this, "UInt", nDevice, "Ptr*", &pDevice := 0), IMMDevice(pDevice, this))
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdeviceenumerator
 class IMMDeviceEnumerator extends IUnknown {
@@ -88,16 +94,16 @@ class IMMDeviceEnumerator extends IUnknown {
      * ERole: eConsole 0, eMultimedia 1, eCommunications 2, ERole_enum_count 3
      * EndpointFormFactor: RemoteNetworkDevice 0, Speakers 1, LineLevel 2, Headphones 3, Microphone 4, Headset 5, Handset 6, UnknownDigitalPassthrough 7, SPDIF 8, DigitalAudioDisplayDevice 9, UnknownFormFactor 10, EndpointFormFactor_enum_count 11
      */
-    EnumAudioEndpoints(dataFlow, dwStateMask, ByRef pDevices := 0) => (FAILED(ComCall(3, this, "Int", dataFlow, "UInt", dwStateMask, "Ptr*", pDevices := 0)), IMMDeviceCollection.New(pDevices, this))
-    GetDefaultAudioEndpoint(dataFlow := 0, role := 0, ByRef pEndpoint := 0) => (FAILED(ComCall(4, this, "Int", dataFlow, "UInt", role, "Ptr*", pEndpoint := 0)), IMMDevice.New(pEndpoint, this))
-    GetDevice(pwstrId, ByRef pEndpoint := 0) => (FAILED(ComCall(5, this, "Str", pwstrId, "Ptr*", pEndpoint := 0)), IMMDevice.New(pEndpoint, this))
+    EnumAudioEndpoints(dataFlow, dwStateMask, &pDevices := 0) => (FAILED(ComCall(3, this, "Int", dataFlow, "UInt", dwStateMask, "Ptr*", &pDevices := 0)), IMMDeviceCollection(pDevices, this))
+    GetDefaultAudioEndpoint(dataFlow := 0, role := 0, &pEndpoint := 0) => (FAILED(ComCall(4, this, "Int", dataFlow, "UInt", role, "Ptr*", &pEndpoint := 0)), IMMDevice(pEndpoint, this))
+    GetDevice(pwstrId, &pEndpoint := 0) => (FAILED(ComCall(5, this, "Str", pwstrId, "Ptr*", &pEndpoint := 0)), IMMDevice(pEndpoint, this))
     RegisterEndpointNotificationCallback(pClient) => ComCall(6, this, "Ptr", pClient)
     UnregisterEndpointNotificationCallback(pClient) => ComCall(7, this, "Ptr", pClient)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immendpoint
 class IMMEndpoint extends IUnknown {
     static IID := this.__IID := "{1BE09788-6894-4089-8586-9A2A6C265AC5}"
-    GetDataFlow(ByRef DataFlow) => ComCall(3, this, "UInt*", DataFlow := 0)
+    GetDataFlow(&DataFlow) => ComCall(3, this, "UInt*", &DataFlow := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immnotificationclient
 class IMMNotificationClient extends IUnknown {
@@ -114,12 +120,12 @@ class IMMNotificationClient extends IUnknown {
 class IAudioSessionControl extends IUnknown {
     static IID := this.__IID := "{F4B1A599-7266-4319-A8CA-E70ACB11E8CD}"
     ; AudioSessionState: AudioSessionStateInactive 0, AudioSessionStateActive 1, AudioSessionStateExpired 2
-    GetState(ByRef RetVal) => ComCall(3, this, "UInt*", RetVal := 0)
-    GetDisplayName(ByRef RetVal) => ComCall(4, this, "Str*", RetVal := "")
+    GetState(&RetVal) => ComCall(3, this, "UInt*", &RetVal := 0)
+    GetDisplayName(&RetVal) => ComCall(4, this, "Str*", &RetVal := "")
     SetDisplayName(Value, EventContext := 0) => ComCall(5, this, "Str", Value, "Ptr", EventContext)
-    GetIconPath(ByRef RetVal) => ComCall(6, this, "Str*", RetVal := "")
+    GetIconPath(&RetVal) => ComCall(6, this, "Str*", &RetVal := "")
     SetIconPath(Value, EventContext := 0) => ComCall(7, this, "Str", Value, "Ptr", EventContext)
-    GetGroupingParam(ByRef pRetVal) => ComCall(8, this, "Ptr*", pRetVal := 0)
+    GetGroupingParam(&pRetVal) => ComCall(8, this, "Ptr*", &pRetVal := 0)
     SetGroupingParam(Override, EventContext := 0) => ComCall(9, this, "Ptr", Override, "Ptr", EventContext)
     RegisterAudioSessionNotification(NewNotifications) => ComCall(10, this, "Ptr", NewNotifications)
     UnregisterAudioSessionNotification(NewNotifications) => ComCall(11, this, "Ptr", NewNotifications)
@@ -127,17 +133,17 @@ class IAudioSessionControl extends IUnknown {
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessioncontrol2
 class IAudioSessionControl2 extends IAudioSessionControl {
     static IID := this.__IID := "{bfb7ff88-7239-4fc9-8fa2-07c950be9c6d}"
-    GetSessionIdentifier(ByRef RetVal) => ComCall(12, this, "Str*", RetVal := "")
-    GetSessionInstanceIdentifier(ByRef RetVal) => ComCall(13, this, "Str*", RetVal := "")
-    GetProcessId(ByRef RetVal) => ComCall(14, this, "UInt*", RetVal := 0)
+    GetSessionIdentifier(&RetVal) => ComCall(12, this, "Str*", &RetVal := "")
+    GetSessionInstanceIdentifier(&RetVal) => ComCall(13, this, "Str*", &RetVal := "")
+    GetProcessId(&RetVal) => ComCall(14, this, "UInt*", &RetVal := 0)
     IsSystemSoundsSession() => ComCall(15, this)
     SetDuckingPreference(optOut) => ComCall(16, this, "Int", optOut)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionenumerator
 class IAudioSessionEnumerator extends IUnknown {
     static IID := this.__IID := "{E2F5BB11-0570-40CA-ACDD-3AA01277DEE8}"
-    GetCount(ByRef SessionCount) => ComCall(3, this, "Int*", SessionCount := 0)
-    GetSession(SessionCount, ByRef Session := 0) => (FAILED(ComCall(4, this, "Int", SessionCount, "Ptr*", Session := 0)), IAudioSessionControl.New(Session, this))
+    GetCount(&SessionCount) => ComCall(3, this, "Int*", &SessionCount := 0)
+    GetSession(SessionCount, &Session := 0) => (FAILED(ComCall(4, this, "Int", SessionCount, "Ptr*", &Session := 0)), IAudioSessionControl(Session, this))
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionevents
 class IAudioSessionEvents extends IUnknown {
@@ -153,13 +159,13 @@ class IAudioSessionEvents extends IUnknown {
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionmanager
 class IAudioSessionManager extends IUnknown {
     static IID := this.__IID := "{BFA971F1-4D5E-40BB-935E-967039BFBEE4}"
-    GetAudioSessionControl(AudioSessionGuid, StreamFlags, ByRef SessionControl := 0) => (FAILED(ComCall(3, this, "Ptr", AudioSessionGuid, "UInt", StreamFlags, "Ptr*", SessionControl := 0)), IAudioSessionControl.New(SessionControl, this))
-    GetSimpleAudioVolume(AudioSessionGuid, StreamFlags, ByRef AudioVolume := 0) => (FAILED(ComCall(4, this, "Ptr", AudioSessionGuid, "UInt", StreamFlags, "Ptr*", AudioVolume := 0)), ISimpleAudioVolume.New(AudioVolume, this))
+    GetAudioSessionControl(AudioSessionGuid, StreamFlags, &SessionControl := 0) => (FAILED(ComCall(3, this, "Ptr", AudioSessionGuid, "UInt", StreamFlags, "Ptr*", &SessionControl := 0)), IAudioSessionControl(SessionControl, this))
+    GetSimpleAudioVolume(AudioSessionGuid, StreamFlags, &AudioVolume := 0) => (FAILED(ComCall(4, this, "Ptr", AudioSessionGuid, "UInt", StreamFlags, "Ptr*", &AudioVolume := 0)), ISimpleAudioVolume(AudioVolume, this))
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionmanager2
 class IAudioSessionManager2 extends IAudioSessionManager {
     static IID := this.__IID := "{77AA99A0-1BD6-484F-8BC7-2C654C9A9B6F}"
-    GetSessionEnumerator(ByRef SessionEnum := 0) => (FAILED(ComCall(5, this, "Ptr*", SessionEnum := 0)), IAudioSessionEnumerator.New(SessionEnum, this))
+    GetSessionEnumerator(&SessionEnum := 0) => (FAILED(ComCall(5, this, "Ptr*", &SessionEnum := 0)), IAudioSessionEnumerator(SessionEnum, this))
     RegisterSessionNotification(SessionNotification) => ComCall(6, this, "Ptr", SessionNotification)
     UnregisterSessionNotification(SessionNotification) => ComCall(7, this, "Ptr", SessionNotification)
     RegisterDuckNotification(sessionID, duckNotification) => ComCall(8, this, "Str", sessionID, "Ptr", duckNotification)
@@ -168,7 +174,7 @@ class IAudioSessionManager2 extends IAudioSessionManager {
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessionnotification
 class IAudioSessionNotification extends IUnknown {
     static IID := this.__IID := "{641DD20B-4D41-49CC-ABA3-174B9477BB08}"
-    OnSessionCreated(ByRef NewSession := 0) => (FAILED(ComCall(3, this, "Ptr*", NewSession := 0)), IAudioSessionControl.New(NewSession, this))
+    OnSessionCreated(&NewSession := 0) => (FAILED(ComCall(3, this, "Ptr*", &NewSession := 0)), IAudioSessionControl(NewSession, this))
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiovolumeducknotification
 class IAudioVolumeDuckNotification extends IUnknown {
@@ -183,44 +189,44 @@ class IAudioEndpointVolume extends IUnknown {
     static IID := this.__IID := "{5CDF2C82-841E-4546-9722-0CF74078229A}"
     RegisterControlChangeNotify(pNotify) => ComCall(3, this, "Ptr", pNotify)
     UnregisterControlChangeNotify(pNotify) => ComCall(4, this, "Ptr", pNotify)
-    GetChannelCount(pnChannelCount) => ComCall(5, this, "UInt*", pnChannelCount)
+    GetChannelCount(pnChannelCount) => ComCall(5, this, "UInt*", &pnChannelCount)
     SetMasterVolumeLevel(fLevelDB, pguidEventContext := 0) => ComCall(6, this, "Float", fLevelDB, "Ptr", pguidEventContext)
     SetMasterVolumeLevelScalar(fLevelDB, pguidEventContext := 0) => ComCall(7, this, "Float", fLevelDB, "Ptr", pguidEventContext)
-    GetMasterVolumeLevel(ByRef fLevelDB) => ComCall(8, this, "Float*", fLevelDB := 0)
-    GetMasterVolumeLevelScalar(ByRef fLevel) => ComCall(9, this, "Float*", fLevel := 0)
+    GetMasterVolumeLevel(&fLevelDB) => ComCall(8, this, "Float*", &fLevelDB := 0)
+    GetMasterVolumeLevelScalar(&fLevel) => ComCall(9, this, "Float*", &fLevel := 0)
     SetChannelVolumeLevel(nChannel, fLevelDB, pguidEventContext := 0) => ComCall(10, this, "UInt", nChannel, "Float", fLevelDB, "Ptr", pguidEventContext)
     SetChannelVolumeLevelScalar(nChannel, pfLevel, pguidEventContext := 0) => ComCall(11, this, "UInt", nChannel, "Float", pfLevel, "Ptr", pguidEventContext)
-    GetChannelVolumeLevel(nChannel, ByRef fLevel) => ComCall(12, this, "UInt", nChannel, "Float*", fLevel := 0)
-    GetChannelVolumeLevelScalar(nChannel, ByRef fLevel) => ComCall(13, this, "UInt", nChannel, "Float*", fLevel := 0)
+    GetChannelVolumeLevel(nChannel, &fLevel) => ComCall(12, this, "UInt", nChannel, "Float*", &fLevel := 0)
+    GetChannelVolumeLevelScalar(nChannel, &fLevel) => ComCall(13, this, "UInt", nChannel, "Float*", &fLevel := 0)
     SetMute(bMute, pguidEventContext := 0) => ComCall(14, this, "Int", bMute, "Ptr", pguidEventContext)
-    GetMute(ByRef bMute) => ComCall(15, this, "Int*", bMute := 0)
-    GetVolumeStepInfo(ByRef nStep, ByRef nStepCount) => ComCall(16, this, "UInt*", nStep := 0, "UInt*", nStepCount := 0)
+    GetMute(&bMute) => ComCall(15, this, "Int*", &bMute := 0)
+    GetVolumeStepInfo(&nStep, &nStepCount) => ComCall(16, this, "UInt*", &nStep := 0, "UInt*", &nStepCount := 0)
     VolumeStepUp(pguidEventContext := 0) => ComCall(17, this, "Ptr", pguidEventContext)
     VolumeStepDown(pguidEventContext := 0) => ComCall(18, this, "Ptr", pguidEventContext)
-    QueryHardwareSupport(ByRef dwHardwareSupportMask) => ComCall(19, this, "UInt*", dwHardwareSupportMask := 0)
-    GetVolumeRange(ByRef flVolumeMindB, ByRef flVolumeMaxdB, ByRef flVolumeIncrementdB) => ComCall(20, this, "Float*", flVolumeMindB := 0, "Float*", flVolumeMaxdB := 0, "Float*", flVolumeIncrementdB := 0)
+    QueryHardwareSupport(&dwHardwareSupportMask) => ComCall(19, this, "UInt*", &dwHardwareSupportMask := 0)
+    GetVolumeRange(&flVolumeMindB, &flVolumeMaxdB, &flVolumeIncrementdB) => ComCall(20, this, "Float*", &flVolumeMindB := 0, "Float*", &flVolumeMaxdB := 0, "Float*", &flVolumeIncrementdB := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudioendpointvolumeex
 class IAudioEndpointVolumeEx extends IAudioEndpointVolume {
     static IID := this.__IID := "{66E11784-F695-4F28-A505-A7080081A78F}"
-    GetVolumeRangeChannel(iChannel, ByRef flVolumeMindB, ByRef flVolumeMaxdB, ByRef flVolumeIncrementdB) => ComCall(21, this, "UInt", iChannel, "Float*", flVolumeMindB := 0, "Float*", flVolumeMaxdB := 0, "Float*", flVolumeIncrementdB := 0)
+    GetVolumeRangeChannel(iChannel, &flVolumeMindB, &flVolumeMaxdB, &flVolumeIncrementdB) => ComCall(21, this, "UInt", iChannel, "Float*", &flVolumeMindB := 0, "Float*", &flVolumeMaxdB := 0, "Float*", &flVolumeIncrementdB := 0)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/endpointvolume/nn-endpointvolume-iaudiometerinformation
 class IAudioMeterInformation extends IUnknown {
     static IID := this.__IID := "{C02216F6-8C67-4B5B-9D00-D008E73E0064}"
-    GetPeakValue(ByRef fPeak) => ComCall(3, this, "Float*", fPeak := 0)
-    GetMeteringChannelCount(ByRef nChannelCount) => ComCall(4, this, "UInt*", nChannelCount := 0)
-    GetChannelsPeakValues(u32ChannelCount, ByRef afPeakValues) => ComCall(5, this, "UInt", u32ChannelCount, "Float*", afPeakValues := 0)
-    QueryHardwareSupport(ByRef dwHardwareSupportMask) => ComCall(6, this, "UInt*", dwHardwareSupportMask := 0)
+    GetPeakValue(&fPeak) => ComCall(3, this, "Float*", &fPeak := 0)
+    GetMeteringChannelCount(&nChannelCount) => ComCall(4, this, "UInt*", &nChannelCount := 0)
+    GetChannelsPeakValues(u32ChannelCount, &afPeakValues) => ComCall(5, this, "UInt", u32ChannelCount, "Float*", &afPeakValues := 0)
+    QueryHardwareSupport(&dwHardwareSupportMask) => ComCall(6, this, "UInt*", &dwHardwareSupportMask := 0)
 }
 
 ;; propsys.h header
 ; https://docs.microsoft.com/en-us/windows/win32/api/propsys/nn-propsys-ipropertystore
 class IPropertyStore extends IUnknown {
     static IID := this.__IID := "{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}"
-    GetCount(ByRef cProps) => ComCall(3, this, "UInt*", cProps := 0)
-    GetAt(iProp, ByRef pkey := 0) => (ComCall(4, this, "UInt", iProp, "Ptr", pkey := BufferAlloc(20)), pkey)
-    GetValue(key, ByRef pv := 0) => (ComCall(5, this, "Ptr", key, "Ptr", pv := BufferAlloc(A_PtrSize = 8 ? 24 : 16)), pv)
+    GetCount(&cProps) => ComCall(3, this, "UInt*", &cProps := 0)
+    GetAt(iProp, &pkey := 0) => (ComCall(4, this, "UInt", iProp, "Ptr", pkey := BufferAlloc(20)), pkey)
+    GetValue(key, &pv := 0) => (ComCall(5, this, "Ptr", key, "Ptr", pv := BufferAlloc(A_PtrSize = 8 ? 24 : 16)), pv)
     SetValue(key, propvar) => ComCall(6, this, "Ptr", key, "Ptr", propvar)
     Commit() => ComCall(7, this)
 }
