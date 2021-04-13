@@ -407,33 +407,13 @@ class WinHttp {
 		if (this._statuscb)
 			CallbackFree(this._statuscb)
 	}
-	Connect(pswzServerName, nServerPort, dwReserved) => DllCall('Winhttp\WinHttpConnect', 'ptr', this, 'wstr', pswzServerName, 'ushort', nServerPort, 'uint', dwReserved, 'ptr')
+	connect(ServerName, nServerPort) => WinHttp.Connect.Call(this.Ptr, ServerName, nServerPort)
 	GetProxyForUrl(lpcwszUrl, pAutoProxyOptions, pProxyInfo) => DllCall('Winhttp\WinHttpGetProxyForUrl', 'ptr', this, 'wstr', lpcwszUrl, 'ptr', pAutoProxyOptions, 'ptr', pProxyInfo, 'int')
-
-	abort() {
-
-	}
-	getAllResponseHeaders() {
-
-	}
-	getResponseHeader(Header) {
-
-	}
-	open(Method, Url, Async := unset) {
-		; OpenRequest(hConnect, pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags) => DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', pwszVerb, 'wstr', pwszObjectName, 'wstr', pwszVersion, 'wstr', pwszReferrer, 'ptr', ppwszAcceptTypes, 'uint', dwFlags, 'ptr')
-
-	}
-	send(Body) {
-
-	}
 	setAutoLogonPolicy(AutoLogonPolicy) {
 
 	}
 	setClientCertificate(ClientCertificate) {
 
-	}
-	setCredentials(UserName, Password, AuthTargets, AuthScheme := 1) {
-		return DllCall('Winhttp\WinHttpSetCredentials', 'ptr', this, 'uint', AuthTargets, 'uint', AuthScheme, 'wstr', UserName, 'wstr', Password, 'ptr', 0, 'int') ? 0 : A_LastError
 	}
 	setProxy(ProxySetting, ProxyServer, BypassList := '<local>') {
 		dwAccessType := ProxySetting = 2 ? 3 : ProxySetting
@@ -442,49 +422,18 @@ class WinHttp {
 			ProxyInfo := BufferAlloc(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
 		else
 			ProxyInfo := BufferAlloc(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
-		return DllCall('Winhttp\WinHttpSetDefaultProxyConfiguration', 'ptr', ProxyInfo.Ptr, 'int') ? 0 : A_LastError
+		if (ret := WinHttp.SetOption(this, WinHttp.OPTION_PROXY, ProxyInfo))
+			throw Error(ret)
 	}
 	setTimeouts(ResolveTimeout := 0, ConnectTimeout := 60000, SendTimeout := 30000, ReceiveTimeout := 30000) {
 		return DllCall('Winhttp\WinHttpSetTimeouts', 'ptr', this, 'int', ResolveTimeout, 'int', ConnectTimeout, 'int', SendTimeout, 'int', ReceiveTimeout, 'int') ? 0 : A_LastError
 	}
-	setRequestHeader(Header, Value, dwModifiers := 0x80000000) {
-		return DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', this, 'wstr', str := Trim(Header) ': ' Trim(Value), 'uint', -1, 'uint', dwModifiers, 'int') ? 0 : A_LastError
-	}
 	option[dwOption] {
-		get {
-			DllCall('Winhttp\WinHttpQueryOption', 'ptr', this, 'uint', dwOption, 'ptr', 0, 'uint*', &dwBufferLength := 0, 'int')
-			buf := BufferAlloc(dwBufferLength), lpBuffer := buf.Ptr
-			if !DllCall('Winhttp\WinHttpQueryOption', 'ptr', this, 'uint', dwOption, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'int')
-				throw Error(A_LastError)
-			return buf
-		}
+		get => WinHttp.QueryOption(this.Ptr, dwOption)
 		set {
-			switch Type(Value) {
-				case 'String':
-					lpBuffer := StrPtr(Value), dwBufferLength := StrLen(Value) * 2
-				case 'Integer':
-					buf := BufferAlloc(4), NumPut('uint', Value, buf), lpBuffer := buf.Ptr, dwBufferLength := 4
-				case 'Buffer':
-					lpBuffer := Value.Ptr, dwBufferLength := Value.Size
-				default:
-					return
-			}
-			if !DllCall('Winhttp\WinHttpSetOption', 'ptr', this, 'uint', dwOption, 'ptr', lpBuffer, 'uint', dwBufferLength, 'int')
-				throw Error(A_LastError)
+			if (ret := WinHttp.SetOption(this.Ptr, dwOption, Value))
+				throw Error(ret)
 		}
-	}
-	status {
-		get {
-
-		}
-	}
-	statusText {
-		get {
-
-		}
-	}
-	waitForResponse(Timeout := -1, &Succeeded := 0) {
-		return 0
 	}
 	request(Url, Verb := 'GET', data := '', headers := '', disable_redirects := false) {
 		static _ports := {ftp: 21, http: 80, https: 443}
@@ -533,26 +482,6 @@ class WinHttp {
 		req.SendRequest(data, _headers)
 		return req
 	}
-	readyState {
-		get {
-
-		}
-	}
-	responseBody {
-		get {
-
-		}
-	}
-	responseStream {
-		get {
-
-		}
-	}
-	responseText {
-		get {
-
-		}
-	}
 	static CheckPlatform() => DllCall('Winhttp\WinHttpCheckPlatform', 'int')
 	static CloseHandle(hInternet) => DllCall('Winhttp\WinHttpCloseHandle', 'ptr', hInternet, 'int')
 	static CrackUrl(Url) {
@@ -589,15 +518,126 @@ class WinHttp {
 	static DetectAutoProxyConfigUrl(dwAutoDetectFlags, ppwszAutoConfigUrl) => DllCall('Winhttp\WinHttpDetectAutoProxyConfigUrl', 'uint', dwAutoDetectFlags, 'ptr', ppwszAutoConfigUrl, 'int')
 	static GetDefaultProxyConfiguration(pProxyInfo) => DllCall('Winhttp\WinHttpGetDefaultProxyConfiguration', 'ptr', pProxyInfo, 'int')
 	static GetIEProxyConfigForCurrentUser(pProxyConfig) => DllCall('Winhttp\WinHttpGetIEProxyConfigForCurrentUser', 'ptr', pProxyConfig, 'int')
-	static QueryOption(hInternet, dwOption, lpBuffer, lpdwBufferLength) => DllCall('Winhttp\WinHttpQueryOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', lpBuffer, 'ptr', lpdwBufferLength, 'int')
-	static SetDefaultProxyConfiguration(pProxyInfo) => DllCall('Winhttp\WinHttpSetDefaultProxyConfiguration', 'ptr', pProxyInfo, 'int')
-	static SetOption(hInternet, dwOption, lpBuffer, dwBufferLength) => DllCall('Winhttp\WinHttpSetOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', lpBuffer, 'uint', dwBufferLength, 'int')
+	static QueryOption(hInternet, dwOption) {
+		DllCall('Winhttp\WinHttpQueryOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', 0, 'uint*', &dwBufferLength := 0, 'int')
+		buf := BufferAlloc(dwBufferLength), lpBuffer := buf.Ptr
+		if !DllCall('Winhttp\WinHttpQueryOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'int')
+			return 0
+		return buf
+	}
+	static SetDefaultProxyConfiguration(ProxySetting, ProxyServer, BypassList := '<local>') {
+		dwAccessType := ProxySetting = 2 ? 3 : ProxySetting
+		lpszProxy := StrPtr(ProxyServer), lpszProxyBypass := StrPtr(BypassList)
+		if (A_PtrSize = 8)
+			ProxyInfo := BufferAlloc(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
+		else
+			ProxyInfo := BufferAlloc(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
+		return DllCall('Winhttp\WinHttpSetDefaultProxyConfiguration', 'ptr', ProxyInfo.Ptr, 'int') ? 0 : A_LastError
+	}
+	static SetOption(hInternet, dwOption, Value) {
+		switch Type(Value) {
+			case 'String':
+				lpBuffer := StrPtr(Value), dwBufferLength := StrLen(Value) * 2
+			case 'Integer':
+				buf := BufferAlloc(4), NumPut('uint', Value, buf), lpBuffer := buf.Ptr, dwBufferLength := 4
+			case 'Buffer':
+				lpBuffer := Value.Ptr, dwBufferLength := Value.Size
+			case 'Object':
+				if (Value.HasOwnProp('Ptr') && Value.HasOwnProp('Size'))
+					lpBuffer := Value.Ptr, dwBufferLength := Value.Size
+				else
+					return 87
+			default:
+				return 87
+		}
+		return DllCall('Winhttp\WinHttpSetOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', lpBuffer, 'uint', dwBufferLength, 'int') ? 0 : A_LastError
+	}
 	static SetStatusCallback(hInternet, lpfnInternetCallback, dwNotificationFlags) => DllCall('Winhttp\WinHttpSetStatusCallback', 'ptr', hInternet, 'ptr', lpfnInternetCallback, 'uint', dwNotificationFlags, 'uptr', 0, 'ptr')
-	static TimeFromSystemTime(pst, pwszTime) => DllCall('Winhttp\WinHttpTimeFromSystemTime', 'ptr', pst, 'wstr', pwszTime, 'int')
-	static TimeToSystemTime(pwszTime, pst) => DllCall('Winhttp\WinHttpTimeToSystemTime', 'wstr', pwszTime, 'ptr', pst, 'int')
+	static TimeFromSystemTime(pst) {
+		if DllCall('Winhttp\WinHttpTimeFromSystemTime', 'ptr', pst, 'ptr', pszTime := BufferAlloc(62), 'int')
+			return StrGet(pszTime, 'utf-16')
+	}
+	static TimeToSystemTime(Time) {
+		pst := BufferAlloc(16)
+		if DllCall('Winhttp\WinHttpTimeToSystemTime', 'wstr', Time, 'ptr', pst, 'int')
+			return pst
+	}
+	class Connect {
+		Ptr := 0
+		__New(hSession, ServerName, nServerPort) {
+			if !(hConnect := DllCall('Winhttp\WinHttpConnect', 'ptr', hSession, 'wstr', ServerName, 'ushort', nServerPort, 'uint', 0, 'ptr'))
+				throw Error(A_LastError)
+			this.Ptr := hConnect
+		}
+		__Delete() => DllCall('Winhttp\WinHttpCloseHandle', 'ptr', this, 'int')
+	}
 
 	class Request {
-		
+		open(Method, Url, Async := unset) {
+			; OpenRequest(hConnect, pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags) => DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', pwszVerb, 'wstr', pwszObjectName, 'wstr', pwszVersion, 'wstr', pwszReferrer, 'ptr', ppwszAcceptTypes, 'uint', dwFlags, 'ptr')
+
+		}
+		abort() {
+
+		}
+		getAllResponseHeaders() {
+
+		}
+		getResponseHeader(Header) {
+
+		}
+		send(Body) {
+
+		}
+		setRequestHeader(Header, Value, dwModifiers := 0x80000000) {
+			return DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', this, 'wstr', str := Trim(Header) ': ' Trim(Value), 'uint', -1, 'uint', dwModifiers, 'int') ? 0 : A_LastError
+		}
+		setCredentials(UserName, Password, AuthTargets, AuthScheme := 1) {
+			return DllCall('Winhttp\WinHttpSetCredentials', 'ptr', this, 'uint', AuthTargets, 'uint', AuthScheme, 'wstr', UserName, 'wstr', Password, 'ptr', 0, 'int') ? 0 : A_LastError
+		}
+		waitForResponse(Timeout := -1, &Succeeded := 0) {
+			return 0
+		}
+		QueryAuthSchemes(lpdwSupportedSchemes, lpdwFirstScheme, pdwAuthTarget) => DllCall('Winhttp\WinHttpQueryAuthSchemes', 'ptr', this, 'ptr', lpdwSupportedSchemes, 'ptr', lpdwFirstScheme, 'ptr', pdwAuthTarget, 'int')
+		QueryDataAvailable(&dwNumberOfBytesAvailable) => DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &dwNumberOfBytesAvailable := 0, 'int')
+
+		option[dwOption] {
+			get => WinHttp.QueryOption((this.Ptr, dwOption))
+			set {
+				if (ret := WinHttp.SetOption(this.Ptr, dwOption, Value))
+					throw Error(ret)
+			}
+		}
+		status {
+			get {
+
+			}
+		}
+		statusText {
+			get {
+
+			}
+		}
+		readyState {
+			get {
+
+			}
+		}
+		responseBody {
+			get {
+
+			}
+		}
+		responseStream {
+			get {
+
+			}
+		}
+		responseText {
+			get {
+
+			}
+		}
 	}
 	class Request2 {
 		Ptr := 0, hConnect := 0, _ResponseBody := 0, _Headers := 0, _HasReceiveResponse := 0
@@ -614,8 +654,6 @@ class WinHttp {
 				WinHttp.CloseHandle(this.hConnect)
 		}
 		AddRequestHeaders(Headers, dwModifiers := 0x40000000) => DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', this, 'wstr', Headers, 'uint', -1, 'uint', dwModifiers, 'int')
-		QueryAuthSchemes(lpdwSupportedSchemes, lpdwFirstScheme, pdwAuthTarget) => DllCall('Winhttp\WinHttpQueryAuthSchemes', 'ptr', this, 'ptr', lpdwSupportedSchemes, 'ptr', lpdwFirstScheme, 'ptr', pdwAuthTarget, 'int')
-		QueryDataAvailable(&dwNumberOfBytesAvailable) => DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &dwNumberOfBytesAvailable := 0, 'int')
 		QueryHeaders(dwInfoLevel, pwszName, lpBuffer, &dwBufferLength, dwIndex := 0) => DllCall('Winhttp\WinHttpQueryHeaders', 'ptr', this, 'uint', dwInfoLevel, 'ptr', pwszName, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'uint*', &dwIndex, 'int')
 		ReadData(lpBuffer, dwNumberOfBytesToRead, &dwNumberOfBytesRead) => DllCall('Winhttp\WinHttpReadData', 'ptr', this, 'ptr', lpBuffer, 'uint', dwNumberOfBytesToRead, 'uint*', &dwNumberOfBytesRead := 0, 'int')
 		ReceiveResponse() => DllCall('Winhttp\WinHttpReceiveResponse', 'ptr', this, 'ptr', 0, 'int')
@@ -690,9 +728,9 @@ class WinHttp {
 	}
 }
 
-session := WinHttp(, WinHttp.FLAG_ASYNC)
-req := session.request('https://www.baidu.com')
-Persistent()
+; session := WinHttp(, WinHttp.FLAG_ASYNC)
+; req := session.request('https://www.baidu.com')
+; Persistent()
 ; req := session.request('http:;www.sojson.com', 'POST', , 'Content-Type: application/x-www-form-urlencoded;charset=UTF-8`r`nConnection: close`r`nContent-Length: 0', true)
 ; req.AddRequestHeaders()
 ; OutputDebug(req.Headers '`n')
@@ -707,3 +745,5 @@ Persistent()
 ; hObject.send()
 ; OutputDebug('ss')
 ; OutputDebug hObject.readyState
+
+msgbox WinHttp.CheckPlatform()
