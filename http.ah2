@@ -385,29 +385,62 @@ class WinHttp {
 	static RESET_DISCARD_RESOLVERS := 0x00040000
 	static WEB_SOCKET_MAX_CLOSE_REASON_LENGTH := 123
 	static WEB_SOCKET_MIN_KEEPALIVE_VALUE := 15000
-	Ptr := 0, Version := 0, _statuscb := 0, onreadystatechange := 0
+	Ptr := 0, async := false, UserAgent := '', _statuscb := 0
 	__New(UserAgent := 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36 Edg/89.0.774.68', dwFlags := 0) {
 		pwszUserAgent := UserAgent = '' ? 0 : StrPtr(UserAgent)
 		if !hSession := DllCall('Winhttp\WinHttpOpen', 'ptr', pwszUserAgent, 'uint', 0, 'ptr', 0, 'ptr', 0, 'uint', dwFlags, 'ptr')
 			throw
-		this.Ptr := hSession
-		if (dwFlags & WinHttp.FLAG_ASYNC)
-			this._statuscb := CallbackCreate(StatusCallback)
+		this.Ptr := hSession, this.dwFlags := dwFlags, this.UserAgent := UserAgent
+		if (WinHttp.FLAG_ASYNC & dwFlags)
+			this.async := true
+		this._statuscb := CallbackCreate(StatusCallback)
 		StatusCallback(hInternet, dwContext, dwInternetStatus, lpvStatusInformation, dwStatusInformationLength) {
-			s := ''
-			if (dwStatusInformationLength)
-				s := StrGet(lpvStatusInformation, dwStatusInformationLength, 'utf-16')
-			if (dwInternetStatus = 0x00400000)	; WinHttp.CALLBACK_STATUS_SENDREQUEST_COMPLETE
-				fn := ObjPtr(dwContext)
-			OutputDebug(dwInternetStatus '|' s '`n')
+			critical
+			; OutputDebug(dwInternetStatus '`n')
+			if (IsSet(&dwContext) && IsSet(&hInternet) && dwContext && (req := ObjFromPtrAddRef(dwContext)) && hInternet = req.Ptr) {
+				switch dwInternetStatus {
+					case WinHttp.CALLBACK_STATUS_SENDREQUEST_COMPLETE:
+						req.readyState := 3
+						if req.ReceiveResponse()
+							req.readyState := 4
+					case WinHttp.CALLBACK_STATUS_HEADERS_AVAILABLE:
+						DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', hInternet, 'uint*', &size := 0, 'int')
+						req.read()
+					case WinHttp.CALLBACK_STATUS_DATA_AVAILABLE:
+						req.onreadystatechange()
+					case WinHttp.CALLBACK_STATUS_REQUEST_ERROR:
+						dwResult := NumGet(lpvStatusInformation, 'ptr')
+						dwError := NumGet(lpvStatusInformation, A_PtrSize, 'uint')
+					case WinHttp.CALLBACK_STATUS_READ_COMPLETE:
+
+				}
+			}
+			req := ''
+			return 0
 		}
 	}
 	__Delete() {
 		WinHttp.CloseHandle(this.Ptr)
 		if (this._statuscb)
-			CallbackFree(this._statuscb)
+			CallbackFree(this._statuscb), this._statuscb := 0
 	}
-	connect(ServerName, nServerPort) => WinHttp.Connect.Call(this.Ptr, ServerName, nServerPort)
+	openRequset(Method, Url) {
+		static _ports := {ftp: 21, http: 80, https: 443}
+		if (!RegExMatch(Url, '^((?<SCHEME>\w+)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
+			throw Error('无效的url')
+		port := Integer(m.PORT || (_ports.HasOwnProp(m.SCHEME) ? _ports.%m.SCHEME% : m.SCHEME = '' ? 80 : 0))
+		hConnect := WinHttp.Connect.Call(this.Ptr, m.HOST, port)
+		dwFlags := m.SCHEME = 'https' ? WinHttp.FLAG_SECURE : 0
+		pwszReferrer := 0, pwszVersion := 0
+		if !(hRequest := DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', StrUpper(Method), 'wstr', m.PATH, 'ptr', pwszVersion, 'ptr', pwszReferrer, 'ptr', 0, 'uint', dwFlags, 'ptr'))
+			throw Error('打开请求失败')
+		req := WinHttp.Request.Call(hRequest, hConnect, this.async)
+		if (this.async) {
+			WinHttp.SetStatusCallback(req.Ptr, this._statuscb, WinHttp.CALLBACK_FLAG_ALL_COMPLETIONS)
+			val := BufferAlloc(A_PtrSize), NumPut('ptr', ObjPtr(req), val), req.option[WinHttp.OPTION_CONTEXT_VALUE] := val
+		}
+		return req
+	}
 	GetProxyForUrl(lpcwszUrl, pAutoProxyOptions, pProxyInfo) => DllCall('Winhttp\WinHttpGetProxyForUrl', 'ptr', this, 'wstr', lpcwszUrl, 'ptr', pAutoProxyOptions, 'ptr', pProxyInfo, 'int')
 	setAutoLogonPolicy(AutoLogonPolicy) {
 
@@ -434,53 +467,6 @@ class WinHttp {
 			if (ret := WinHttp.SetOption(this.Ptr, dwOption, Value))
 				throw Error(ret)
 		}
-	}
-	request(Url, Verb := 'GET', data := '', headers := '', disable_redirects := false) {
-		static _ports := {ftp: 21, http: 80, https: 443}
-		if (!RegExMatch(url, '^((?<SCHEME>\w+)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
-			throw Error('无效的url')
-		port := Integer(m.PORT || (_ports.HasOwnProp(m.SCHEME) ? _ports.%m.SCHEME% : m.SCHEME = '' ? 80 : 0))
-		if !(hConnect := DllCall('Winhttp\WinHttpConnect', 'ptr', this, 'wstr', m.HOST, 'ushort', port, 'uint', 0, 'ptr'))
-			throw Error('连接失败')
-		dwFlags := m.SCHEME = 'https' ? WinHttp.FLAG_SECURE : 0
-		pwszReferrer := 0, pwszVersion := this.Version ? StrPtr(this.Version) : 0
-		path := LTrim(m.PATH, '/'), t := '', _headers := '', str := ''
-		switch Type(headers) {
-			case 'String':
-				_headers := RegExReplace(headers, '\R', '`r`n')
-			case 'Array':
-				for v in headers
-					_headers .= '`r`n' v
-				_headers := LTrim(_headers, '`r`n')
-			case 'Map', 'Object':
-				for k, v in Type(headers) = 'Map' ? headers : headers.OwnProps()
-					_headers .= '`r`n' k ': ' v
-				_headers := LTrim(_headers, '`r`n')
-		}
-		if (data) {
-			if ((t := Type(data)) ~= '^(Map|Object)$') {
-				if (_headers ~= 'im)Content-Type:\s*application/json')
-					data := JSON.stringify(data, 0)
-				else {
-					for k, v in t = 'Map' ? data : data.OwnProps()
-						str .= '&' k '=' v
-					if (Verb = 'POST')
-						data := SubStr(str, 2), str := ''
-					else if str
-						path .= InStr(path, '?') ? str : '?' SubStr(str, 2)
-				}
-			} else if (t = 'String' && Verb != 'POST')
-				path .= InStr(path, '?') ? data : '?' SubStr(data, 2), data := ''
-		}
-		if !(hRequest := DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', StrUpper(Verb), 'wstr', path, 'ptr', pwszVersion, 'ptr', pwszReferrer, 'ptr', 0, 'uint', dwFlags, 'ptr')) {
-			WinHttp.CloseHandle(hConnect)
-			throw Error('打开请求失败')
-		}
-		req := WinHttp.Request.Call(hRequest), req.hConnect := hConnect
-		if (disable_redirects)
-			buf := BufferAlloc(4), NumPut('uint', 0x2, buf), WinHttp.SetOption(hRequest, 63, buf, 4)
-		req.SendRequest(data, _headers)
-		return req
 	}
 	static CheckPlatform() => DllCall('Winhttp\WinHttpCheckPlatform', 'int')
 	static CloseHandle(hInternet) => DllCall('Winhttp\WinHttpCloseHandle', 'ptr', hInternet, 'int')
@@ -564,6 +550,13 @@ class WinHttp {
 	}
 	class Connect {
 		Ptr := 0
+		option[dwOption] {
+			get => WinHttp.QueryOption(this.Ptr, dwOption)
+			set {
+				if (ret := WinHttp.SetOption(this.Ptr, dwOption, Value))
+					throw Error(ret)
+			}
+		}
 		__New(hSession, ServerName, nServerPort) {
 			if !(hConnect := DllCall('Winhttp\WinHttpConnect', 'ptr', hSession, 'wstr', ServerName, 'ushort', nServerPort, 'uint', 0, 'ptr'))
 				throw Error(A_LastError)
@@ -573,21 +566,62 @@ class WinHttp {
 	}
 
 	class Request {
-		open(Method, Url, Async := unset) {
-			; OpenRequest(hConnect, pwszVerb, pwszObjectName, pwszVersion, pwszReferrer, ppwszAcceptTypes, dwFlags) => DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', pwszVerb, 'wstr', pwszObjectName, 'wstr', pwszVersion, 'wstr', pwszReferrer, 'ptr', ppwszAcceptTypes, 'uint', dwFlags, 'ptr')
-
+		Ptr := 0, hConnect := 0, async := 0, _ResponseBody := 0, _HasReceiveResponse := 0, readyState := 0, onreadystatechange := 0
+		__New(hRequest, hConnect, async) {
+			this.Ptr := hRequest, this.hConnect := hConnect, this.async := async
+		}
+		__Delete() {
+			this.abort()
 		}
 		abort() {
-
+			if (this.Ptr)
+				WinHttp.CloseHandle(this.Ptr), this.Ptr := this.hConnect := 0
 		}
 		getAllResponseHeaders() {
-
+			this.QueryHeaders(22, 0, 0, &size := 0, 0)
+			if (size && (buf := BufferAlloc(size)) && this.QueryHeaders(22, 0, buf.Ptr, &size, 0))
+				return StrGet(buf, 'utf-16')
 		}
 		getResponseHeader(Header) {
-
+			if (i := 0, s := '', Type(Header) = 'String') {
+				this.QueryHeaders(65535, ps := StrPtr(Header), 0, &size := 0, i)
+				while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(65535, ps, buf.Ptr, &size, i++))
+					s .= StrGet(buf, 'utf-16'), this.QueryHeaders(65535, ps := StrPtr(Header), 0, &size := 0, i)
+				return s
+			} else {
+				this.QueryHeaders(Header += 0, 0, 0, &size := 0, i)
+				if (Header = 21) {
+					buf := BufferAlloc(size), this.QueryHeaders(Header, 0, buf.Ptr, &size, i)
+					return buf
+				}
+				while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(Header, 0, buf.Ptr, &size, i++)) {
+					s .= '`n' StrGet(buf, 'utf-16')
+					this.QueryHeaders(Header += 0, 0, 0, &size := 0, i)
+				}
+				return LTrim(s, '`n')
+			}
 		}
-		send(Body) {
-
+		send(data := '') {
+			static errors := Map(12002, '操作超时', 12007, '无法解析服务器的名称或地址', 12029, '无法连接')
+			if ((t := Type(data)) ~= '^(Map|Object)$') {
+				str := ''
+				for k, v in t = 'Map' ? data : data.OwnProps()
+					str .= '&' k '=' v
+				data := SubStr(str, 2), str := ''
+			}
+			if (data = '') {
+				lpOptional := 0, dwOptionalLength := 0
+			} else if (Type(data) = 'Buffer')
+				lpOptional := Data.Ptr, dwOptionalLength := Data.Size
+			else
+				lpOptional := StrPtr(data), dwOptionalLength := StrLen(data) * 2
+			this.readyState := 1
+			if (!DllCall('Winhttp\WinHttpSendRequest', 'ptr', this, 'ptr', 0, 'uint', 0, 'ptr', lpOptional, 'uint', dwOptionalLength, 'uint', 0, 'uptr', 0, 'int'))
+				throw Error(errors.Has(err := A_LastError) ? errors[err] : err, -1)
+			if (this.async)
+				this.readyState := 2
+			else
+				this.ReceiveResponse(), this.readyState := this.responseBody ? 4 : 3
 		}
 		setRequestHeader(Header, Value, dwModifiers := 0x80000000) {
 			return DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', this, 'wstr', str := Trim(Header) ': ' Trim(Value), 'uint', -1, 'uint', dwModifiers, 'int') ? 0 : A_LastError
@@ -595,37 +629,53 @@ class WinHttp {
 		setCredentials(UserName, Password, AuthTargets, AuthScheme := 1) {
 			return DllCall('Winhttp\WinHttpSetCredentials', 'ptr', this, 'uint', AuthTargets, 'uint', AuthScheme, 'wstr', UserName, 'wstr', Password, 'ptr', 0, 'int') ? 0 : A_LastError
 		}
-		waitForResponse(Timeout := -1, &Succeeded := 0) {
+		waitForResponse(Timeout := -1, &Succeeded := 1) {
+			if (this.async) {
+				if (Timeout = -1) {
+					while (this.readyState < 3)
+						Sleep(-1)
+				} else {
+					t := A_TickCount + Timeout
+					while (this.readyState < 3 && A_TickCount <= t)
+						Sleep(-1)
+					if (A_TickCount > t && this.readyState < 3)
+						Succeeded := 0
+				}
+			}
 			return 0
 		}
+		read() {
+			if (!DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int'))
+				return
+			buf := BufferAlloc(size), this.ReadData(buf.Ptr, size, &dwread)
+			if (dwread)
+				return buf
+		}
+		ReadData(lpBuffer, dwNumberOfBytesToRead, &dwNumberOfBytesRead) => DllCall('Winhttp\WinHttpReadData', 'ptr', this, 'ptr', lpBuffer, 'uint', dwNumberOfBytesToRead, 'uint*', &dwNumberOfBytesRead := 0, 'int')
+		WriteData(lpBuffer, dwNumberOfBytesToWrite, &dwNumberOfBytesWritten) => DllCall('Winhttp\WinHttpWriteData', 'ptr', this, 'ptr', lpBuffer, 'uint', dwNumberOfBytesToWrite, 'uint*', &dwNumberOfBytesWritten := 0, 'int')
 		QueryAuthSchemes(lpdwSupportedSchemes, lpdwFirstScheme, pdwAuthTarget) => DllCall('Winhttp\WinHttpQueryAuthSchemes', 'ptr', this, 'ptr', lpdwSupportedSchemes, 'ptr', lpdwFirstScheme, 'ptr', pdwAuthTarget, 'int')
-		QueryDataAvailable(&dwNumberOfBytesAvailable) => DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &dwNumberOfBytesAvailable := 0, 'int')
-
+		QueryHeaders(dwInfoLevel, pwszName, lpBuffer, &dwBufferLength, dwIndex) => DllCall('Winhttp\WinHttpQueryHeaders', 'ptr', this, 'uint', dwInfoLevel, 'ptr', pwszName, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'uint*', dwIndex, 'int')
+		ReceiveResponse() => DllCall('Winhttp\WinHttpReceiveResponse', 'ptr', this, 'ptr', 0, 'int')
 		option[dwOption] {
-			get => WinHttp.QueryOption((this.Ptr, dwOption))
+			get => WinHttp.QueryOption(this.Ptr, dwOption)
 			set {
 				if (ret := WinHttp.SetOption(this.Ptr, dwOption, Value))
 					throw Error(ret)
 			}
 		}
-		status {
-			get {
-
-			}
-		}
-		statusText {
-			get {
-
-			}
-		}
-		readyState {
-			get {
-
-			}
-		}
+		status => this.getResponseHeader(WinHttp.QUERY_STATUS_CODE)
+		statusText => this.getResponseHeader(WinHttp.QUERY_STATUS_TEXT)
 		responseBody {
 			get {
-
+				if (this._ResponseBody)
+					return this._ResponseBody
+				if (!DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int'))
+					return
+				buf := BufferAlloc(size), this.ReadData(buf.Ptr, size, &dwread), offset := dwread
+				while (DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int') && size)
+					buf.Size := offset + size, this.ReadData(buf.Ptr + offset, size, &dwread), offset += dwread
+				this.readyState := 4
+				return this._ResponseBody := buf
 			}
 		}
 		responseStream {
@@ -635,115 +685,37 @@ class WinHttp {
 		}
 		responseText {
 			get {
-
-			}
-		}
-	}
-	class Request2 {
-		Ptr := 0, hConnect := 0, _ResponseBody := 0, _Headers := 0, _HasReceiveResponse := 0
-		__New(hRequest, statuscb := 0, callback := 0) {
-			this.Ptr := hRequest
-			if (statuscb)
-				WinHttp.SetStatusCallback(hRequest, statuscb, 0xffffffff)
-		}
-		__Delete() {
-			this._Headers := this._ResponseBody := 0
-			if (this.Ptr)
-				WinHttp.CloseHandle(this.Ptr), this.Ptr := 0
-			if (this.hConnect)
-				WinHttp.CloseHandle(this.hConnect)
-		}
-		AddRequestHeaders(Headers, dwModifiers := 0x40000000) => DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', this, 'wstr', Headers, 'uint', -1, 'uint', dwModifiers, 'int')
-		QueryHeaders(dwInfoLevel, pwszName, lpBuffer, &dwBufferLength, dwIndex := 0) => DllCall('Winhttp\WinHttpQueryHeaders', 'ptr', this, 'uint', dwInfoLevel, 'ptr', pwszName, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'uint*', &dwIndex, 'int')
-		ReadData(lpBuffer, dwNumberOfBytesToRead, &dwNumberOfBytesRead) => DllCall('Winhttp\WinHttpReadData', 'ptr', this, 'ptr', lpBuffer, 'uint', dwNumberOfBytesToRead, 'uint*', &dwNumberOfBytesRead := 0, 'int')
-		ReceiveResponse() => DllCall('Winhttp\WinHttpReceiveResponse', 'ptr', this, 'ptr', 0, 'int')
-		SendRequest(Data := '', Headers := '') {
-			static errors := Map(12002, '操作超时', 12007, '无法解析服务器的名称或地址', 12029, '无法连接')
-			this._ResponseBody := 0, this._HasReceiveResponse := 0
-			if (Data = '') {
-				lpOptional := 0, dwOptionalLength := 0
-			} else if (Type(lpOptional) = 'Buffer')
-				lpOptional := Data.Ptr, dwOptionalLength := Data.Size
-			else
-				lpOptional := StrPtr(Data := String(Data)), dwOptionalLength := StrLen(lpOptional) * 2
-			pwszHeaders := Headers = '' ? 0 : StrPtr(Headers)
-			if (!DllCall('Winhttp\WinHttpSendRequest', 'ptr', this, 'ptr', pwszHeaders, 'uint', -1, 'ptr', lpOptional, 'uint', dwOptionalLength, 'uint', 0, 'uptr', 0, 'int'))
-				throw Error(errors.Has(err := A_LastError) ? errors[err] : err, -1)
-		}
-		SetCredentials(AuthTargets, AuthScheme, pwszUserName, pwszPassword, pAuthParams) => DllCall('Winhttp\WinHttpSetCredentials', 'ptr', this, 'uint', AuthTargets, 'uint', AuthScheme, 'wstr', pwszUserName, 'wstr', pwszPassword, 'ptr', pAuthParams, 'int')
-		WriteData(lpBuffer, dwNumberOfBytesToWrite, &dwNumberOfBytesWritten) => DllCall('Winhttp\WinHttpWriteData', 'ptr', this, 'ptr', lpBuffer, 'uint', dwNumberOfBytesToWrite, 'uint*', &dwNumberOfBytesWritten := 0, 'int')
-
-		responseBody {
-			get {
-				if (this._ResponseBody)
-					return this._ResponseBody
-				if (this._HasReceiveResponse || this._HasReceiveResponse := this.ReceiveResponse()) {
-					if (!this.QueryDataAvailable(&size))
-						return
-					buf := BufferAlloc(size), this.ReadData(buf.Ptr, size, &dwread), offset := dwread
-					while (this.QueryDataAvailable(&size) && size)
-						buf.Size := offset + size, this.ReadData(buf.Ptr + offset, size, &dwread), offset += dwread
-					return this._ResponseBody := buf
-				}
-			}
-		}
-		responseText {
-			get {
 				if (this._ResponseBody || this.ResponseBody) {
-					text := StrGet(this._ResponseBody, 'utf-8')
-					return text
-				}
-			}
-		}
-		headers[Name := ''] {
-			get {
-				if (this._HasReceiveResponse || this._HasReceiveResponse := this.ReceiveResponse()) {
-					i := 0, s := ''
-					if (Name = '') {
-						if (this._Headers)
-							return this._Headers
-						this.QueryHeaders(22, 0, 0, &size := 0, 0)
-						if (size && (buf := BufferAlloc(size)) && this.QueryHeaders(22, 0, buf.Ptr, &size, 0))
-							return this._Headers := StrGet(buf, 'utf-16')
-					} else if (Type(Name) = 'String') {
-						this.QueryHeaders(65535, ps := StrPtr(Name), 0, &size := 0, i)
-						while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(65535, ps, buf.Ptr, &size, i++))
-							s .= StrGet(buf, 'utf-16'), this.QueryHeaders(65535, ps, 0, &size := 0, i)
-						return s
-					} else {
-						this.QueryHeaders(Name += 0, 0, 0, &size := 0, i)
-						if (Name = 21) {
-							buf := BufferAlloc(size), this.QueryHeaders(Name, 0, buf.Ptr, &size, i)
-							return buf
-						}
-						while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(Name, 0, buf.Ptr, &size, i++)) {
-							s .= '`n' StrGet(buf, 'utf-16')
-							this.QueryHeaders(Name += 0, 0, 0, &size := 0, i)
-						}
-						return LTrim(s, '`n')
+					if RegExMatch(this.getResponseHeader('Content-Type') || '', 'charset=([\w\-]+)', &m)
+						charset := m[1]
+					else
+						charset := this.getResponseHeader(WinHttp.QUERY_ACCEPT_CHARSET)
+					switch charset {
+						case 'utf-8', 'utf-16':
+						case 'gb2312':
+							charset := 'cp936'
+						default:
+							if (charset = '')
+								charset := 'utf-16'
+							else
+								throw Error('未知的字符集: ' charset)
 					}
+					return StrGet(this._ResponseBody, charset)
 				}
 			}
 		}
 	}
 }
 
-; session := WinHttp(, WinHttp.FLAG_ASYNC)
-; req := session.request('https://www.baidu.com')
-; Persistent()
-; req := session.request('http:;www.sojson.com', 'POST', , 'Content-Type: application/x-www-form-urlencoded;charset=UTF-8`r`nConnection: close`r`nContent-Length: 0', true)
-; req.AddRequestHeaders()
-; OutputDebug(req.Headers '`n')
-; OutputDebug(req.Headers[19] '`n')
-; OutputDebug(req.Headers)
-; Sleep(1100)
-; OutputDebug(req.headers '`n')
-; OutputDebug(req.responseText)
-; hObject := ComObject("WinHttp.WinHttpRequest.5.1")
-; hObject.SetTimeouts(30000, 30000, 30000, 30000)
-; hObject.Open('GET', 'https:;www.baiduw.com', true)
-; hObject.send()
-; OutputDebug('ss')
-; OutputDebug hObject.readyState
+; session := WinHttp()
+session := WinHttp(, WinHttp.FLAG_ASYNC)
+req := session.openRequset('GET', 'https://www.baidu.com')
+req.onreadystatechange := ccb
+req.send()
+; DllCall('Winhttp\')
 
-msgbox WinHttp.CheckPlatform()
+Persistent()
+
+ccb(s, a*) {
+	
+}

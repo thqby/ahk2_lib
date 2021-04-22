@@ -35,4 +35,8 @@
  * } MODULEENTRY32;
  */
 
-mds:=ListProcessModules(WinGetPID(A_ScriptHwnd))
+mds:=ListProcessModules(22952)
+for v in mds
+	if InStr(v.szmodule, 'yzime')
+		MsgBox()
+MsgBox()
