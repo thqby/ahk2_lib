@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby
- * @date 2021/04/05
- * @version 0.0.80
+ * @date 2021/04/23
+ * @version 0.0.81
  ***********************************************************************/
 
 class YAML {
@@ -276,7 +276,7 @@ class YAML {
 	 * @returns JSON string where expandlevel <= 0, otherwise YAML string
 	 */
 	static stringify(obj, expandlevel := unset, space := "  ", unicode_escaped := false) {
-		expandlevel := IsSet(&expandlevel) ? expandlevel : 100000
+		expandlevel := IsSet(expandlevel) ? expandlevel : 100000
 		return Trim(CO(obj, expandlevel))
 
 		CO(O, J := 0, R := 0, Q := 0) {	; helper: convert object to yaml string

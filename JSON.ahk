@@ -2,8 +2,8 @@
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby
- * @date 2021/04/11
- * @version 0.0.85
+ * @date 2021/04/23
+ * @version 0.0.86
  ***********************************************************************/
 
 class JSON {
@@ -82,7 +82,7 @@ class JSON {
 	 * @param unicode_escaped Convert non-ascii characters to \uxxxx where unicode_escaped = true
 	 */
 	static stringify(obj, expandlevel := unset, space := "  ", unicode_escaped := false) {
-		expandlevel := IsSet(&expandlevel) ? Abs(expandlevel) : 10000000
+		expandlevel := IsSet(expandlevel) ? Abs(expandlevel) : 10000000
 		return Trim(CO(obj, expandlevel))
 		CO(O, J := 0, R := 0, Q := 0) {
 			static M1 := "{", M2 := "}", S1 := "[", S2 := "]", N := "`n", C := ",", S := "- ", E := "", K := ":"

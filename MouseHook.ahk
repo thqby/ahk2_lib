@@ -14,7 +14,7 @@ class MouseHook {
 		get => this.ThisKeyTime ? A_TickCount - this.ThisKeyTime : 0
 	}
 	__New(Event := unset) {
-		if IsSet(&Event)
+		if IsSet(Event)
 			this.OnEvent := Event
 		else
 			this.OnEvent := (*) => false

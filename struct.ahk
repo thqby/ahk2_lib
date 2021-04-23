@@ -6,7 +6,7 @@ class struct
 		global A_DebuggerName
 		_types := struct.__types, _maxbytes := 0, _index := 0, _root := true, _level := 0, _sub := []
 		this.DefineProp("__struct", {Value: {}}), this.DefineProp("__buffer", {Value: {Ptr: 0, Size: 0}}), this.DefineProp("__member", {Value: []})	; this.__struct:={}, this.__buffer:=""
-		this.DefineProp("__base", {Value: (IsSet(&ads_pa) && Type(ads_pa) = "Buffer") ? (_root := false, ads_pa) : BufferAlloc(A_PtrSize, 0)})
+		this.DefineProp("__base", {Value: (IsSet(ads_pa) && Type(ads_pa) = "Buffer") ? (_root := false, ads_pa) : BufferAlloc(A_PtrSize, 0)})
 		if (Type(structinfo) = "String") {
 			structinfo := RegExReplace(structinfo := StrReplace(structinfo, ",", "`n"), "m)^\s*unsigned\s*", "U")
 			structinfo := StrSplit(structinfo, "`n", "`r `t")
@@ -37,7 +37,7 @@ class struct
 			if RegExMatch(_LF, "^(\w+)\s*(\*+)?\s*(\w+)(\[\d+\])?", &_m) {
 				_type := _root ? struct.ahktype(_m[1] _m[2]) : _m[1]
 				_b := _types.%_type%, _maxbytes := Max(_maxbytes, _b), _offset := Mod(_offset, _b) ? (Integer(_offset / _b) + 1) * _b : _offset
-				if !IsSet(&_firstmember)
+				if !IsSet(_firstmember)
 					_firstmember := _offset
 				this.DefineProp("__maxbytes", {Value: _maxbytes}), this.__member.Push(_m[3])
 				if (_n := Integer("0" Trim(_m[4], "[]")))
@@ -48,7 +48,7 @@ class struct
 		}
 		_offset := Mod(_offset - _firstmember, _maxbytes) ? ((Integer((_offset - _firstmember) / _maxbytes) + 1) * _maxbytes + _firstmember) : _offset
 		this.DefineProp("__offset", {Value: _firstmember})
-		if IsSet(&ads_pa) {
+		if IsSet(ads_pa) {
 			if Type(ads_pa) = "Buffer"
 				(this.__buffer := {Size: _offset - _firstmember}).DefineProp("Ptr", {get: ((p, o, *) => NumGet(p, "Ptr") + o).Bind(ads_pa.Ptr, _firstmember)})
 			else
@@ -57,7 +57,7 @@ class struct
 
 		;@Ahk2Exe-IgnoreBegin
 		; view structure member's value in debugvars
-		if IsSet(&A_DebuggerName)
+		if IsSet(A_DebuggerName)
 			for _m in this.__struct.OwnProps()
 				this.__struct.%_m%.DefineProp("value", {get: ((n, *) => this.%n%).Bind(_m)})
 		;@Ahk2Exe-IgnoreEnd
