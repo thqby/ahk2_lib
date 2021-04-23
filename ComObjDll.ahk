@@ -1,5 +1,5 @@
 ﻿ComObjDll(dllpath := '', CLSID := '') {
-	static clsids := Map(), dlls := Map(), __delete := {}, _ := (__delete.DefineMethod('__Delete', Func('_exit_')), clsids.CaseSense := false)
+	static clsids := Map(), dlls := Map(), __delete := {}, _ := (__delete.DefineProp('__Delete', {value: _exit_}), clsids.CaseSense := false)
 	if (CLSID = '' && SubStr(dllpath, 1, 1) = '{')
 		CLSID := dllpath, dllpath := ''
 	if (dllpath) {
@@ -10,10 +10,10 @@
 				, dllpath := StrGet(buf, 'UTF-16')
 		} else if !(moduleHandle := DllCall('GetModuleHandle', 'Str', dllpath, 'Ptr')
 			|| moduleHandle := (freedll := true, DllCall('LoadLibrary', 'Str', dllpath, 'Ptr')))
-			throw Exception('加载DLL失败')
+			throw Error('加载DLL失败')
 		if (!dlls.Has(moduleHandle)) {
 			if !(pfnDllGetClassObject := DllCall('GetProcAddress', 'Ptr', moduleHandle, 'AStr', 'DllGetClassObject', 'Ptr'))
-				throw Exception('当前模块无DllGetClassObject函数入口')
+				throw Error('当前模块无DllGetClassObject函数入口')
 			dlls[moduleHandle] := {pfn: pfnDllGetClassObject, TypeLib: '', CLSID: '', free: freedll}
 			if (!DllCall('oleaut32\LoadTypeLib', 'Str', dllpath, 'Ptr*', &ptlib := 0)) {
 				libID := ver := tt := ''
@@ -48,20 +48,20 @@
 			}
 		}
 	} else if !clsids.Has(CLSID)
-		return ComObjCreate(CLSID)
+		return ComObject(CLSID)
 	if (clsids.Has(CLSID := CLSID || dlls[moduleHandle].CLSID)) {
 		pFactory := clsids[CLSID] ; IClassFactory
 	} else {
 		DllCall('ole32\CLSIDFromString', 'Str', CLSID, 'Ptr', _CLSID := BufferAlloc(16))
 		DllCall('ole32\CLSIDFromString', 'Str', '{00000001-0000-0000-C000-000000000046}', 'Ptr', IID_IClassFactory := BufferAlloc(16))
 		if (DllCall(dlls[moduleHandle].pfn, 'Ptr', _CLSID, 'Ptr', IID_IClassFactory, 'Ptr*', &pFactory := 0, 'UInt'))
-			throw Exception('无效的类字符串')
+			throw Error('无效的类字符串')
 		ObjRelease(pFactory)
 	}
 	DllCall('ole32\CLSIDFromString', 'Str', '{00000000-0000-0000-C000-000000000046}', 'Ptr', IID_IUnknown := BufferAlloc(16))
 	if (!ComCall(3, pFactory, 'Ptr', 0, 'Ptr', IID_IUnknown, 'Ptr*', &pdisp := 0)) ; pFactory->CreateInstance
 		return (clsids[CLSID] := pFactory, ComObject(9, pdisp)) ; IDispatch comobj
-	throw Exception('创建 COM 对象失败')
+	throw Error('创建 COM 对象失败')
 	_exit_(*) { ; unregister type library, free library where script exit
 		for _, dll in dlls {
 			if ((tinfo := dll.TypeLib) && !DllCall('ole32\CLSIDFromString', 'Str', tinfo.id, 'Ptr', _libID := BufferAlloc(16)) && tinfo.ver)
