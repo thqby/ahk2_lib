@@ -1,4 +1,12 @@
-﻿class WinHttpRequest {
+﻿/************************************************************************
+ * @file: WinHttpRequest.ahk
+ * @description: 网络请求库
+ * @author thqby
+ * @date 2021/04/23
+ * @version 0.0.5
+ ***********************************************************************/
+
+class WinHttpRequest {
 	static AutoLogonPolicy := {
 		Always: 0,
 		OnlyIfBypassProxy: 1,
@@ -53,18 +61,17 @@
 
 	__New(UserAgent := unset) {
 		this.whr := whr := ComObject('WinHttp.WinHttpRequest.5.1')
-		whr.Option[0] := IsSet(&UserAgent) ? UserAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36 Edg/89.0.774.68'
+		whr.Option[0] := IsSet(UserAgent) ? UserAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36 Edg/89.0.774.68'
 		this.IEvents := WinHttpRequest.RequestEvents.Call(ComObjValue(whr), this.id := ObjPtr(this))
 	}
 	__Delete() => (this.whr := this.IEvents := 0)
 
-	get(url, headers := '', async := false) {
-		this.Open('GET', url, async)
-	}
-
-	post(url, data, headers := '', async := false) {
-		this.Open('POST', url, async)
-
+	request(url, method := 'GET', data := '', headers := '') {
+		this.Open(method, url)
+		for k, v in (headers || {}).OwnProps()
+			this.SetRequestHeader(k, v)
+		this.Send(data)
+		return this.ResponseText
 	}
 
 	;#region IWinHttpRequest
@@ -96,6 +103,8 @@
 		get => this.whr.Option[Opt]
 		set => (this.whr.Option[Opt] := Value)
 	}
+	;#endregion
+	;#region IWinHttpRequestEvents
 	class RequestEvents {
 		dwCookie := 0, pCPC := 0, UnkSink := 0
 		__New(pwhr, pparent) {
@@ -151,29 +160,4 @@
 		}
 	}
 	;#endregion
-}
-
-ww := WinHttpRequest()
-; Sleep(1000)
-ww.Open('GET', 'http://121.40.165.18:8800', true)
-ww.OnResponseStart := (s, a, b) => OutputDebug(a '|' b '`n')
-ww.OnResponseFinished := (s) => OutputDebug(ww.ResponseText)
-ww.OnError := (s, a, b) => OutputDebug('err: ' a '|' b)
-ww.SetRequestHeader('Connection', 'Upgrade')
-ww.SetRequestHeader('Upgrade', 'websocket')
-ww.SetRequestHeader('Sec-WebSocket-Version', '13')
-sec := sec_key()
-ww.SetRequestHeader('Sec-WebSocket-Key', sec)
-ww.Send()
-; OutputDebug(ww.GetAllResponseHeaders())
-
-Persistent()
-
-sec_key() {
-	buf := BufferAlloc(16)
-	loop 16
-		NumPut('uchar', Random(0, 255), buf, A_Index - 1)
-	VarSetStrCapacity(&seckey, 50)
-	DllCall('crypt32\CryptBinaryToString', 'Ptr', buf, 'UInt', 16, 'UInt', 0x40000001, 'Str', seckey, 'Uint*', 25)
-	return seckey
 }

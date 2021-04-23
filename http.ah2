@@ -397,7 +397,7 @@ class WinHttp {
 		StatusCallback(hInternet, dwContext, dwInternetStatus, lpvStatusInformation, dwStatusInformationLength) {
 			critical
 			; OutputDebug(dwInternetStatus '`n')
-			if (IsSet(&dwContext) && IsSet(&hInternet) && dwContext && (req := ObjFromPtrAddRef(dwContext)) && hInternet = req.Ptr) {
+			if (IsSet(dwContext) && IsSet(hInternet) && dwContext && (req := ObjFromPtrAddRef(dwContext)) && hInternet = req.Ptr) {
 				switch dwInternetStatus {
 					case WinHttp.CALLBACK_STATUS_SENDREQUEST_COMPLETE:
 						req.readyState := 3
