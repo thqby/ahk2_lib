@@ -30,8 +30,8 @@ class WinHttp {
 	static AUTO_DETECT_TYPE_DHCP := 0x00000001
 	static AUTO_DETECT_TYPE_DNS_A := 0x00000002
 	static TIME_FORMAT_BUFSIZE := 62
-	static FIRST_OPTION := WinHttp.OPTION_CALLBACK
 	static OPTION_CALLBACK := 1
+	static FIRST_OPTION := WinHttp.OPTION_CALLBACK
 	static OPTION_RESOLVE_TIMEOUT := 2
 	static OPTION_CONNECT_TIMEOUT := 3
 	static OPTION_CONNECT_RETRIES := 4
@@ -428,7 +428,7 @@ class WinHttp {
 		static _ports := {ftp: 21, http: 80, https: 443}
 		if (!RegExMatch(Url, '^((?<SCHEME>\w+)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
 			throw Error('无效的url')
-		port := Integer(m.PORT || (_ports.HasOwnProp(m.SCHEME) ? _ports.%m.SCHEME% : m.SCHEME = '' ? 80 : 0))
+		port := Integer(m.PORT || (_ports.HasOwnProp(m.SCHEME) ? (_ports.%(m.SCHEME)%) : m.SCHEME = '' ? 80 : 0))
 		hConnect := WinHttp.Connect.Call(this.Ptr, m.HOST, port)
 		dwFlags := m.SCHEME = 'https' ? WinHttp.FLAG_SECURE : 0
 		pwszReferrer := 0, pwszVersion := 0
