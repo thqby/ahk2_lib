@@ -5,7 +5,7 @@
 		static Init := 0
 		if (!Init) {
 			; DllCall("LoadLibrary", "Str", "ws2_32", "Ptr")
-			WSAData := BufferAlloc(394 + A_PtrSize)
+			WSAData := Buffer(394 + A_PtrSize)
 			if (Error := DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", WSAData))
 				throw Exception("Error starting Winsock", , Error)
 			if (NumGet(WSAData, 2, "UShort") != 0x0202)
@@ -101,12 +101,12 @@
 	}
 
 	SendText(Text, Flags := 0, Encoding := "UTF-8") {
-		buf := BufferAlloc(Length := StrPut(Text, Encoding) - ((Encoding = "UTF-16" || Encoding = "cp1200") ? 2 : 1))
+		buf := Buffer(Length := StrPut(Text, Encoding) - ((Encoding = "UTF-16" || Encoding = "cp1200") ? 2 : 1))
 		Length := StrPut(Text, buf, Encoding)
 		return this.Send(buf, Length, Flags)
 	}
 
-	Recv(&Buffer, BufSize := 0, Flags := 0, Timeout := 0) {
+	Recv(&Buf, BufSize := 0, Flags := 0, Timeout := 0) {
 		t := 0
 		while (!(Length := this.MsgSize()) && this.Blocking && (!Timeout || t < Timeout))
 			Sleep(this.BlockSleep), t += this.BlockSleep
@@ -116,15 +116,15 @@
 			BufSize := Length
 		else
 			BufSize := Min(BufSize, Length)
-		Buffer := BufferAlloc(BufSize)
-		if ((r := DllCall("ws2_32\recv", "Ptr", this.Ptr, "Ptr", Buffer, "Int", BufSize, "Int", Flags)) == -1)
+		Buf := Buffer(BufSize)
+		if ((r := DllCall("ws2_32\recv", "Ptr", this.Ptr, "Ptr", Buf, "Int", BufSize, "Int", Flags)) == -1)
 			throw Exception("Error calling recv", , this.GetLastError())
 		return r
 	}
 
 	RecvText(BufSize := 0, Flags := 0, Encoding := "UTF-8") {
-		if (Length := this.Recv(&Buffer := 0, BufSize, flags))
-			return StrGet(Buffer, Length, Encoding)
+		if (Length := this.Recv(&Buf := 0, BufSize, flags))
+			return StrGet(Buf, Length, Encoding)
 		return ""
 	}
 
@@ -142,7 +142,7 @@
 
 	GetAddrInfo(Address) {
 		Host := Address[1], Port := Address[2]
-		Hints := BufferAlloc(16 + (4 * A_PtrSize), 0)
+		Hints := Buffer(16 + (4 * A_PtrSize), 0)
 		NumPut("Int", this.SocketType, "Int", this.ProtocolId, Hints, 8)
 		if (Error := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
 			throw Exception("Error calling GetAddrInfo", , Error)

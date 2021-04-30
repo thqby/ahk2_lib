@@ -6,5 +6,5 @@ print(i) {
     default:
         try o := String(i)
     }
-	FileAppend(o, '*')
+	FileAppend(o, '*', 'utf-8')
 }

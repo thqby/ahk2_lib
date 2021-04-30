@@ -6,7 +6,7 @@
 		freedll := false
 		if IsNumber(dllpath) {
 			if (!dlls.Has(moduleHandle := Integer(dllpath)))
-				DllCall('GetModuleFileNameW', 'Ptr', moduleHandle, 'Ptr', buf := BufferAlloc(260), 'UInt', 260)
+				DllCall('GetModuleFileNameW', 'Ptr', moduleHandle, 'Ptr', buf := Buffer(260), 'UInt', 260)
 				, dllpath := StrGet(buf, 'UTF-16')
 		} else if !(moduleHandle := DllCall('GetModuleHandle', 'Str', dllpath, 'Ptr')
 			|| moduleHandle := (freedll := true, DllCall('LoadLibrary', 'Str', dllpath, 'Ptr')))
@@ -52,19 +52,19 @@
 	if (clsids.Has(CLSID := CLSID || dlls[moduleHandle].CLSID)) {
 		pFactory := clsids[CLSID] ; IClassFactory
 	} else {
-		DllCall('ole32\CLSIDFromString', 'Str', CLSID, 'Ptr', _CLSID := BufferAlloc(16))
-		DllCall('ole32\CLSIDFromString', 'Str', '{00000001-0000-0000-C000-000000000046}', 'Ptr', IID_IClassFactory := BufferAlloc(16))
+		DllCall('ole32\CLSIDFromString', 'Str', CLSID, 'Ptr', _CLSID := Buffer(16))
+		DllCall('ole32\CLSIDFromString', 'Str', '{00000001-0000-0000-C000-000000000046}', 'Ptr', IID_IClassFactory := Buffer(16))
 		if (DllCall(dlls[moduleHandle].pfn, 'Ptr', _CLSID, 'Ptr', IID_IClassFactory, 'Ptr*', &pFactory := 0, 'UInt'))
 			throw Error('无效的类字符串')
 		ObjRelease(pFactory)
 	}
-	DllCall('ole32\CLSIDFromString', 'Str', '{00000000-0000-0000-C000-000000000046}', 'Ptr', IID_IUnknown := BufferAlloc(16))
+	DllCall('ole32\CLSIDFromString', 'Str', '{00000000-0000-0000-C000-000000000046}', 'Ptr', IID_IUnknown := Buffer(16))
 	if (!ComCall(3, pFactory, 'Ptr', 0, 'Ptr', IID_IUnknown, 'Ptr*', &pdisp := 0)) ; pFactory->CreateInstance
 		return (clsids[CLSID] := pFactory, ComObject(9, pdisp)) ; IDispatch comobj
 	throw Error('创建 COM 对象失败')
 	_exit_(*) { ; unregister type library, free library where script exit
 		for _, dll in dlls {
-			if ((tinfo := dll.TypeLib) && !DllCall('ole32\CLSIDFromString', 'Str', tinfo.id, 'Ptr', _libID := BufferAlloc(16)) && tinfo.ver)
+			if ((tinfo := dll.TypeLib) && !DllCall('ole32\CLSIDFromString', 'Str', tinfo.id, 'Ptr', _libID := Buffer(16)) && tinfo.ver)
 				ret:=DllCall('oleaut32\UnRegisterTypeLibForUser', 'Ptr', _libID, 'UInt', tinfo.ver[1], 'UInt', tinfo.ver[2], 'UInt', 0, 'UInt', 1)
 			if dll.free
 				DllCall('FreeLibrary', 'Ptr', _)

@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby
- * @date 2021/04/23
- * @version 0.0.81
+ * @date 2021/04/25
+ * @version 0.0.82
  ***********************************************************************/
 
 class YAML {
@@ -102,7 +102,7 @@ class YAML {
 						throw Exception("Mapping Item and Sequence cannot be defined on the same level,", 0, LF)	; trying to create sequence on the same level as key or vice versa
 				}
 				if T = "binary" {	; !!binary
-					O := BufferAlloc(StrLen(V) // 2), PBIN := O.Ptr
+					O := Buffer(StrLen(V) // 2), PBIN := O.Ptr
 					Loop Parse V
 						if ("" != h .= A_LoopField) && !Mod(A_Index, 2)
 							NumPut("UChar", "0x" h, PBIN, A_Index / 2 - 1), h := ""

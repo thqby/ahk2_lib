@@ -10,5 +10,5 @@
 
 	__Delete() => (CallbackFree(this.pfunc), (this.ExitCode = 259) ? this.Terminate() : "", (this.Ptr ? DllCall("Kernel32\CloseHandle", "Ptr", this) : 0))
 	Terminate(dwExitCode := 1) => (DllCall("Kernel32\TerminateThread", "Ptr", this, "UInt", dwExitCode))
-	ExitCode[] => (DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", Code := 0) ? Code : 0)
+	ExitCode => (DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", Code := 0) ? Code : 0)
 }

@@ -2,8 +2,8 @@
  * @file: Audio.ahk
  * @description: Core Audio APIs, Windows 多媒体设备API
  * @author thqby
- * @date 2021/04/10
- * @version 1.0.2
+ * @date 2021/04/25
+ * @version 1.0.3
  ***********************************************************************/
 ; https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nn-unknwn-iunknown
 class IUnknown {
@@ -26,7 +26,7 @@ class IUnknown {
     }
 }
 CLSIDFromString(sCLSID) {
-    DllCall("ole32\CLSIDFromString", "Str", sCLSID, "Ptr", pCLSID := BufferAlloc(16))
+    DllCall("ole32\CLSIDFromString", "Str", sCLSID, "Ptr", pCLSID := Buffer(16))
     return pCLSID
 }
 StringFromCLSID(pCLSID) {
@@ -225,8 +225,8 @@ class IAudioMeterInformation extends IUnknown {
 class IPropertyStore extends IUnknown {
     static IID := this.__IID := "{886d8eeb-8cf2-4446-8d02-cdba1dbdcf99}"
     GetCount(&cProps) => ComCall(3, this, "UInt*", &cProps := 0)
-    GetAt(iProp, &pkey := 0) => (ComCall(4, this, "UInt", iProp, "Ptr", pkey := BufferAlloc(20)), pkey)
-    GetValue(key, &pv := 0) => (ComCall(5, this, "Ptr", key, "Ptr", pv := BufferAlloc(A_PtrSize = 8 ? 24 : 16)), pv)
+    GetAt(iProp, &pkey := 0) => (ComCall(4, this, "UInt", iProp, "Ptr", pkey := Buffer(20)), pkey)
+    GetValue(key, &pv := 0) => (ComCall(5, this, "Ptr", key, "Ptr", pv := Buffer(A_PtrSize = 8 ? 24 : 16)), pv)
     SetValue(key, propvar) => ComCall(6, this, "Ptr", key, "Ptr", propvar)
     Commit() => ComCall(7, this)
 }

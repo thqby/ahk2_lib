@@ -1,5 +1,5 @@
 ﻿ListProcessModules(dwPID) {
-	me32 := BufferAlloc(A_PtrSize = 8 ? 568 : 548), modules := []
+	me32 := Buffer(A_PtrSize = 8 ? 568 : 548), modules := []
 	NumPut("UInt", A_PtrSize = 8 ? 568 : 548, me32, 0)
 	hModuleSnap := DllCall("CreateToolhelp32Snapshot", "UInt", 0x08, "PTR", dwPID)
 	if (hModuleSnap = -1)

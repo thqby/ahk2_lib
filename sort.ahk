@@ -100,7 +100,7 @@ ArrSort(oArray, compare:="asc"){
 	default:
 		pFunc:=CallbackCreate((p1, p2)=>(v1:=oArray[NumGet(p1+0, "UInt")],v2:=oArray[NumGet(p2+0, "UInt")],v1<v2?1:v1>v2?-1:0), "C", 2)
 	}
-	vCount := oArray.Length, vData:=BufferAlloc(4*vCount), DllCall(pF, "Ptr", vData, "UInt", vCount, "Cdecl")
+	vCount := oArray.Length, vData:=Buffer(4*vCount), DllCall(pF, "Ptr", vData, "UInt", vCount, "Cdecl")
 	; Loop vCount
 	; 	NumPut("UInt", A_Index, vData, offset), offset+=4
 	DllCall("msvcrt\qsort", "Ptr", vData, "UInt", vCount, "UInt", 4, "Ptr", pFunc, "Cdecl")

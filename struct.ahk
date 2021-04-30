@@ -3,9 +3,10 @@ class struct
 {
 	static __types := {UInt: 4, UInt64: 8, Int: 4, Int64: 8, Short: 2, UShort: 2, Char: 1, UChar: 1, Double: 8, Float: 4, Ptr: A_PtrSize, UPtr: A_PtrSize}
 	__New(structinfo, ads_pa := unset, _offset := 0) {
+		global A_DebuggerName
 		_types := struct.__types, _maxbytes := 0, _index := 0, _root := true, _level := 0, _sub := []
 		this.DefineProp("__struct", {Value: {}}), this.DefineProp("__buffer", {Value: {Ptr: 0, Size: 0}}), this.DefineProp("__member", {Value: []})	; this.__struct:={}, this.__buffer:=""
-		this.DefineProp("__base", {Value: (IsSet(ads_pa) && Type(ads_pa) = "Buffer") ? (_root := false, ads_pa) : BufferAlloc(A_PtrSize, 0)})
+		this.DefineProp("__base", {Value: (IsSet(ads_pa) && Type(ads_pa) = "Buffer") ? (_root := false, ads_pa) : Buffer(A_PtrSize, 0)})
 		if (Type(structinfo) = "String") {
 			structinfo := RegExReplace(structinfo := StrReplace(structinfo, ",", "`n"), "m)^\s*unsigned\s*", "U")
 			structinfo := StrSplit(structinfo, "`n", "`r `t")
@@ -52,7 +53,7 @@ class struct
 				(this.__buffer := {Size: _offset - _firstmember}).DefineProp("Ptr", {get: ((p, o, *) => NumGet(p, "Ptr") + o).Bind(ads_pa.Ptr, _firstmember)})
 			else
 				this.__buffer := {Ptr: Integer(ads_pa), Size: _offset - _firstmember}, NumPut("Ptr", ads_pa, this.__base)
-		} else NumPut("Ptr", (this.__buffer := BufferAlloc(_offset - _firstmember, 0)).Ptr, this.__base)
+		} else NumPut("Ptr", (this.__buffer := Buffer(_offset - _firstmember, 0)).Ptr, this.__base)
 
 		;@Ahk2Exe-IgnoreBegin
 		; view structure member's value in debugvars

@@ -10,13 +10,13 @@
  @DeviceInfoSet: Ptr, A handle to a device information set
  @MemberIndex: UINT, A zero-based index of the device information element to retrieve.
  @DeviceInfoData: Ptr or Buffer Object, A pointer to an SP_DEVINFO_DATA structure
-  DeviceInfoData:=BufferAlloc(A_PtrSize=8?32:28, 0), NumPut("UInt", SP_DEVINFO_DATA.Size, SP_DEVINFO_DATA, 0)
+  DeviceInfoData:=Buffer(A_PtrSize=8?32:28, 0), NumPut("UInt", SP_DEVINFO_DATA.Size, SP_DEVINFO_DATA, 0)
  @return value: UInt, TRUE if it is successful. Otherwise, it returns FALSE
 */
 SetupDiEnumDeviceInfo(DeviceInfoSet, MemberIndex, DeviceInfoData)=>DllCall("setupapi\SetupDiEnumDeviceInfo", "Ptr", DeviceInfoSet, "UInt", MemberIndex, "Ptr", DeviceInfoData, "Int")
 
 /*
- @ClassGuid: Buffer Object, ClassGuid:=BufferAlloc(16), DllCall("ole32\CLSIDFromString", "WStr", GuidStr, "Ptr", ClassGuid)
+ @ClassGuid: Buffer Object, ClassGuid:=Buffer(16), DllCall("ole32\CLSIDFromString", "WStr", GuidStr, "Ptr", ClassGuid)
  @Enumerator: String, Flags |= 0x14 when Enumerator is Device Instance ID
  @Flags: UInt, DIGCF_DEFAULT = 0x1; DIGCF_PRESENT = 0x2; DIGCF_ALLCLASSES = 0x4; DIGCF_PROFILE = 0x8; DIGCF_DEVICEINTERFACE = 0x10
  @hwndParent: Ptr, A handle to the top-level window to be used for a user interface that is associated with installing a device instance in the device information set.
@@ -32,7 +32,7 @@ SetupDiGetClassDevs(ClassGuid:=0, Enumerator:=0, hwndParent:=0, Flags:=0x4)=>Dll
 */
 SetupDiGetDeviceProperty(DeviceInfoSet, DeviceInfoData, PropertyKey){
 	if (!DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", &PropertyType:=0, "Ptr", 0, "UInt", 0, "UInt*", &RequiredSize:=0, "UInt", 0) && A_LastError == 0x7A){
-		DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", &PropertyType:=0, "Ptr", PropertyBuffer:=BufferAlloc(RequiredSize), "UInt", RequiredSize, "Ptr", 0, "UInt", 0)
+		DllCall("setupapi\SetupDiGetDevicePropertyW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", PropertyKey, "UInt*", &PropertyType:=0, "Ptr", PropertyBuffer:=Buffer(RequiredSize), "UInt", RequiredSize, "Ptr", 0, "UInt", 0)
 		switch PropertyType
 		{
 		case 0x07, 0x11:	; DEVPROP_TYPE_UINT32, DEVPROP_TYPE_BOOLEAN
@@ -63,7 +63,7 @@ SetupDiGetDeviceProperty(DeviceInfoSet, DeviceInfoData, PropertyKey){
  @DeviceInfoData: Ptr or Buffer Object, A pointer to the SP_DEVINFO_DATA structure
  @return value: String or throw a exception
 */
-SetupDiGetDeviceInstanceId(DeviceInfoSet, DeviceInfoData)=>DllCall("setupapi\SetupDiGetDeviceInstanceIdW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", DeviceInstanceId:=BufferAlloc(200), "UInt", 200, "UInt", 0)?StrGet(DeviceInstanceId, "UTF-16"):""
+SetupDiGetDeviceInstanceId(DeviceInfoSet, DeviceInfoData)=>DllCall("setupapi\SetupDiGetDeviceInstanceIdW", "Ptr", DeviceInfoSet, "Ptr", DeviceInfoData, "Ptr", DeviceInstanceId:=Buffer(200), "UInt", 200, "UInt", 0)?StrGet(DeviceInstanceId, "UTF-16"):""
 
 /*
  @include file: devpkey.h
@@ -98,7 +98,7 @@ DEVPROPKEY(PropertyKey){
 	for guid, arr in DEVPKEY
 		for sarr in arr
 			if InStr(sarr[1], PropertyKey)
-				return (DllCall("ole32\CLSIDFromString", "Str", guid, "Ptr", PropertyKey:=BufferAlloc(20)), NumPut("UInt", sarr[2], PropertyKey, 16), PropertyKey)
+				return (DllCall("ole32\CLSIDFromString", "Str", guid, "Ptr", PropertyKey:=Buffer(20)), NumPut("UInt", sarr[2], PropertyKey, 16), PropertyKey)
 	throw Exception("invalid DEVPKEY")
 }
 
@@ -132,8 +132,8 @@ SetDeviceState(DeviceInstanceID, Enable:=true){
 	hDevInfo:=SetupDiGetClassDevs(0, DeviceInstanceID, 0, 0x14)
 	if (hDevInfo=-1)
 		return false
-	DeviceInfoData:=BufferAlloc(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
-	PropChangeParams:=BufferAlloc(20, 0)
+	DeviceInfoData:=Buffer(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
+	PropChangeParams:=Buffer(20, 0)
 	NumPut( "UInt", 8,				; PropChangeParams.ClassInstallHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER)
 			"UInt", 0x12,			; PropChangeParams.ClassInstallHeader.InstallFunction = DIF_PROPERTYCHANGE
 			"UInt", (Enable?1:2),	; PropChangeParams.StateChange = Enable ? DICS_ENABLE : DICS_DISABLE
@@ -151,11 +151,11 @@ SetDeviceState(DeviceInstanceID, Enable:=true){
 
 ; @return value: Int, Touchpad Device Instance ID
 GetTouchpadDeviceInstanceID(){
-	DllCall("ole32\CLSIDFromString", "Str", "{745a17a0-74d3-11d0-b6fe-00a0c90f57da}", "Ptr", HIDGUID:=BufferAlloc(16))
+	DllCall("ole32\CLSIDFromString", "Str", "{745a17a0-74d3-11d0-b6fe-00a0c90f57da}", "Ptr", HIDGUID:=Buffer(16))
 	hDevInfo:=SetupDiGetClassDevs(HIDGUID, 0, 0, 2), InstanceId:=""
 	if (hDevInfo=-1)
 		throw Exception("GetClassDevs Fail")
-	DeviceInfoData:=BufferAlloc(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
+	DeviceInfoData:=Buffer(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
 	Device_DeviceDesc:=DEVPROPKEY("Device_DeviceDesc")
 	touchpad:=A_Language="0804"?"触摸板":"touch pad"
 	while SetupDiEnumDeviceInfo(hDevInfo, A_Index-1, DeviceInfoData){
@@ -168,7 +168,7 @@ GetTouchpadDeviceInstanceID(){
 ; if (!A_IsAdmin)
 ; 	Run('*RunAs "' A_AhkPath '" "' A_ScriptFullPath '"'), ExitApp()
 TouchpadDeviceInstanceID:=GetTouchpadDeviceInstanceID()
-DeviceInfoData:=BufferAlloc(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
+DeviceInfoData:=Buffer(A_PtrSize=8?32:28, 0), NumPut("UInt", DeviceInfoData.Size, DeviceInfoData, 0)
 hDevInfo:=SetupDiGetClassDevs(0, TouchpadDeviceInstanceID, 0, 0x14), SetupDiEnumDeviceInfo(hDevInfo, 0, DeviceInfoData)
 ; MsgBox SetupDiGetDeviceProperty(hDevInfo, DeviceInfoData, Device_DeviceDesc:=DEVPROPKEY("Device_DeviceDesc"))
 MsgBox SetupDiGetDeviceProperty(hDevInfo, DeviceInfoData, Device_HardwareIds:=DEVPROPKEY("Device_HardwareIds"))

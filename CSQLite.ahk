@@ -224,12 +224,12 @@ class CSQLite
 
 		__Delete()=>(CallbackFree(this.pfunc), (this.ExitCode=259)?this.Terminate():"", (this.Ptr?DllCall("Kernel32\CloseHandle", "Ptr", this):0))
 		Terminate(dwExitCode:=1)=>(DllCall("Kernel32\TerminateThread", "Ptr", this, "UInt", dwExitCode))
-		ExitCode[]=>(DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", &Code:=0)?Code:0)
+		ExitCode=>(DllCall("Kernel32\GetExitCodeThread", "Ptr", this, "UInt*", &Code:=0)?Code:0)
 	}
 	ExecByThread(SQL){
 		if !(this._Handle)
 			return (this.ErrorMsg := "Invalid database handle!", false)
-		s:=StrPut(SQL, "UTF-8"), this._Thread.queue.Push(BufferAlloc(s)), StrPut(SQL, this._Thread.queue[-1], "UTF-8")
+		s:=StrPut(SQL, "UTF-8"), this._Thread.queue.Push(Buffer(s)), StrPut(SQL, this._Thread.queue[-1], "UTF-8")
 		if (this._Thread.pexec)
 			return
 		this._Thread.DB:=this, this._Thread.pexec:=CSQLite.execfunc_ptr

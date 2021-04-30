@@ -1,7 +1,7 @@
 /************************************************************************
  * @author thqby
- * @date 2021/04/21
- * @version 0.0.6
+ * @date 2021/04/25
+ * @version 0.0.7
  ***********************************************************************/
 
 class WebSocket {
@@ -13,8 +13,8 @@ class WebSocket {
 		CLOSE: 4
 	}
 
-	Ptr := 0, async := 0, readyState := 0, url := '', _callback := 0, cache := BufferAlloc(0), HINTERNETs := []
-	waiting := false, recdata := BufferAlloc(0)
+	Ptr := 0, async := 0, readyState := 0, url := '', _callback := 0, cache := Buffer(0), HINTERNETs := []
+	waiting := false, recdata := Buffer(0)
 	__New(Url, Events := 0, Async := true, Headers := '') {
 		this.HINTERNETs := [], this.async := !!Async, this.cache.Size := 8192, this.url := Url
 		if (!RegExMatch(Url, 'i)^((?<SCHEME>wss?)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
@@ -81,7 +81,7 @@ class WebSocket {
 						if (ws.onMessage) {
 							if (offset) {
 								rec.Size += dwBytesTransferred, DllCall('RtlMoveMemory', 'ptr', rec.Ptr + offset, 'ptr', ws.cache.Ptr, 'uint', dwBytesTransferred)
-								msg := StrGet(rec, 'utf-8'), ws.recdata := BufferAlloc(offset := 0), wait()
+								msg := StrGet(rec, 'utf-8'), ws.recdata := Buffer(offset := 0), wait()
 								try ws.onMessage(msg)
 								return
 							} else {
@@ -123,7 +123,7 @@ class WebSocket {
 	}
 
 	QueryCloseStatus() {
-		if (!DllCall('Winhttp\WinHttpWebSocketQueryCloseStatus', 'ptr', this, 'ushort*', &usStatus := 0, 'ptr', vReason := BufferAlloc(123), 'uint', 123, 'uint*', &len := 0))
+		if (!DllCall('Winhttp\WinHttpWebSocketQueryCloseStatus', 'ptr', this, 'ushort*', &usStatus := 0, 'ptr', vReason := Buffer(123), 'uint', 123, 'uint*', &len := 0))
 			return ({status: usStatus, reason: StrGet(vReason, len, 'utf-8')})
 		else if (this.readyState > 1)
 			return {status: 1006, reason: ''}
@@ -141,7 +141,7 @@ class WebSocket {
 	}
 	sendText(str) {
 		if (size := StrPut(str, 'utf-8') - 1) {
-			buf := BufferAlloc(size), StrPut(str, buf, 'utf-8')
+			buf := Buffer(size), StrPut(str, buf, 'utf-8')
 			this.send(2, buf.Ptr, size)
 		} else
 			this.send(2, 0, 0)
@@ -149,7 +149,7 @@ class WebSocket {
 	receive() {
 		if (this.async)
 			throw Error('仅在同步模式中使用')
-		cache := this.cache, size := this.cache.Size, rec := BufferAlloc(0), offset := 0
+		cache := this.cache, size := this.cache.Size, rec := Buffer(0), offset := 0
 		while (!ret := DllCall('Winhttp\WinHttpWebSocketReceive', 'ptr', this, 'ptr', cache, 'uint', size, 'uint*', &dwBytesRead := 0, 'uint*', &eBufferType := 0)) {
 			switch eBufferType {
 				case 0:

@@ -23,7 +23,7 @@ Class Base64 {
 	 * VarOut may contain any binary contents including NUll bytes.
 	 */
 	static Decode(VarIn, Codec := 0x00000001) {
-		if (DllCall("Crypt32.dll\CryptStringToBinary", "Str", VarIn, "UInt", 0, "UInt", Codec, "Ptr", 0, "Uint*", &SizeOut := 0, "Ptr", 0, "Ptr", 0) && DllCall("Crypt32.dll\CryptStringToBinary", "Str", VarIn, "UInt", 0, "UInt", Codec, "Ptr", VarOut := BufferAlloc(SizeOut), "Uint*", &SizeOut, "Ptr", 0, "Ptr", 0))
+		if (DllCall("Crypt32.dll\CryptStringToBinary", "Str", VarIn, "UInt", 0, "UInt", Codec, "Ptr", 0, "Uint*", &SizeOut := 0, "Ptr", 0, "Ptr", 0) && DllCall("Crypt32.dll\CryptStringToBinary", "Str", VarIn, "UInt", 0, "UInt", Codec, "Ptr", VarOut := Buffer(SizeOut), "Uint*", &SizeOut, "Ptr", 0, "Ptr", 0))
 			return VarOut
 		return false
 	}

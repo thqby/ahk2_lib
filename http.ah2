@@ -437,7 +437,7 @@ class WinHttp {
 		req := WinHttp.Request.Call(hRequest, hConnect, this.async)
 		if (this.async) {
 			WinHttp.SetStatusCallback(req.Ptr, this._statuscb, WinHttp.CALLBACK_FLAG_ALL_COMPLETIONS)
-			val := BufferAlloc(A_PtrSize), NumPut('ptr', ObjPtr(req), val), req.option[WinHttp.OPTION_CONTEXT_VALUE] := val
+			val := Buffer(A_PtrSize), NumPut('ptr', ObjPtr(req), val), req.option[WinHttp.OPTION_CONTEXT_VALUE] := val
 		}
 		return req
 	}
@@ -452,9 +452,9 @@ class WinHttp {
 		dwAccessType := ProxySetting = 2 ? 3 : ProxySetting
 		lpszProxy := StrPtr(ProxyServer), lpszProxyBypass := StrPtr(BypassList)
 		if (A_PtrSize = 8)
-			ProxyInfo := BufferAlloc(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
+			ProxyInfo := Buffer(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
 		else
-			ProxyInfo := BufferAlloc(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
+			ProxyInfo := Buffer(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
 		if (ret := WinHttp.SetOption(this, WinHttp.OPTION_PROXY, ProxyInfo))
 			throw Error(ret)
 	}
@@ -472,10 +472,10 @@ class WinHttp {
 	static CloseHandle(hInternet) => DllCall('Winhttp\WinHttpCloseHandle', 'ptr', hInternet, 'int')
 	static CrackUrl(Url) {
 		if (A_PtrSize = 8) {
-			buf := BufferAlloc(104), NumPut('uint', 104, buf), NumPut('uint', -1, buf, 32), NumPut('uint', -1, buf, 48)
+			buf := Buffer(104), NumPut('uint', 104, buf), NumPut('uint', -1, buf, 32), NumPut('uint', -1, buf, 48)
 			NumPut('uint', -1, buf, 64), NumPut('uint', -1, buf, 80), NumPut('uint', -1, buf, 96)
 		} else {
-			buf := BufferAlloc(60), NumPut('uint', 60, buf), NumPut('uint', -1, buf, 20), NumPut('uint', -1, buf, 32)
+			buf := Buffer(60), NumPut('uint', 60, buf), NumPut('uint', -1, buf, 20), NumPut('uint', -1, buf, 32)
 			NumPut('uint', -1, buf, 40), NumPut('uint', -1, buf, 48), NumPut('uint', -1, buf, 56)
 		}
 		if (DllCall('Winhttp\WinHttpCrackUrl', 'wstr', Url, 'uint', 0, 'uint', 0, 'ptr', buf, 'int')) {
@@ -506,7 +506,7 @@ class WinHttp {
 	static GetIEProxyConfigForCurrentUser(pProxyConfig) => DllCall('Winhttp\WinHttpGetIEProxyConfigForCurrentUser', 'ptr', pProxyConfig, 'int')
 	static QueryOption(hInternet, dwOption) {
 		DllCall('Winhttp\WinHttpQueryOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', 0, 'uint*', &dwBufferLength := 0, 'int')
-		buf := BufferAlloc(dwBufferLength), lpBuffer := buf.Ptr
+		buf := Buffer(dwBufferLength), lpBuffer := buf.Ptr
 		if !DllCall('Winhttp\WinHttpQueryOption', 'ptr', hInternet, 'uint', dwOption, 'ptr', lpBuffer, 'uint*', &dwBufferLength, 'int')
 			return 0
 		return buf
@@ -515,9 +515,9 @@ class WinHttp {
 		dwAccessType := ProxySetting = 2 ? 3 : ProxySetting
 		lpszProxy := StrPtr(ProxyServer), lpszProxyBypass := StrPtr(BypassList)
 		if (A_PtrSize = 8)
-			ProxyInfo := BufferAlloc(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
+			ProxyInfo := Buffer(24), NumPut('uint', dwAccessType, ProxyInfo), NumPut('ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo, 8)
 		else
-			ProxyInfo := BufferAlloc(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
+			ProxyInfo := Buffer(12), NumPut('uint', dwAccessType, 'ptr', lpszProxy, 'ptr', lpszProxyBypass, ProxyInfo)
 		return DllCall('Winhttp\WinHttpSetDefaultProxyConfiguration', 'ptr', ProxyInfo.Ptr, 'int') ? 0 : A_LastError
 	}
 	static SetOption(hInternet, dwOption, Value) {
@@ -525,7 +525,7 @@ class WinHttp {
 			case 'String':
 				lpBuffer := StrPtr(Value), dwBufferLength := StrLen(Value) * 2
 			case 'Integer':
-				buf := BufferAlloc(4), NumPut('uint', Value, buf), lpBuffer := buf.Ptr, dwBufferLength := 4
+				buf := Buffer(4), NumPut('uint', Value, buf), lpBuffer := buf.Ptr, dwBufferLength := 4
 			case 'Buffer':
 				lpBuffer := Value.Ptr, dwBufferLength := Value.Size
 			case 'Object':
@@ -540,11 +540,11 @@ class WinHttp {
 	}
 	static SetStatusCallback(hInternet, lpfnInternetCallback, dwNotificationFlags) => DllCall('Winhttp\WinHttpSetStatusCallback', 'ptr', hInternet, 'ptr', lpfnInternetCallback, 'uint', dwNotificationFlags, 'uptr', 0, 'ptr')
 	static TimeFromSystemTime(pst) {
-		if DllCall('Winhttp\WinHttpTimeFromSystemTime', 'ptr', pst, 'ptr', pszTime := BufferAlloc(62), 'int')
+		if DllCall('Winhttp\WinHttpTimeFromSystemTime', 'ptr', pst, 'ptr', pszTime := Buffer(62), 'int')
 			return StrGet(pszTime, 'utf-16')
 	}
 	static TimeToSystemTime(Time) {
-		pst := BufferAlloc(16)
+		pst := Buffer(16)
 		if DllCall('Winhttp\WinHttpTimeToSystemTime', 'wstr', Time, 'ptr', pst, 'int')
 			return pst
 	}
@@ -579,22 +579,22 @@ class WinHttp {
 		}
 		getAllResponseHeaders() {
 			this.QueryHeaders(22, 0, 0, &size := 0, 0)
-			if (size && (buf := BufferAlloc(size)) && this.QueryHeaders(22, 0, buf.Ptr, &size, 0))
+			if (size && (buf := Buffer(size)) && this.QueryHeaders(22, 0, buf.Ptr, &size, 0))
 				return StrGet(buf, 'utf-16')
 		}
 		getResponseHeader(Header) {
 			if (i := 0, s := '', Type(Header) = 'String') {
 				this.QueryHeaders(65535, ps := StrPtr(Header), 0, &size := 0, i)
-				while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(65535, ps, buf.Ptr, &size, i++))
+				while (size && (buf := Buffer(size)) && this.QueryHeaders(65535, ps, buf.Ptr, &size, i++))
 					s .= StrGet(buf, 'utf-16'), this.QueryHeaders(65535, ps := StrPtr(Header), 0, &size := 0, i)
 				return s
 			} else {
 				this.QueryHeaders(Header += 0, 0, 0, &size := 0, i)
 				if (Header = 21) {
-					buf := BufferAlloc(size), this.QueryHeaders(Header, 0, buf.Ptr, &size, i)
+					buf := Buffer(size), this.QueryHeaders(Header, 0, buf.Ptr, &size, i)
 					return buf
 				}
-				while (size && (buf := BufferAlloc(size)) && this.QueryHeaders(Header, 0, buf.Ptr, &size, i++)) {
+				while (size && (buf := Buffer(size)) && this.QueryHeaders(Header, 0, buf.Ptr, &size, i++)) {
 					s .= '`n' StrGet(buf, 'utf-16')
 					this.QueryHeaders(Header += 0, 0, 0, &size := 0, i)
 				}
@@ -647,7 +647,7 @@ class WinHttp {
 		read() {
 			if (!DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int'))
 				return
-			buf := BufferAlloc(size), this.ReadData(buf.Ptr, size, &dwread)
+			buf := Buffer(size), this.ReadData(buf.Ptr, size, &dwread)
 			if (dwread)
 				return buf
 		}
@@ -671,7 +671,7 @@ class WinHttp {
 					return this._ResponseBody
 				if (!DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int'))
 					return
-				buf := BufferAlloc(size), this.ReadData(buf.Ptr, size, &dwread), offset := dwread
+				buf := Buffer(size), this.ReadData(buf.Ptr, size, &dwread), offset := dwread
 				while (DllCall('Winhttp\WinHttpQueryDataAvailable', 'ptr', this, 'uint*', &size := 0, 'int') && size)
 					buf.Size := offset + size, this.ReadData(buf.Ptr + offset, size, &dwread), offset += dwread
 				this.readyState := 4

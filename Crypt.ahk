@@ -1,5 +1,5 @@
 ﻿MD5(Data, Size:=0){
-	MD5_CTX:=BufferAlloc(104), DllCall("advapi32\MD5Init", "Ptr", MD5_CTX)
+	MD5_CTX:=Buffer(104), DllCall("advapi32\MD5Init", "Ptr", MD5_CTX)
 	DllCall("advapi32\MD5Update", "Ptr", MD5_CTX, "Ptr", Data, "UInt", (!Size&&Type(Data)="Buffer") ? Data.Size : Size)
 	DllCall("advapi32\MD5Final", "Ptr", MD5_CTX), MD5:=""
 	Loop 16
@@ -8,14 +8,14 @@
 }
 
 MD5_File(sFile, cSz:=4){
-	cSz := (cSz<0||cSz>8) ? 2**22 : 2**(18+cSz), Buffer:=BufferAlloc(cSz)
+	cSz := (cSz<0||cSz>8) ? 2**22 : 2**(18+cSz), buf:=Buffer(cSz)
 	if 1>(hFil := DllCall("CreateFile", "Str", sFile, "UInt", 0x80000000, "Int", 1, "Int", 0, "Int", 3, "Int", 0, "Int", 0))
 		return hFil
-	DllCall("GetFileSizeEx", "UInt", hFil, "Ptr", Buffer), fSz := NumGet(Buffer, 0, "Int64")
-	MD5_CTX:=BufferAlloc(104), DllCall("advapi32\MD5Init", "Ptr", MD5_CTX)
+	DllCall("GetFileSizeEx", "UInt", hFil, "Ptr", buf), fSz := NumGet(buf, 0, "Int64")
+	MD5_CTX:=Buffer(104), DllCall("advapi32\MD5Init", "Ptr", MD5_CTX)
 	Loop ( fSz//cSz+!!Mod(fSz,cSz) )
-	DllCall("ReadFile", "Ptr", hFil, "Ptr", Buffer, "UInt", cSz, "UInt*", &bytesRead:=0, "UInt", 0)
-	, DllCall("advapi32\MD5Update", "Ptr", MD5_CTX, "Ptr", Buffer, "UInt", bytesRead)
+	DllCall("ReadFile", "Ptr", hFil, "Ptr", buf, "UInt", cSz, "UInt*", &bytesRead:=0, "UInt", 0)
+	, DllCall("advapi32\MD5Update", "Ptr", MD5_CTX, "Ptr", buf, "UInt", bytesRead)
 	DllCall("advapi32\MD5Final", "Ptr", MD5_CTX), DllCall("CloseHandle", "Ptr", hFil), MD5:=""
 	Loop 16
 		MD5 .= Format("{:02X}", NumGet(MD5_CTX, 87+A_Index, "UChar"))
@@ -36,7 +36,7 @@ Crypt_Hash(Data, nSize:=0, SID := "CRC32", nInitial := 0){
 	DllCall("advapi32\CryptAcquireContextA", "Ptr*", &hProv:=0, "Uint", 0, "Uint", 0, "Uint", 1, "Uint", 0xF0000000)
 	DllCall("advapi32\CryptCreateHash", "Ptr", hProv, "Uint", CALG_%SID%, "Uint", 0, "Uint", 0, "Ptr*", &hHash:=0)
 	DllCall("advapi32\CryptHashData", "Ptr", hHash, "Ptr", Data, "Uint", nSize, "Uint", 0), sHash:=""
-	DllCall("advapi32\CryptGetHashParam", "Ptr", hHash, "Uint", 2, "Ptr", 0, "UInt*", &nSize, "Uint", 0), HashVal := BufferAlloc(nSize)
+	DllCall("advapi32\CryptGetHashParam", "Ptr", hHash, "Uint", 2, "Ptr", 0, "UInt*", &nSize, "Uint", 0), HashVal := Buffer(nSize)
 	DllCall("advapi32\CryptGetHashParam", "Ptr", hHash, "Uint", 2, "Ptr", HashVal, "UInt*", &nSize, "Uint", 0)
 	DllCall("advapi32\CryptDestroyHash", "Ptr", hHash), DllCall("advapi32\CryptReleaseContext", "Ptr", hProv, "Uint", 0)
 	Loop nSize
@@ -61,7 +61,7 @@ Crypt_AES(pData, nSize, sPassword, SID := 256, bEncrypt := True){
 
 s:="daferewvx", k:="fsdf"
 msgbox lp:=StrPut(s, "UTF-8")
-bf:=BufferAlloc(lp*4, 0)
+bf:=Buffer(lp*4, 0)
 StrPut(s, bf, "UTF-8")
 msgbox l:=Crypt_AES(bf, lp, k)
 msgbox l "|" StrGet(bf, l, "UTF-16")

@@ -10,11 +10,11 @@ class WebSocket {
 		return frames
 	}
 	static sec_accept(key) {
-		buf := BufferAlloc(size := StrPut(key .= '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', 'utf-8') - 1), StrPut(key, buf, 'utf-8')
+		buf := Buffer(size := StrPut(key .= '258EAFA5-E914-47DA-95CA-C5AB0DC85B11', 'utf-8') - 1), StrPut(key, buf, 'utf-8')
 		DllCall('advapi32\CryptAcquireContextA', 'Ptr*', &hProv := 0, 'Uint', 0, 'Uint', 0, 'Uint', 1, 'Uint', 0xF0000000)
 		DllCall('advapi32\CryptCreateHash', 'Ptr', hProv, 'Uint', CALG_SHA1 := 0x8004, 'Uint', 0, 'Uint', 0, 'Ptr*', &hHash := 0)
 		DllCall('advapi32\CryptHashData', 'Ptr', hHash, 'Ptr', buf, 'Uint', size, 'Uint', 0)
-		DllCall('advapi32\CryptGetHashParam', 'Ptr', hHash, 'Uint', 2, 'Ptr', 0, 'UInt*', &size, 'Uint', 0), HashVal := BufferAlloc(size)
+		DllCall('advapi32\CryptGetHashParam', 'Ptr', hHash, 'Uint', 2, 'Ptr', 0, 'UInt*', &size, 'Uint', 0), HashVal := Buffer(size)
 		DllCall('advapi32\CryptGetHashParam', 'Ptr', hHash, 'Uint', 2, 'Ptr', HashVal, 'UInt*', &size, 'Uint', 0)
 		DllCall('advapi32\CryptDestroyHash', 'Ptr', hHash), DllCall('advapi32\CryptReleaseContext', 'Ptr', hProv, 'Uint', 0)
 		DllCall('crypt32\CryptBinaryToString', 'Ptr', HashVal, 'UInt', size, 'UInt', 0x40000001, 'Ptr', 0, 'Uint*', &_size := 0)
@@ -23,7 +23,7 @@ class WebSocket {
 		return secaccept
 	}
 	static sec_key() {
-		buf := BufferAlloc(16)
+		buf := Buffer(16)
 		loop 16
 			NumPut('uchar', Random(0, 255), buf, A_Index - 1)
 		VarSetStrCapacity(&seckey, 50)
@@ -44,7 +44,7 @@ class WebSocket {
 				frame.PayloadLength := (e[i++] << 8) + e[i++]
 			else if (frame.PayloadLength = 127)
 				i += 4, frame.PayloadLength := (e[i++] << 24) + (e[i++] << 16) + (e[i++] << 8) + e[i++]
-			s := BufferAlloc(frame.PayloadLength)
+			s := Buffer(frame.PayloadLength)
 			if (frame.Mask) {
 				frame.MaskingKey := [e[i++], e[i++], e[i++], e[i++]], j := 0
 				while (j < frame.PayloadLength)
@@ -59,7 +59,7 @@ class WebSocket {
 
 		static encode(e) {
 			l := StrPut(e.PayloadData, 'utf-8') - 1, Mask := e.HasProp('Mask') ? e.Mask << 7 : 0
-			o := BufferAlloc((l < 126 ? l + 2 : l < 0x10000 ? l + 4 : l + 10) + (Mask ? 4 : 0)), i := 0
+			o := Buffer((l < 126 ? l + 2 : l < 0x10000 ? l + 4 : l + 10) + (Mask ? 4 : 0)), i := 0
 			if (Mask)
 				o.DefineProp('__Item', {get: (s, i) => NumGet(s, i, 'uchar'), set: (s, v, i) => NumPut('uchar', v, s, i)})
 			else

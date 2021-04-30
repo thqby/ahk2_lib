@@ -2,8 +2,8 @@
  * @file: WinHttpRequest.ahk
  * @description: 网络请求库
  * @author thqby
- * @date 2021/04/23
- * @version 0.0.5
+ * @date 2021/04/25
+ * @version 0.0.6
  ***********************************************************************/
 
 class WinHttpRequest {
@@ -109,9 +109,9 @@ class WinHttpRequest {
 		dwCookie := 0, pCPC := 0, UnkSink := 0
 		__New(pwhr, pparent) {
 			IConnectionPointContainer := ComObjQuery(pwhr, IID_IConnectionPointContainer := '{B196B284-BAB4-101A-B69C-00AA00341D07}')
-			DllCall("ole32\CLSIDFromString", "Str", IID_IWinHttpRequestEvents := '{F97F4E15-B787-4212-80D1-D380CBBF982E}', "Ptr", pCLSID := BufferAlloc(16))
+			DllCall("ole32\CLSIDFromString", "Str", IID_IWinHttpRequestEvents := '{F97F4E15-B787-4212-80D1-D380CBBF982E}', "Ptr", pCLSID := Buffer(16))
 			ComCall(4, IConnectionPointContainer, 'ptr', pCLSID, 'ptr*', &pCPC := 0)	; IConnectionPointContainer->FindConnectionPoint
-			IWinHttpRequestEvents := BufferAlloc(11 * A_PtrSize), offset := IWinHttpRequestEvents.Ptr + 4 * A_PtrSize
+			IWinHttpRequestEvents := Buffer(11 * A_PtrSize), offset := IWinHttpRequestEvents.Ptr + 4 * A_PtrSize
 			NumPut('ptr', offset, 'ptr', pwhr, 'ptr', pCPC, IWinHttpRequestEvents)
 			for nParam in StrSplit('3113213')
 				offset := NumPut('ptr', CallbackCreate(EventHandler.Bind(A_Index), , Integer(nParam)), offset)

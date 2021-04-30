@@ -7,7 +7,7 @@ MCode(hex) {
 			throw Exception("MCode格式不正确")
 	If (!DllCall("crypt32\CryptStringToBinary", "Str", m3, "UInt", 0, "UInt", dwFlags[m1], "Ptr", 0, "UInt*", &s := 0, "Ptr", 0, "Ptr", 0))
 		throw Exception("MCode解码失败")
-	code := BufferAlloc(s)
+	code := Buffer(s)
 	DllCall("VirtualProtect", "Ptr", code, "UInt", s, "UInt", 0x40, "Ptr", 0)
 	If (DllCall("crypt32\CryptStringToBinary", "Str", m3, "UInt", 0, "UInt", dwFlags[m1], "Ptr", code, "UInt*", &s, "Ptr", 0, "Ptr", 0))
 		Return MCode.Bind(code)
