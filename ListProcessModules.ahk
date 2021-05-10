@@ -1,7 +1,7 @@
 ﻿ListProcessModules(dwPID) {
 	me32 := Buffer(A_PtrSize = 8 ? 568 : 548), modules := []
 	NumPut("UInt", A_PtrSize = 8 ? 568 : 548, me32, 0)
-	hModuleSnap := DllCall("CreateToolhelp32Snapshot", "UInt", 0x08, "PTR", dwPID)
+	hModuleSnap := DllCall("CreateToolhelp32Snapshot", "UInt", 0x08, "UInt", dwPID)
 	if (hModuleSnap = -1)
 		return FALSE
 	if (!DllCall("Module32First", "PTR", hModuleSnap, "PTR", me32)) {
@@ -34,9 +34,3 @@
  * char	szExePath[260];	// 288 304
  * } MODULEENTRY32;
  */
-
-mds:=ListProcessModules(22952)
-for v in mds
-	if InStr(v.szmodule, 'yzime')
-		MsgBox()
-MsgBox()
