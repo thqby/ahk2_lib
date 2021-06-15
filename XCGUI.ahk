@@ -1,4 +1,4 @@
-#DllLoad 'xcgui.dll'
+; #DllLoad '*i xcgui.dll'
 
 class XC {
   static STYLE := {

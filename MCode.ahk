@@ -1,16 +1,19 @@
-MCode(hex) {
-	dwFlags := Map("1", 4, "2", 1), c := (A_PtrSize = 8) ? "x64" : "x86"
-	If (!RegExMatch(hex, "i)^([12]),(" c ":|.*?," c ":)([^,]+)", &m))
-		If (hex ~= "i)^[\dA-F]+$")
-			m1 := 1, m3 := hex
-		Else
-			throw Exception("MCode格式不正确")
-	If (!DllCall("crypt32\CryptStringToBinary", "Str", m3, "UInt", 0, "UInt", dwFlags[m1], "Ptr", 0, "UInt*", &s := 0, "Ptr", 0, "Ptr", 0))
-		throw Exception("MCode解码失败")
+MCode(hex, argtypes := 0) {
+	static reg := "^([12]?).*" (c := A_PtrSize = 8 ? "x64" : "x86") ":([A-Za-z\d+/=]+)"
+	if (RegExMatch(hex, reg, &m))
+		hex := m[2], flag := m[1] = "1" ? 4 : m[1] = "2" ? 1 : hex ~= "[+/=]" ? 1 : 4
+	else
+		flag := hex ~= "[+/=]" ? 1 : 4
+	if (!DllCall("crypt32\CryptStringToBinary", "str", hex, "uint", 0, "uint", flag, "ptr", 0, "uint*", &s := 0, "ptr", 0, "ptr", 0))
+		return
 	code := Buffer(s)
-	DllCall("VirtualProtect", "Ptr", code, "UInt", s, "UInt", 0x40, "Ptr", 0)
-	If (DllCall("crypt32\CryptStringToBinary", "Str", m3, "UInt", 0, "UInt", dwFlags[m1], "Ptr", code, "UInt*", &s, "Ptr", 0, "Ptr", 0))
-		Return MCode.Bind(code)
-	throw Exception("MCode解码失败")
-	MCode(buf, arg*) => DllCall(buf.Ptr, arg*)
+	if (DllCall("crypt32\CryptStringToBinary", "str", hex, "uint", 0, "uint", flag, "ptr", code, "uint*", &s, "ptr", 0, "ptr", 0) && DllCall("VirtualProtect", "ptr", code, "uint", s, "uint", 0x40, "uint*", 0)) {
+		args := []
+		if (Type(argtypes) = "Array" && argtypes.Length) {
+			args.Length := argtypes.Length * 2 - 1
+			for i, t in argtypes
+				args[i * 2 - 1] := t
+		}
+		return DllCall.Bind(code, args*)
+	}
 }

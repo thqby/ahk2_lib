@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+</head>
+<body class="pb-5">
+    <div class="jumbotron jumbotron-fluid">
+        <div class="container">
+            <h1>AHK hosting Microsoft Edge (Chromium)</h1>
+            <h3 class="text-muted">A Proof of Concept using WebView2</h3>
+        </div>
+    </div>
+    <div class="container">
+        <h4>Script Usage Info</h4>
+        <p>See the <a href="https://docs.microsoft.com/en-us/microsoft-edge/webview2/gettingstarted/win32">Getting Started with C++/Win32</a> page for requirements</p>
+        <p>I wasn't able to get it to function without having at least the <a href="https://www.microsoftedgeinsider.com/en-us/download">Beta channel</a> installed</p>
+        <p>Follow the steps about creating a project in Visual Studio 2015 (or higher) with C++ support installed.  The goal here is to install the WebView2 package from NuGet which provides the WebView2Loader.dll file that is necessary to initialize the Edge environment.</p>
+        <p>You can find the DLL by navigating into the VS project directory structure to <code>$PROJECT_DIR\packages\Microsoft.Web.WebView2.0.9.579\build</code> and then getting the file from either the x86 or x64 directories depending on your AHK requirements.  The DLL is ever changing but I have included the version that I worked with to develop this.  Edge Beta version 85.0.564.30 </p>
+        <p>I haven't looked into it but there is also a way to install the Microsoft Edge runtime if the user's PC doesn't have it installed already.</p>
+        <p>This script simply loads an index.html from the AHK script's same directory.  It has example handling of navigation and allows the user to cancel the navigation for any <em>user-initiated</em> navigation events.</p>
+        <h4>Credits</h4>
+        <p>Thanks must go to Flipeador for his great initial work on this for an earlier version of the WebView2 SDK.  See <a href="https://www.autohotkey.com/boards/viewtopic.php?f=81&t=65614">this thread</a> for his initial script that I started from.</p>
+    </div>
+    <nav class="navbar fixed-bottom navbar-light bg-light">
+        <div class="container justify-content-center">
+            <span>The current date & time is: <span id="curr-time"></span></span>
+        </div>
+    </nav>
+    <script src="index.js"></script>
+</body>
+</html>
