@@ -32,7 +32,7 @@
  * DataValidationErrorStyle { ERRSTYLE_STOP, ERRSTYLE_WARNING, ERRSTYLE_INFORMATION }
  * CalcModeType { MANUAL, AUTO, AUTONOTABLE }
  ***********************************************************************/
-#DllLoad 'D:\Desktop\excel文件读写\libxl.dll'
+; #DllLoad 'libxl.dll'
 
 class ExcelIO {
 	static Load(path) {
