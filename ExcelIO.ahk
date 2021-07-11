@@ -2,8 +2,8 @@
  * @file: ExcelIO.ahk
  * @description: Excel xls,xlsx文件高性能读写库
  * @author thqby
- * @date 2021/05/08
- * @version 1.1.23
+ * @date 2021/06/17
+ * @version 1.1.27
  * @documentation https://www.libxl.com/documentation.html
  * @enum var
  * Color {BLACK = 8, WHITE, RED, BRIGHTGREEN, BLUE, YELLOW, PINK, TURQUOISE, DARKRED, GREEN, DARKBLUE, DARKYELLOW, VIOLET, TEAL, GRAY25, GRAY50, PERIWINKLE_CF, PLUM_CF, IVORY_CF, LIGHTTURQUOISE_CF, DARKPURPLE_CF, CORAL_CF, OCEANBLUE_CF, ICEBLUE_CF, DARKBLUE_CL, PINK_CL, YELLOW_CL, TURQUOISE_CL, VIOLET_CL, DARKRED_CL, TEAL_CL, BLUE_CL, SKYBLUE, LIGHTTURQUOISE, LIGHTGREEN, LIGHTYELLOW, PALEBLUE, ROSE, LAVENDER, TAN, LIGHTBLUE, AQUA, LIME, GOLD, LIGHTORANGE, ORANGE, BLUEGRAY, GRAY40, DARKTEAL, SEAGREEN, DARKGREEN, OLIVEGREEN, BROWN, PLUM, INDIGO, GRAY80, DEFAULT_FOREGROUND = 0x40, DEFAULT_BACKGROUND = 0x41, TOOLTIP = 0x51, NONE = 0x7F, AUTO = 0x7FFF}
@@ -469,7 +469,7 @@ class ExcelIO {
 		class ICell {
 			__New(row, col, parent) {
 				if (parent.cellType(row, col) = 0)
-					throw Error('单元格不存在')
+					throw Error('单元格不存在', -1)
 				this.row := row, this.col := col, this.parent := parent
 			}
 			content {
