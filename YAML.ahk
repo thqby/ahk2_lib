@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby
- * @date 2021/04/25
- * @version 0.0.82
+ * @date 2021/07/21
+ * @version 0.0.83
  ***********************************************************************/
 
 class YAML {
@@ -34,26 +34,26 @@ class YAML {
 				if (!Y && InStr(LF, "---") = 1) || (InStr(LF, "---") = 1 && (Y.Push(""), NEWDOC := 0, D[1] := 0, _L := _LL := O := _Q := _K := _S := _T := _V := "", 1)) || (InStr(LF, "...") = 1 && NEWDOC := 1) || (LF = "") || RegExMatch(LF, "^\s+$")
 					continue
 				else if NEWDOC
-					throw Exception("Document ended but new document not specified.", 0, LF)
+					throw Error("Document ended but new document not specified.", 0, LF)
 				if RegExMatch(LF, "^\s*#") || InStr(LF, "``%") = 1	; Comments, tag, document start/end or empty line, ignore
 					continue
 				else if _C || (_S && SubStr(LF, 1, LL * LS) = CL(LL + 1)) || (V !== undefined && !(K && _.SEQ) && SubStr(LF, 1, LL * LS) = CL(LL + 1)) {	; Continuing line incl. scalars
 					if _Q && !_K {	; Sequence
 						if D[L].Length && IsObject(VC := D[L].Pop())
-							throw Exception("Malformed inline YAML string")	; Error if previous value is an object
+							throw Error("Malformed inline YAML string")	; Error if previous value is an object
 						else D[L].Push(VC (VC ? (_S = ">" ? " " : "`n") : "") _CE := LTrim(LF, "`t "))	; append value to previous item
 					} else if IsObject(VC := D[L][K])
-						throw Exception("Malformed inline YAML string")	; Error if previous value is an object
+						throw Error("Malformed inline YAML string")	; Error if previous value is an object
 					else D[L][K] := VC (VC ? (_S = ">" ? " " : "`n") : "") _CE := LTrim(LF, "`t ")	; append value to previous item
 					continue
 				} else if _C && (SubStr(_CE, -1) != _C)
-					throw Exception("Unexpected character", 0, (_Q ? D[L][D[L].Length] : D[L][K]))	; else check if quoted value was ended with a quote
+					throw Error("Unexpected character", 0, (_Q ? D[L][D[L].Length] : D[L][K]))	; else check if quoted value was ended with a quote
 				else _C := ""	; reset continuation
 				if (CM := InStr(LF, " #")) && !RegExMatch(LF, ".*[`"'].*\s\#.*[`"'].*")	; check for comments and remove
 					LF := SubStr(LF, 1, CM - 1)
 				; Split line into yaml elements
 				if SubStr(LTrim(LF, " `t"), 1, 1) = ":"
-					throw Exception("Unexpected character.", 0, ':')
+					throw Error("Unexpected character.", 0, ':')
 				RegExMatch(LF, "S)^(?<LVL>\s+)?(?<SEQ>-\s)?(?<KEY>`".*`"\s*:(\s|$)|'.*'\s*:(\s|$)|[^:`"'\{\[]+\s*:(\s|$))?\s*(?<SCA>[\|\>][+-]?)?\s*(?<TYP>!!\w+)?\s*(?<AGET>\*[^\s\t]+)?\s*(?<ASET>&[^\s\t]+)?\s*(?<VAL>`".+`"|'.+'|.+)?\s*$", &_), L := LL := CS(_.LVL, LS), Q := _.SEQ, K := _.KEY, S := _.SCA, T := SubStr(_.TYP, 3), V := UQ(_.VAL, T != ""), VQ := InStr(".''.`"`".", "." SubStr(LTrim(_.VAL, " `t"), 1, 1) SubStr(RTrim(_.VAL, " `t"), -1) ".")
 				if L > 1 {
 					if LL = _LL
@@ -62,7 +62,7 @@ class YAML {
 						I[LL] := L := _L + 1
 					else if LL < _LL
 						if !I[LL]
-							throw Exception("Indentation problem.", 0, LF)
+							throw Error("Indentation problem.", 0, LF)
 						else L := I[LL]
 				}
 				if Trim(_.Value(), " `t") = "-"	; empty sequence not cached by previous line
@@ -75,7 +75,7 @@ class YAML {
 				if !Q && SubStr(RTrim(K, " `t"), -1) != ":"	; not a sequence and key is missing :
 					if L > _L && (D[_L][_K] := K, LL := _LL, L := _L, K := _K, Q := _Q, _S := ">")
 						continue
-					else throw Exception("Invalid key.", 0, LF)
+					else throw Error("Invalid key.", 0, LF)
 				else if K != ""	; trim key if not empty
 					K := UQ(RTrim(K, ": "), true)
 				Loop _L = "" ? D.Length - 1 : _L ? _L - L : 0	; remove objects in deeper levels created before
@@ -85,7 +85,7 @@ class YAML {
 				if _L != L && !D[L]	; object in this level not created yet
 					if L = 1 {	; first level, use or create main object
 						if Y && Type(Y[Y.Length]) != "String" && ((Q && Type(Y[Y.Length]) != "Array") || (!Q && Type(Y[Y.Length]) = "Array"))
-							throw Exception("Mapping Item and Sequence cannot be defined on the same level.", 0, LF)	; trying to create sequence on the same level as key or vice versa
+							throw Error("Mapping Item and Sequence cannot be defined on the same level.", 0, LF)	; trying to create sequence on the same level as key or vice versa
 						else D[L] := Y ? (Type(Y[Y.Length]) = "String" ? (Y[Y.Length] := Q ? [] : Map()) : Y[Y.Length]) : (Y := Q ? [[]] : [Map()])[1]
 					} else if !_Q && Type(D[L - 1][_K]) = (Q ? "Array" : "Map")	; use previous object
 						D[L] := D[L - 1][_K]
@@ -99,7 +99,7 @@ class YAML {
 					else if (Q && Type(D[L + 1]) = "Array" || !Q && Type(D[L + 1]) = "Map")
 						L++
 					else
-						throw Exception("Mapping Item and Sequence cannot be defined on the same level,", 0, LF)	; trying to create sequence on the same level as key or vice versa
+						throw Error("Mapping Item and Sequence cannot be defined on the same level,", 0, LF)	; trying to create sequence on the same level as key or vice versa
 				}
 				if T = "binary" {	; !!binary
 					O := Buffer(StrLen(V) // 2), PBIN := O.Ptr
@@ -107,7 +107,7 @@ class YAML {
 						if ("" != h .= A_LoopField) && !Mod(A_Index, 2)
 							NumPut("UChar", "0x" h, PBIN, A_Index / 2 - 1), h := ""
 				} else if T = "set"
-					throw Exception("Tag 'set' is not supported")	; tag !!set is not supported
+					throw Error("Tag 'set' is not supported")	; tag !!set is not supported
 				else V := T = "int" || T = "float" ? V + 0 : T = "str" ? V "" : T = "null" ? _null : T = "bool" ? (V = "true" ? _true : V = "false" ? _false : V) : V	; tags !!int !!float !!str !!null !!bool - else seq map omap ignored
 				if _.ASET
 					A[_A := SubStr(_.ASET, 2)] := V
@@ -136,7 +136,7 @@ class YAML {
 				if c = "`n" || (c = "`r" && 10 = NumGet(p + 2, "UShort")) {
 					if (q || k || (!v && !k) || SubStr(Ltrim(StrGet(p + (c = "`n" ? 2 : 4)), " `t`r`n"), 1, 1) = "}") && P += c = "`n" ? 2 : 4
 						continue
-					else throw Exception("Malformed inline YAML string", 0, StrGet(p - 6))
+					else throw Error("Malformed inline YAML string", 0, StrGet(p - 6))
 				} else if !q && (c = " " || c = A_Tab) && P += 2
 					continue
 				else if !v && (c = '"' || c = "'") && (q := c, v := 1, P += 2)
@@ -153,14 +153,14 @@ class YAML {
 						return nl ? DllCall(NXTLN, "PTR", P + 2, "Int", true, "cdecl PTR") : lf ? P + 2 : NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
 					else if !tp
 						return NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
-					else throw Exception("Malformed inline YAML string.", 0, StrGet(p))
+					else throw Error("Malformed inline YAML string.", 0, StrGet(p))
 				} else if !v && (c = "," || c = ":" || c = " " || c = "`t") && P += 2
 					continue
 				else if !v && (!k ? (key := c) : val := c, b := !b && c = "\", v := 1, P += 2)
 					continue
 				else if v && (!k ? (key .= c) : val .= c, b := !b && c = "\", P += 2)
 					continue
-				else throw Exception("Undefined")
+				else throw Error("Undefined")
 			}
 			return P
 		}
@@ -170,7 +170,7 @@ class YAML {
 				if c = "`n" || (c = "`r" && 10 = NumGet(p + 2, "UShort")) {
 					if (q || !v || SubStr(Ltrim(StrGet(p + (c = "`n" ? 2 : 4)), " `t`r`n"), 1, 1) = "]") && P += c = "`n" ? 2 : 4
 						continue
-					else throw Exception("Malformed inline YAML string.", 0, s "`n" StrGet(p - 6))
+					else throw Error("Malformed inline YAML string.", 0, s "`n" StrGet(p - 6))
 				} else if !q && (c = " " || c = A_Tab) && P += 2
 					continue
 				else if !v && (c = '"' || c = "'") && (q := c, v := 1, P += 2)
@@ -185,14 +185,14 @@ class YAML {
 						return nl ? DllCall(NXTLN, "PTR", P + 2, "Int", true, "cdecl PTR") : lf ? P + 2 : NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
 					else if !tp
 						return NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
-					else throw Exception("Malformed inline YAML string.", 0, StrGet(p))
+					else throw Error("Malformed inline YAML string.", 0, StrGet(p))
 				} else if !v && (c = "," || c = " " || c = "`t") && P += 2	;InStr(", `t",c)
 					continue
 				else if !v && (lf .= c, v := 1, b := c = "\", P += 2)
 					continue
 				else if v && (lf .= c, b := !b && c = "\", P += 2)
 					continue
-				else throw Exception("Undefined")
+				else throw Error("Undefined")
 			}
 			return P
 		}
@@ -213,14 +213,14 @@ class YAML {
 								continue
 							else if InStr("{[", A_LoopField) {
 								if !A && !V
-									throw Exception("Malformed JSON - missing key.", 0, t)
+									throw Error("Malformed JSON - missing key.", 0, t)
 								C := A_LoopField = "[" ? [] : Map(), A ? D[L].Push(C) : D[L][K] := C, D.Has(++L) ? D[L] := C : D.Push(C), V := "", A := Type(C) = "Array"
 								continue
 							} else if InStr("]}", A_LoopField) {
 								if !A && V
-									throw Exception("Malformed JSON - missing value.", 0, t)
+									throw Error("Malformed JSON - missing value.", 0, t)
 								else if L = 0
-									throw Exception("Malformed JSON - to many closing brackets.", 0, t)
+									throw Error("Malformed JSON - to many closing brackets.", 0, t)
 								else C := --L = 0 ? "" : D[L], A := Type(C) = "Array"
 							} else if !(InStr(" `t`r,", A_LoopField) || (A_LoopField = ":" && V := 1)) {
 								if RegExMatch(SubStr(t, A_Index), "m)^(null|false|true|-?\d+\.?\d*)\s*[,}\]\r\n]", &R) && (N := R.Len(0) - 2, R := R.1, 1) {
@@ -228,13 +228,13 @@ class YAML {
 										C.Push(R = "null" ? _null : R = "true" ? _true : R = "false" ? _false : IsNumber(R) ? R + 0 : R)
 									else if V
 										C[K] := R = "null" ? _null : R = "true" ? _true : R = "false" ? _false : IsNumber(R) ? R + 0 : R, K := V := ""
-									else throw Exception("Malformed JSON - missing key.", 0, t)
+									else throw Error("Malformed JSON - missing key.", 0, t)
 								} else
-									throw Exception("Malformed JSON - unrecognized character-", 0, A_LoopField " in " t)
+									throw Error("Malformed JSON - unrecognized character-", 0, A_LoopField " in " t)
 							}
 						}
 					} else if InStr(t, ':') > 1
-						throw Exception("Malformed JSON - unrecognized character-", 0, SubStr(t, 1, 1) " in " t)
+						throw Error("Malformed JSON - unrecognized character-", 0, SubStr(t, 1, 1) " in " t)
 				} else if NQ && (P .= A_LoopField '"', 1)
 					continue
 				else if A

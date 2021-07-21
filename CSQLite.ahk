@@ -218,7 +218,7 @@ class CSQLite
 		__New(funcobj, params, initflag:=0){
 			this.pfunc:=pfunc:=CallbackCreate(funcobj)
 			if (!this.Ptr:=DllCall("msvcrt\_beginthreadex", "Ptr", 0, "UInt", 0, "Ptr", pfunc, "Ptr", ObjPtrAddRef(params), "UInt", initflag, "UInt*", &threadid:=0))
-				throw Exception("create thread fail")
+				throw Error("create thread fail")
 			this.threadid:=threadid
 		}
 
@@ -240,7 +240,7 @@ class CSQLite
 			while (_Thread.queue.Has(1)){
 				if (RC:=DllCall(pexec, "Ptr", hdb, "Ptr", _Thread.queue[1], "Ptr", 0, "Ptr", 0, "Ptr*", &Err:=0, "Cdecl Int")){
 					ErrMsg:=_Thread.DB._ReturnMsg(RC), DllCall("SQLite3.dll\sqlite3_free", "Ptr", Err, "Cdecl")
-					throw Exception(ErrMsg)
+					throw Error(ErrMsg)
 				}
 				_Thread.queue.RemoveAt(1)
 			}
@@ -292,9 +292,9 @@ class CSQLite
 	createScalarFunction(func, params) {
 		argType := Type(func)
 		if (argType != "Func" && argType != "Closure")
-			throw Exception(this.__class "::" A_thisFunc " - First parameter not a Func object", -1)
+			throw Error(this.__class "::" A_thisFunc " - First parameter not a Func object", -1)
 		else if (!func.name)
-			throw Exception(this.__class "::" A_thisFunc " - Function must be named", -1)
+			throw Error(this.__class "::" A_thisFunc " - Function must be named", -1)
 		this.ErrorMsg := "", this.ErrorCode := 0, cb := CallbackCreate(func, "F C")
 		if (err := DllCall("SQLite3.dll\sqlite3_create_function16", "Ptr", this._handle, "Str", func.name, "Int", params, "Int", 0x801, "Ptr", 0, "Ptr", cb, "Ptr", 0, "Ptr", 0, "Cdecl Int"))
 			return (this.ErrorMsg := this._ErrMsg(), this.ErrorCode := err, false)

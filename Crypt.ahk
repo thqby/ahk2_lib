@@ -25,7 +25,7 @@ MD5_File(sFile, cSz:=4){
 Crypt_Hash(Data, nSize:=0, SID := "CRC32", nInitial := 0){
 	CALG_SHA := CALG_SHA1 := 1 + CALG_MD5 := 0x8003, CALG_CRC32 := 0
 	if !IsSet(CALG_%SID%)
-		throw Exception("Unsupported type")
+		throw Error("Unsupported type")
 	if (!nSize&&Type(Data)="Buffer")
 		nSize := Data.Size
 	if (!CALG_%SID%){

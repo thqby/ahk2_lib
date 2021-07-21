@@ -7,9 +7,9 @@
 			; DllCall("LoadLibrary", "Str", "ws2_32", "Ptr")
 			WSAData := Buffer(394 + A_PtrSize)
 			if (Error := DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", WSAData))
-				throw Exception("Error starting Winsock", , Error)
+				throw Error("Error starting Winsock", , Error)
 			if (NumGet(WSAData, 2, "UShort") != 0x0202)
-				throw Exception("Winsock version 2.2 not available")
+				throw Error("Winsock version 2.2 not available")
 			Init := true
 		}
 		this.Ptr := Socket, this.ProtocolId := ProtocolId, this.SocketType := SocketType
@@ -22,7 +22,7 @@
 
 	Connect(Address) {
 		if (this.Ptr != -1)
-			throw Exception("Socket already connected")
+			throw Error("Socket already connected")
 		Next := pAddrInfo := this.GetAddrInfo(Address)
 		while Next {
 			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
@@ -38,12 +38,12 @@
 			}
 			Next := NumGet(Next + 0, 16 + (3 * A_PtrSize), "Ptr")
 		}
-		throw Exception("Error connecting")
+		throw Error("Error connecting")
 	}
 
 	Bind(Address) {
 		if (this.Ptr != -1)
-			throw Exception("Socket already connected")
+			throw Error("Socket already connected")
 		Next := pAddrInfo := this.GetAddrInfo(Address)
 		while Next {
 			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
@@ -59,7 +59,7 @@
 			}
 			Next := NumGet(Next + 0, 16 + (3 * A_PtrSize), "Ptr")
 		}
-		throw Exception("Error binding")
+		throw Error("Error binding")
 	}
 
 	Listen(backlog := 32) {
@@ -68,7 +68,7 @@
 
 	Accept() {
 		if ((s := DllCall("ws2_32\accept", "Ptr", this.Ptr, "Ptr", 0, "Ptr", 0, "Ptr")) == -1)
-			throw Exception("Error calling accept", , this.GetLastError())
+			throw Error("Error calling accept", , this.GetLastError())
 		Sock := Socket(s, this.ProtocolId, this.SocketType)
 		Sock.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
 		return Sock
@@ -82,7 +82,7 @@
 		; Unregister the socket event handler and close the socket
 		this.EventProcUnregister()
 		if (DllCall("ws2_32\closesocket", "Ptr", this.Ptr, "Int") == -1)
-			throw Exception("Error closing socket", , this.GetLastError())
+			throw Error("Error closing socket", , this.GetLastError())
 		this.Ptr := -1
 		return 1
 	}
@@ -90,13 +90,13 @@
 	MsgSize() {
 		static FIONREAD := 0x4004667F
 		if (DllCall("ws2_32\ioctlsocket", "Ptr", this.Ptr, "UInt", FIONREAD, "UInt*", &argp := 0) == -1)
-			throw Exception("Error calling ioctlsocket", , this.GetLastError())
+			throw Error("Error calling ioctlsocket", , this.GetLastError())
 		return argp
 	}
 
 	Send(pBuffer, BufSize, Flags := 0) {
 		if ((r := DllCall("ws2_32\send", "Ptr", this.Ptr, "Ptr", pBuffer, "Int", BufSize, "Int", Flags)) == -1)
-			throw Exception("Error calling send", , this.GetLastError())
+			throw Error("Error calling send", , this.GetLastError())
 		return r
 	}
 
@@ -118,7 +118,7 @@
 			BufSize := Min(BufSize, Length)
 		Buf := Buffer(BufSize)
 		if ((r := DllCall("ws2_32\recv", "Ptr", this.Ptr, "Ptr", Buf, "Int", BufSize, "Int", Flags)) == -1)
-			throw Exception("Error calling recv", , this.GetLastError())
+			throw Error("Error calling recv", , this.GetLastError())
 		return r
 	}
 
@@ -145,7 +145,7 @@
 		Hints := Buffer(16 + (4 * A_PtrSize), 0)
 		NumPut("Int", this.SocketType, "Int", this.ProtocolId, Hints, 8)
 		if (Error := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
-			throw Exception("Error calling GetAddrInfo", , Error)
+			throw Error("Error calling GetAddrInfo", , Error)
 		return Result
 	}
 
@@ -182,7 +182,7 @@
 			, "Ptr", A_ScriptHwnd	; hWnd
 			, "UInt", Socket.WM_SOCKET	; wMsg
 			, "UInt", lEvent) == -1)	; lEvent
-			throw Exception("Error calling WSAAsyncSelect", , this.GetLastError())
+			throw Error("Error calling WSAAsyncSelect", , this.GetLastError())
 	}
 
 	GetLastError() {
@@ -205,6 +205,6 @@ class SocketUDP extends Socket {
 			, "Int", SO_BROADCAST	; int    optname
 			, "UInt*", &Enable := !!Enable	; *char  optval
 			, "Int", 4) == -1)	; int    optlen
-			throw Exception("Error calling setsockopt", , this.GetLastError())
+			throw Error("Error calling setsockopt", , this.GetLastError())
 	}
 }

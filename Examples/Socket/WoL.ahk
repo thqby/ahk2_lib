@@ -14,7 +14,7 @@ MakeMagicPacket(&MagicPacket, MAC)
 {
 	MAC := RegExReplace(MAC, "[^0-9A-Fa-f]")
 	if (StrLen(MAC) != 12)
-		throw Exception("Invalid MAC address")
+		throw Error("Invalid MAC address")
 	VarSetStrCapacity(&MagicPacket, 6*17, 0xFF)
 	Loop 6*16
 	{

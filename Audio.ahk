@@ -2,8 +2,8 @@
  * @file: Audio.ahk
  * @description: Core Audio APIs, Windows 多媒体设备API
  * @author thqby
- * @date 2021/04/25
- * @version 1.0.3
+ * @date 2021/07/21
+ * @version 1.0.4
  ***********************************************************************/
 ; https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nn-unknwn-iunknown
 class IUnknown {
@@ -35,7 +35,7 @@ StringFromCLSID(pCLSID) {
 }
 FAILED(hr) {
     if (hr)
-        throw Exception(hr)
+        throw Error(hr)
 }
 
 ;; audioclient.h header

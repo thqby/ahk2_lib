@@ -63,7 +63,7 @@ class MouseHook {
 
 	Wait(Key, Timeout := 0) {
 		if (!RegExMatch(Key, "i)^([lrm]button|xbutton\d|wheel)\s*(up|down)?$", &m))
-			throw Exception('无效的鼠标按键')
+			throw Error('无效的鼠标按键')
 		else if (m[2] = 'up' && m[1] != 'wheel' && !GetKeyState(m[1], 'P'))
 			return 0
 		Key := m[1] ' ' (m[2] = '' ? 'Down' : m[2]), this.Action := '', Timeout := Timeout ? A_TickCount + Timeout : 0

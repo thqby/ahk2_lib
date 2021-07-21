@@ -2,8 +2,8 @@
  * @file: WinHttpRequest.ahk
  * @description: 网络请求库
  * @author thqby
- * @date 2021/04/25
- * @version 0.0.6
+ * @date 2021/07/21
+ * @version 0.0.7
  ***********************************************************************/
 
 class WinHttpRequest {
@@ -97,7 +97,14 @@ class WinHttpRequest {
 	Status => this.whr.Status
 	StatusText => this.whr.StatusText
 	ResponseText => this.whr.ResponseText
-	ResponseBody => this.whr.ResponseBody
+	ResponseBody {
+		get {
+			pSafeArray := ComObjValue(this.whr.ResponseBody)
+			pvData := NumGet(pSafeArray + 8 + A_PtrSize, 'ptr')
+			cbElements := NumGet(pSafeArray + 8 + A_PtrSize * 2, 'uint')
+			return ClipboardAll(pvData, cbElements)
+		}
+	}
 	ResponseStream => this.whr.responseStream
 	Option[Opt] {
 		get => this.whr.Option[Opt]

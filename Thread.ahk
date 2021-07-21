@@ -4,7 +4,7 @@
 	__New(funcobj, paramsobj, initflag := 0) {
 		this.pfunc := pfunc := CallbackCreate(funcobj)
 		if (!this.Ptr := DllCall("msvcrt\_beginthreadex", "Ptr", 0, "UInt", 0, "Ptr", pfunc, "Ptr", ObjPtrAddRef(paramsobj), "UInt", initflag, "UInt*", threadid := 0))
-			throw Exception("create thread fail")
+			throw Error("create thread fail")
 		this.threadid := threadid
 	}
 

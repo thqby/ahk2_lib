@@ -88,7 +88,7 @@ class WebSocket {
 		_sc := Socket(), readyState := 0, host := '', port := ''
 		__New(ws, callbacks := 0, proto := '', headers := '') {
 			if !RegExMatch(ws, '^ws://([^/:]+)(:\d+)?(/.+)?$', &m)
-				throw Exception('不支持的ws url')
+				throw Error('不支持的ws url')
 			this.host := host := m[1], this.port := port := LTrim(m[2], ':') || '80', path := m[3] || '/', extend := ''
 			this._sc.Connect([host, port])
 			this._sc.OnDisconnect := ObjBindMethod(this, 'onEvent', 'Close')
@@ -119,7 +119,7 @@ class WebSocket {
 		}
 		SendText(str) {
 			if (this._sc.Ptr = -1)
-				throw Exception('websocket已断开')
+				throw Error('websocket已断开')
 			buf := WebSocket.DataFrame.encode({FIN: 1, Opcode: 1, Mask: 1, PayloadData: str})
 			try
 				this._sc.Send(buf.Ptr, buf.Size)
@@ -140,19 +140,19 @@ class WebSocket {
 		}
 		connect() {
 			if (this.readyState = 1)
-				throw Exception('WebSocket已连接')
+				throw Error('WebSocket已连接')
 			if (this._sc.Ptr = -1)
 				this._sc.Connect([this.host, this.port])
 			this._sc.DeleteProp('onRecv')
 			this._sc.SendText(this.msg)
 			this._sc.Recv(&buf := 0, 0, 0, 10000)
 			if (!buf)
-				throw Exception('连接超时')
+				throw Error('连接超时')
 			str := StrGet(buf, 'utf-8')
 			if InStr(str, 'HTTP/1.1 101 Switching Protocols') != 1
-				throw Exception('连接失败')
+				throw Error('连接失败')
 			if (!RegExMatch(str, 'i)Sec-Websocket-Accept:\s?(.+)', &m) || m[1] != this.sec_accept)
-				throw Exception('WebSocket验证失败')
+				throw Error('WebSocket验证失败')
 			this.readyState := 1, this._sc.onRecv := ObjBindMethod(this, 'onEvent', 'Message'), this.onEvent('Open', '')
 			lf := InStr(str, '`r`n`r`n'), lf := StrPut(SubStr(str, 1, lf + 3), 'utf-8') - 1
 			if (buf.Size > lf && this.callbacks.Has('Message')) {
