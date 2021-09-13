@@ -6,8 +6,8 @@
 		if (!Init) {
 			; DllCall("LoadLibrary", "Str", "ws2_32", "Ptr")
 			WSAData := Buffer(394 + A_PtrSize)
-			if (Error := DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", WSAData))
-				throw Error("Error starting Winsock", , Error)
+			if (err := DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", WSAData))
+				throw Error("Error starting Winsock", , err)
 			if (NumGet(WSAData, 2, "UShort") != 0x0202)
 				throw Error("Winsock version 2.2 not available")
 			Init := true
@@ -144,8 +144,8 @@
 		Host := Address[1], Port := Address[2]
 		Hints := Buffer(16 + (4 * A_PtrSize), 0)
 		NumPut("Int", this.SocketType, "Int", this.ProtocolId, Hints, 8)
-		if (Error := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
-			throw Error("Error calling GetAddrInfo", , Error)
+		if (err := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
+			throw Error("Error calling GetAddrInfo", , err)
 		return Result
 	}
 

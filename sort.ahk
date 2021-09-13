@@ -81,13 +81,12 @@
 		}
 	}
 
-	compare(ByRef v, ByRef w){
+	compare(v, w){
 		return v<w ? 1 : v==w ? 0 : -1
 	}
 }
 
 ArrSort(oArray, compare:="asc"){
-	local
 	static _fun_:=A_PtrSize=8?"M8CF0nQdZmYPH4QAAAAAAESNSAFEi8BBi8FGiQyBRDvKcu3D":"i1QkCDPAhdJ0E1aLdCQIkI1IAYkMhovBO8Jy9F7D",pF,___:=(DllCall("crypt32\CryptStringToBinary","str",_fun_,"uint",0,"uint",1,"Ptr",0,"uint*",_sz_:=0,"Ptr",0,"Ptr",0),pF:=DllCall("GlobalAlloc","uint",0,"Ptr",_sz_,"Ptr"),DllCall("VirtualProtect","Ptr",pF,"Ptr",_sz_,"uint",0x40,"uint*",_op_:=0),DllCall("crypt32\CryptStringToBinary","str",_fun_,"uint",0,"uint",1,"Ptr",pF,"uint*",_sz_,"Ptr",0,"Ptr",0))
 	switch Type(compare)
 	{

@@ -2,8 +2,8 @@
  * @file: WinHttpRequest.ahk
  * @description: 网络请求库
  * @author thqby
- * @date 2021/07/21
- * @version 0.0.7
+ * @date 2021/08/01
+ * @version 0.0.18
  ***********************************************************************/
 
 class WinHttpRequest {
@@ -64,7 +64,7 @@ class WinHttpRequest {
 		whr.Option[0] := IsSet(UserAgent) ? UserAgent : 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36 Edg/89.0.774.68'
 		this.IEvents := WinHttpRequest.RequestEvents.Call(ComObjValue(whr), this.id := ObjPtr(this))
 	}
-	__Delete() => (this.whr := this.IEvents := 0)
+	__Delete() => (this.whr := this.IEvents := this.OnError := this.OnResponseDataAvailable := this.OnResponseFinished := this.OnResponseStart := 0)
 
 	request(url, method := 'GET', data := '', headers := '') {
 		this.Open(method, url)
@@ -99,7 +99,7 @@ class WinHttpRequest {
 	ResponseText => this.whr.ResponseText
 	ResponseBody {
 		get {
-			pSafeArray := ComObjValue(this.whr.ResponseBody)
+			pSafeArray := ComObjValue(t := this.whr.ResponseBody)
 			pvData := NumGet(pSafeArray + 8 + A_PtrSize, 'ptr')
 			cbElements := NumGet(pSafeArray + 8 + A_PtrSize * 2, 'uint')
 			return ClipboardAll(pvData, cbElements)
@@ -109,6 +109,15 @@ class WinHttpRequest {
 	Option[Opt] {
 		get => this.whr.Option[Opt]
 		set => (this.whr.Option[Opt] := Value)
+	}
+	Headers {
+		get {
+			m := Map(), m.Default := ''
+			loop parse this.GetAllResponseHeaders(), '`r`n'
+				if (p := InStr(A_LoopField, ':'))
+					m[SubStr(A_LoopField, 1, p - 1)] .= LTrim(SubStr(A_LoopField, p + 1))
+			return m
+		}
 	}
 	;#endregion
 	;#region IWinHttpRequestEvents
@@ -133,6 +142,7 @@ class WinHttpRequest {
 					req.readyState := index - 2
 					return 0
 				}
+				; critical('On')
 				switch index {
 					case 1:	; QueryInterface
 						NumPut('ptr', pEvent, arg2)

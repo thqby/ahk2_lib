@@ -2,12 +2,12 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby
- * @date 2021/07/21
- * @version 0.0.83
+ * @date 2021/08/05
+ * @version 0.0.84
  ***********************************************************************/
 
 class YAML {
-	static null := ComObject(1, 0), true := ComObject(0xB, 1), false := ComObject(0xB, 0)
+	static null := ComValue(1, 0), true := ComValue(0xB, 1), false := ComValue(0xB, 0)
 
 	/**
 	 * Converts a AutoHotkey Object Notation (YAML/JSON) string into an object.
@@ -16,7 +16,7 @@ class YAML {
 	 * @param keepbooltype convert true/false/null to YAML.true / YAML.false / YAML.null where it's true, otherwise 1 / 0 / ''
 	 */
 	static parse(text, mergedarray := 0, keepbooltype := false) {
-		static undefined := ComObject(0, 0), _fun_ := A_PtrSize = 8 ? "SIXJdExED7cBZkWFwHUM60BIg8ECZkWFwHQkZkGD+Ap0IWZBg/gNRA+3QQJ142ZBg/gKdB9Ig8ECZkWFwHXjSInIw4XSdAUx0maJEUiNQQLDMcDDhdJ0BTHAZokBSI1BBMOQkJCQ" : "i0QkBIXAdEsPtxBmhdJ1CutBg8ACZoXSdDdmg/oKdCBmg/oND7dQAnXoZoP6CnQmg8ACZoXSdejzw422AAAAAItMJAiFyXQFMdJmiRCDwALD88MxwMOLTCQIhcl0BTHSZokQg8AEw5A=", _sz_, NXTLN, _op_, __ := (DllCall("crypt32\CryptStringToBinary", "str", _fun_, "uint", 0, "uint", 1, "ptr", 0, "uint*", &_sz_ := 0, "ptr", 0, "ptr", 0), NXTLN := DllCall("GlobalAlloc", "uint", 0, "ptr", _sz_, "ptr"), DllCall("VirtualProtect", "ptr", NXTLN, "ptr", _sz_, "uint", 0x40, "uint*", &_op_ := 0), DllCall("crypt32\CryptStringToBinary", "str", _fun_, "uint", 0, "uint", 1, "ptr", NXTLN, "uint*", &_sz_, "ptr", 0, "ptr", 0))
+		static undefined := ComValue(0, 0), _fun_ := A_PtrSize = 8 ? "SIXJdExED7cBZkWFwHUM60BIg8ECZkWFwHQkZkGD+Ap0IWZBg/gNRA+3QQJ142ZBg/gKdB9Ig8ECZkWFwHXjSInIw4XSdAUx0maJEUiNQQLDMcDDhdJ0BTHAZokBSI1BBMOQkJCQ" : "i0QkBIXAdEsPtxBmhdJ1CutBg8ACZoXSdDdmg/oKdCBmg/oND7dQAnXoZoP6CnQmg8ACZoXSdejzw422AAAAAItMJAiFyXQFMdJmiRCDwALD88MxwMOLTCQIhcl0BTHSZokQg8AEw5A=", _sz_, NXTLN, _op_, __ := (DllCall("crypt32\CryptStringToBinary", "str", _fun_, "uint", 0, "uint", 1, "ptr", 0, "uint*", &_sz_ := 0, "ptr", 0, "ptr", 0), NXTLN := DllCall("GlobalAlloc", "uint", 0, "ptr", _sz_, "ptr"), DllCall("VirtualProtect", "ptr", NXTLN, "ptr", _sz_, "uint", 0x40, "uint*", &_op_ := 0), DllCall("crypt32\CryptStringToBinary", "str", _fun_, "uint", 0, "uint", 1, "ptr", NXTLN, "uint*", &_sz_, "ptr", 0, "ptr", 0))
 		keepbooltype ? (_true := YAML.true, _false := YAML.false, _null := YAML.null) : (_true := true, _false := false, _null := "")
 		if (text = "")
 			return []
