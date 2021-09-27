@@ -949,7 +949,7 @@ class IUIAutomationElement extends IUIABase {
 
 	; Retrieves the element that contains the text label for this element.
 	; This property could be used to retrieve, for example, the static text label for a combo box.
-	CurrentLabeledBy() => (ComCall(44, this, "ptr*", &retVal := 0), IUIAutomationElement(retVal))
+	CurrentLabeledBy => (ComCall(44, this, "ptr*", &retVal := 0), IUIAutomationElement(retVal))
 
 	; Retrieves the Accessible Rich Internet Applications (ARIA) role of the element.
 	CurrentAriaRole => (ComCall(45, this, "ptr*", &retVal := 0), BSTR(retVal))
@@ -961,13 +961,13 @@ class IUIAutomationElement extends IUIABase {
 	CurrentIsDataValidForForm => (ComCall(47, this, "int*", &retVal := 0), retVal)
 
 	; Retrieves an array of elements for which this element serves as the controller.
-	CurrentControllerFor() => (ComCall(48, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CurrentControllerFor => (ComCall(48, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves an array of elements that describe this element.
-	CurrentDescribedBy() => (ComCall(49, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CurrentDescribedBy => (ComCall(49, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves an array of elements that indicates the reading order after the current element.
-	CurrentFlowsTo() => (ComCall(50, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CurrentFlowsTo => (ComCall(50, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves a description of the provider for this element.
 	CurrentProviderDescription => (ComCall(51, this, "ptr*", &retVal := 0), BSTR(retVal))
@@ -1045,7 +1045,7 @@ class IUIAutomationElement extends IUIABase {
 	CachedBoundingRectangle => (ComCall(75, this, "ptr", retVal := NativeArray(0, 4, "int")), {left: retVal[0], top: retVal[1], right: retVal[2], bottom: retVal[3]})
 
 	; Retrieves the cached element that contains the text label for this element.
-	CachedLabeledBy() => (ComCall(76, this, "ptr*", &retVal := 0), IUIAutomationElement(retVal))
+	CachedLabeledBy => (ComCall(76, this, "ptr*", &retVal := 0), IUIAutomationElement(retVal))
 
 	; Retrieves the cached ARIA role of the element.
 	CachedAriaRole => (ComCall(77, this, "ptr*", &retVal := 0), BSTR(retVal))
@@ -1057,13 +1057,13 @@ class IUIAutomationElement extends IUIABase {
 	CachedIsDataValidForForm => (ComCall(79, this, "int*", &retVal := 0), retVal)
 
 	; Retrieves a cached array of UI Automation elements for which this element serves as the controller.
-	CachedControllerFor() => (ComCall(80, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CachedControllerFor => (ComCall(80, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves a cached array of elements that describe this element.
-	CachedDescribedBy() => (ComCall(81, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CachedDescribedBy => (ComCall(81, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves a cached array of elements that indicate the reading order after the current element.
-	CachedFlowsTo() => (ComCall(82, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CachedFlowsTo => (ComCall(82, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	; Retrieves a cached description of the provider for this element.
 	CachedProviderDescription => (ComCall(83, this, "ptr*", &retVal := 0), BSTR(retVal))
@@ -1072,15 +1072,19 @@ class IUIAutomationElement extends IUIABase {
 	; A client application can use this method to simulate clicking the left or right mouse button. For example, to simulate clicking the right mouse button to display the context menu for a control,
 	; • Call the GetClickablePoint method to find a clickable point on the control.
 	; • Call the SendInput function to send a right-mouse-down, right-mouse-up sequence.
-	GetClickablePoint(&clickable, &gotClickable) => ComCall(84, this, "int64*", &clickable := 0, "int*", &gotClickable := 0)
+	GetClickablePoint() {
+		if (ComCall(84, this, "int64*", &clickable := 0, "int*", &gotClickable := 0), gotClickable)
+			return {x: clickable & 0xffff, y: clickable >> 32}
+		throw TargetError('The element has no clickable point')
+	}
 
 	;; IUIAutomationElement2
 	CurrentOptimizeForVisualContent => (ComCall(85, this, "int*", &retVal := 0), retVal)
 	CachedOptimizeForVisualContent => (ComCall(86, this, "int*", &retVal := 0), retVal)
 	CurrentLiveSetting => (ComCall(87, this, "int*", &retVal := 0), retVal)
 	CachedLiveSetting => (ComCall(88, this, "int*", &retVal := 0), retVal)
-	CurrentFlowsFrom() => (ComCall(89, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
-	CachedFlowsFrom() => (ComCall(90, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CurrentFlowsFrom => (ComCall(89, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CachedFlowsFrom => (ComCall(90, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	;; IUIAutomationElement3
 	ShowContextMenu() => ComCall(91, this)
@@ -1092,12 +1096,12 @@ class IUIAutomationElement extends IUIABase {
 	CurrentSizeOfSet => (ComCall(95, this, "int*", &retVal := 0), retVal)
 	CurrentLevel => (ComCall(96, this, "int*", &retVal := 0), retVal)
 	CurrentAnnotationTypes => (ComCall(97, this, "ptr*", &retVal := 0), ComValue(0x2003, retVal))
-	CurrentAnnotationObjects() => (ComCall(98, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CurrentAnnotationObjects => (ComCall(98, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 	CachedPositionInSet => (ComCall(99, this, "int*", &retVal := 0), retVal)
 	CachedSizeOfSet => (ComCall(100, this, "int*", &retVal := 0), retVal)
 	CachedLevel => (ComCall(101, this, "int*", &retVal := 0), retVal)
 	CachedAnnotationTypes => (ComCall(102, this, "ptr*", &retVal := 0), ComValue(0x2003, retVal))
-	CachedAnnotationObjects() => (ComCall(103, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
+	CachedAnnotationObjects => (ComCall(103, this, "ptr*", &retVal := 0), IUIAutomationElementArray(retVal))
 
 	;; IUIAutomationElement5
 	CurrentLandmarkType => (ComCall(104, this, "int*", &retVal := 0), retVal)
