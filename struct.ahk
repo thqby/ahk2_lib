@@ -1,5 +1,12 @@
-﻿#Requires AutoHotkey v2.0-a129
-class struct
+﻿/************************************************************************
+ * @description Constructing and using the c structure
+ * @file Struct.ahk
+ * @author thqby
+ * @date 2021/10/04
+ * @version 1.0.1
+ ***********************************************************************/
+
+class Struct
 {
 	static __types := {UInt: 4, UInt64: 8, Int: 4, Int64: 8, Short: 2, UShort: 2, Char: 1, UChar: 1, Double: 8, Float: 4, Ptr: A_PtrSize, UPtr: A_PtrSize}
 	__New(structinfo, ads_pa := unset, offset := 0, bit64 := unset) {

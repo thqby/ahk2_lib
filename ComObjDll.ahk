@@ -1,4 +1,13 @@
-﻿ComObjDll(dllpath := '', CLSID := '') {
+﻿/************************************************************************
+ * @description Create a COM object from an unregistered DLL
+ * @file ComObjDll.ahk
+ * @author thqby
+ * @date 2021/10/04
+ * @version 0.0.1
+ ***********************************************************************/
+
+
+ComObjDll(dllpath := '', CLSID := '') {
 	static clsids := Map(), dlls := Map(), __delete := {}, _ := (__delete.DefineProp('__Delete', {value: _exit_}), clsids.CaseSense := false)
 	if (CLSID = '' && SubStr(dllpath, 1, 1) = '{')
 		CLSID := dllpath, dllpath := ''

@@ -1,9 +1,9 @@
 /************************************************************************
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
- * @author thqby
- * @date 2021/08/05
- * @version 0.0.84
+ * @author thqby, HotKeyIt
+ * @date 2021/10/04
+ * @version 1.0.1
  ***********************************************************************/
 
 class YAML {

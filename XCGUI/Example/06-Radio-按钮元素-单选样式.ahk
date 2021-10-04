@@ -1,0 +1,18 @@
+﻿#Include '..\XCGUI.ahk'
+
+DllCall('LoadLibrary', 'str', '..\' (A_PtrSize * 8) 'bit\xcgui.dll')
+XC.InitXCGUI()
+m_hWindow := CXWindow(0, 0, 300, 200, "炫彩界面库窗口")
+CXButton(10, 5, 60, 20, "关闭", m_hWindow).SetType(XC.TYPE_EX.button_close)
+m_hCheck1 := CXButton(20, 40, 100, 20, "Radio1", m_hWindow)
+m_hCheck2 := CXButton(20, 70, 100, 20, "Radio2", m_hWindow)
+m_hCheck3 := CXButton(20, 100, 100, 20, "Radio3", m_hWindow)
+m_hCheck1.SetGroupID(1)
+m_hCheck2.SetGroupID(1)
+m_hCheck3.SetGroupID(1)
+m_hCheck1.SetTypeEx(XC.TYPE_EX.button_radio)
+m_hCheck2.SetTypeEx(XC.TYPE_EX.button_radio)
+m_hCheck3.SetTypeEx(XC.TYPE_EX.button_radio)
+m_hWindow.ShowWindow(5)
+XC.RunXCGUI()
+XC.ExitXCGUI()

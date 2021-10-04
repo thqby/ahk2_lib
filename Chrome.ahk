@@ -1,11 +1,9 @@
 /************************************************************************
- * @description: Chrome.ahk v1.0 for ahk_v2
+ * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2021/04/22
- * @version 0.0.26
+ * @date 2021/10/04
+ * @version 0.0.21
  ***********************************************************************/
-
-#Requires AutoHotkey v2.0-a131
 
 class Chrome {
 	/*

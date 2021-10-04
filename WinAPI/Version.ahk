@@ -1,0 +1,7 @@
+GetFileVersionInfo(lptstrFilename, dwHandle, dwLen, lpData) => DllCall('Version\GetFileVersionInfo', 'str', lptstrFilename, 'uint', dwHandle, 'uint', dwLen, 'ptr', lpData, 'int')
+GetFileVersionInfoEx(dwFlags, lptstrFilename, dwHandle, dwLen, lpData) => DllCall('Version\GetFileVersionInfoEx', 'uint', dwFlags, 'str', lptstrFilename, 'uint', dwHandle, 'uint', dwLen, 'ptr', lpData, 'int')
+GetFileVersionInfoSize(lptstrFilename, lpdwHandle) => DllCall('Version\GetFileVersionInfoSize', 'str', lptstrFilename, 'ptr', lpdwHandle, 'uint')
+GetFileVersionInfoSizeEx(dwFlags, lptstrFilename, lpdwHandle) => DllCall('Version\GetFileVersionInfoSizeEx', 'uint', dwFlags, 'str', lptstrFilename, 'ptr', lpdwHandle, 'uint')
+VerFindFile(dwFlags, szFileName, szWinDir, szAppDir, szCurDir, lpuCurDirLen, szDestDir, lpuDestDirLen) => DllCall('Version\VerFindFile', 'uint', dwFlags, 'str', szFileName, 'str', szWinDir, 'str', szAppDir, 'wstr', szCurDir, 'ptr', lpuCurDirLen, 'str', szDestDir, 'ptr', lpuDestDirLen, 'uint')
+VerInstallFile(uFlags, szSrcFileName, szDestFileName, szSrcDir, szDestDir, szCurDir, szTmpFile, lpuTmpFileLen) => DllCall('Version\VerInstallFile', 'uint', uFlags, 'str', szSrcFileName, 'str', szDestFileName, 'str', szSrcDir, 'str', szDestDir, 'str', szCurDir, 'str', szTmpFile, 'ptr', lpuTmpFileLen, 'uint')
+VerQueryValue(pBlock, lpSubBlock, lplpBuffer, puLen) => DllCall('Version\VerQueryValue', 'ptr', pBlock, 'str', lpSubBlock, 'ptr', lplpBuffer, 'ptr', puLen, 'int')

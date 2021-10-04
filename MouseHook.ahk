@@ -1,12 +1,21 @@
-﻿; #Persistent
+﻿/************************************************************************
+ * @description Hook Mouse
+ * @file MouseHook.ahk
+ * @author thqby
+ * @date 2021/10/04
+ * @version 0.0.1
+ ***********************************************************************/
+
+
+; #Persistent
 ; hk := MouseHook.New((self, w, l) => ToolTip('x:' self.x ' y:' self.y '`n行为:' self.Action '`n按下键:' self.ThisKey '`n按下次数:' self.Times '`n按下持续时间:' self.TimeSinceThisHotkey))
 ; hk.Wait('MButton')
 ; MsgBox('MButton按下了')
-hk := MouseHook((*) => true)
-hk.Start()
-Sleep(3000)
-hk := ''
-return
+; hk := MouseHook((*) => true)
+; hk.Start()
+; Sleep(3000)
+; hk := ''
+; return
 
 class MouseHook {
 	Ptr := 0, ThisKey := '', Times := 0, Action := '', ThisKeyTime := 0, Interval := 200
