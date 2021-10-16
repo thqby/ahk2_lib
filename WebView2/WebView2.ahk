@@ -3,7 +3,8 @@
  * @file WebView2.ahk
  * @author thqby
  * @date 2021/10/16
- * @version 0.0.7
+ * @version 0.0.8
+ * @webview2version 1.0.992.28
  ***********************************************************************/
 
 #Include <ComVar>
