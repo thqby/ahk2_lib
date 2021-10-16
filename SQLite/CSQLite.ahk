@@ -2,8 +2,8 @@
  * @description SQLite class
  * @file CSQLite.ahk
  * @author thqby
- * @date 2021/10/04
- * @version 0.0.1
+ * @date 2021/10/12
+ * @version 0.0.2
  ***********************************************************************/
 
 class CSQLite
