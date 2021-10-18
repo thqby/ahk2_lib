@@ -2,12 +2,12 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2021/10/16
- * @version 0.0.8
+ * @date 2021/10/18
+ * @version 0.0.9
  * @webview2version 1.0.992.28
  ***********************************************************************/
 
-#Include <ComVar>
+#Include '..\ComVar.ahk'
 class WebView2 extends WebView2.Base {
 	/**
 	 * create Edge WebView2 control.
@@ -69,13 +69,30 @@ class WebView2 extends WebView2.Base {
 	; Interfaces Base class
 	class Base {
 		ptr := 0
-		__New(ptr := unset) {
-			if IsSet(ptr)
+		__New(ptr := unset, addref := true) {
+			if IsSet(ptr) {
 				this.ptr := ptr
+				if (addref)
+					ObjAddRef(ptr)
+			}
 		}
 		__Delete() {
+			try {
+				handlers := this.handlers
+				while (true)
+					handlers.Pop()
+			}
 			if (this.ptr)
 				this.Release()
+		}
+		__Call(Name, Params) {
+			if (HasMethod(this, 'add_' Name)) {
+				if (!IsInteger(handler := Params[1]) && !(handler is WebView2.Handler))
+					handler := WebView2.Handler(Params*)
+				token := this.add_%Name%(handler)
+				this.handlers.Push({ ptr: this.ptr, handler: handler, __Delete: this.remove_%Name%.Bind(,token) })
+			} else
+				throw Error('This value of type "' this.__Class '" has no method named "' Name '".', -1)
 		}
 		AddRef() => ObjAddRef(this.ptr)
 		Release() => ObjRelease(this.ptr)
@@ -100,6 +117,7 @@ class WebView2 extends WebView2.Base {
 	}
 	class CompositionController extends WebView2.Base {
 		static IID := "{3df9b733-b9ae-4a15-86b4-eb9ee9826469}"
+		handlers := []
 		RootVisualTarget {
 			get => (ComCall(3, this, 'ptr*', &target := 0), ComValue(0xd, target))
 			set => ComCall(4, this, 'ptr', Value)
@@ -116,9 +134,10 @@ class WebView2 extends WebView2.Base {
 	}
 	class Controller extends WebView2.Base {
 		static IID := "{4d00c0d1-9434-4eb6-8078-8697a560334f}"
+		handlers := []
 		__Delete() {
 			if (this.ptr)
-				this.Close(), ObjRelease(this.ptr)
+				this.Close(), super.__Delete()
 		}
 		IsVisible {
 			get => (ComCall(3, this, 'int*', &isVisible := 0), isVisible)
@@ -150,7 +169,7 @@ class WebView2 extends WebView2.Base {
 		}
 		NotifyParentWindowPositionChanged() => ComCall(23, this)
 		Close() => ComCall(24, this)
-		CoreWebView2 => (ComCall(25, this, 'ptr*', &coreWebView2 := 0), WebView2.Core(coreWebView2))
+		CoreWebView2 => (ComCall(25, this, 'ptr*', coreWebView2 := WebView2.Core()), coreWebView2)
 
 		static IID_2 := "{c979903e-d4ca-4228-92eb-47ee3fa96eab}"
 		DefaultBackgroundColor {
@@ -209,12 +228,12 @@ class WebView2 extends WebView2.Base {
 	class CookieList extends WebView2.Base {
 		static IID := "{F7F6F714-5D2A-43C6-9503-346ECE02D186}"
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
-		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', &cookie := 0), WebView2.Cookie(cookie))
+		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', cookie := WebView2.Cookie()), cookie)
 	}
 	class CookieManager extends WebView2.Base {
 		static IID := "{177CD9E7-B6F5-451A-94A0-5D7A3A4C4141}"
-		CreateCookie(name, value, domain, path) => (ComCall(3, this, 'wstr', name, 'wstr', value, 'wstr', domain, 'wstr', path, 'ptr*', &cookie := 0), WebView2.Cookie(cookie))
-		CopyCookie(cookieParam) => (ComCall(4, this, 'ptr', cookieParam, 'ptr*', &cookie := 0), WebView2.Cookie(cookie))	; ICoreWebView2Cookie
+		CreateCookie(name, value, domain, path) => (ComCall(3, this, 'wstr', name, 'wstr', value, 'wstr', domain, 'wstr', path, 'ptr*', cookie := WebView2.Cookie()), cookie)
+		CopyCookie(cookieParam) => (ComCall(4, this, 'ptr', cookieParam, 'ptr*', cookie := WebView2.Cookie()), cookie)	; ICoreWebView2Cookie
 		GetCookies(uri, handler) => ComCall(5, this, 'wstr', uri, 'ptr', handler)	; ICoreWebView2GetCookiesCompletedHandler
 		AddOrUpdateCookie(cookie) => ComCall(6, this, 'ptr', cookie)	; ICoreWebView2Cookie
 		DeleteCookie(cookie) => ComCall(7, this, 'ptr', cookie)	; ICoreWebView2Cookie
@@ -224,7 +243,8 @@ class WebView2 extends WebView2.Base {
 	}
 	class Core extends WebView2.Base {
 		static IID := "{76eceacb-0462-4d94-ac83-423a6793775e}"
-		Settings => (ComCall(3, this, 'ptr*', &settings := 0), WebView2.Settings(settings))
+		handlers := []
+		Settings => (ComCall(3, this, 'ptr*', settings := WebView2.Settings()), settings)
 		Source => (ComCall(4, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		Navigate(uri) => ComCall(5, this, 'wstr', uri)
 		NavigateToString(htmlContent) => ComCall(6, this, 'wstr', htmlContent)
@@ -263,7 +283,7 @@ class WebView2 extends WebView2.Base {
 		CanGoForward => (ComCall(39, this, 'int*', &canGoForward := 0), canGoForward)
 		GoBack() => ComCall(40, this)
 		GoForward() => ComCall(41, this)
-		GetDevToolsProtocolEventReceiver(eventName) => (ComCall(42, this, 'wstr', eventName, 'ptr*', &receiver := 0), WebView2.DevToolsProtocolEventReceiver(receiver))
+		GetDevToolsProtocolEventReceiver(eventName) => (ComCall(42, this, 'wstr', eventName, 'ptr*', receiver := WebView2.DevToolsProtocolEventReceiver()), receiver)
 		Stop() => ComCall(43, this)
 		add_NewWindowRequested(eventHandler) => (ComCall(44, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2NewWindowRequestedEventHandler
 		remove_NewWindowRequested(token) => ComCall(45, this, 'int64', token)
@@ -289,8 +309,8 @@ class WebView2 extends WebView2.Base {
 		NavigateWithWebResourceRequest(request) => ComCall(63, this, 'ptr', request)	; ICoreWebView2WebResourceRequest
 		add_DOMContentLoaded(eventHandler) => (ComCall(64, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2DOMContentLoadedEventHandler
 		remove_DOMContentLoaded(token) => ComCall(65, this, 'int64', token)
-		CookieManager => (ComCall(66, this, 'ptr*', &cookieManager := 0), WebView2.CookieManager(cookieManager))
-		Environment => (ComCall(67, this, 'ptr*', &environment := 0), WebView2.Environment(environment))
+		CookieManager => (ComCall(66, this, 'ptr*', cookieManager := WebView2.CookieManager()), cookieManager)
+		Environment => (ComCall(67, this, 'ptr*', environment := WebView2.Environment()), environment)
 
 		static IID_3 := "{A0D6DF20-3B92-416D-AA0C-437A9C727857}"
 		TrySuspend(handler) => ComCall(68, this, 'ptr', handler)	; ICoreWebView2TrySuspendCompletedHandler
@@ -321,7 +341,7 @@ class WebView2 extends WebView2.Base {
 		DerEncodedSerialNumber => (ComCall(7, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		DisplayName => (ComCall(8, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		ToPemEncoding() => (ComCall(9, this, 'ptr*', &pemEncodedData := 0), CoTaskMem_String(pemEncodedData))
-		PemEncodedIssuerCertificateChain => (ComCall(10, this, 'ptr*', &value := 0), WebView2.StringCollection(value))
+		PemEncodedIssuerCertificateChain => (ComCall(10, this, 'ptr*', value := WebView2.StringCollection()), value)
 		Kind => (ComCall(11, this, 'int*', &value := 0), value)	; COREWEBVIEW2_CLIENT_CERTIFICATE_KIND
 	}
 	class StringCollection extends WebView2.Base {
@@ -332,17 +352,17 @@ class WebView2 extends WebView2.Base {
 	class ClientCertificateCollection extends WebView2.Base {
 		static IID := "{ef5674d2-bcc3-11eb-8529-0242ac130003}"
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
-		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', &certificate := 0), WebView2.ClientCertificate(certificate))
+		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', certificate := WebView2.ClientCertificate()), certificate)
 	}
 	class ClientCertificateRequestedEventArgs extends WebView2.Base {
 		static IID := "{bc59db28-bcc3-11eb-8529-0242ac130003}"
 		Host => (ComCall(3, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		Port => (ComCall(4, this, 'int*', &value := 0), value)
 		IsProxy => (ComCall(5, this, 'int*', &value := 0), value)
-		AllowedCertificateAuthorities => (ComCall(6, this, 'ptr*', &value := 0), WebView2.StringCollection(value))
-		MutuallyTrustedCertificates => (ComCall(7, this, 'ptr*', &value := 0), WebView2.ClientCertificateCollection(value))
+		AllowedCertificateAuthorities => (ComCall(6, this, 'ptr*', value := WebView2.StringCollection()), value)
+		MutuallyTrustedCertificates => (ComCall(7, this, 'ptr*', value := WebView2.ClientCertificateCollection()), value)
 		SelectedCertificate {
-			get => (ComCall(8, this, 'ptr*', &value := 0), WebView2.ClientCertificate(value))
+			get => (ComCall(8, this, 'ptr*', value := WebView2.ClientCertificate()), value)
 			set => ComCall(9, this, 'ptr', value)
 		}
 		Cancel {
@@ -353,7 +373,7 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(12, this, 'int*', &value := 0), value)
 			set => ComCall(13, this, 'int', Value)
 		}
-		GetDeferral() => (ComCall(14, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
+		GetDeferral() => (ComCall(14, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class DOMContentLoadedEventArgs extends WebView2.Base {
 		static IID := "{16B1E21A-C503-44F2-84C9-70ABA5031283}"
@@ -369,11 +389,13 @@ class WebView2 extends WebView2.Base {
 	}
 	class DevToolsProtocolEventReceiver extends WebView2.Base {
 		static IID := "{b32ca51a-8371-45e9-9317-af021d080367}"
+		handlers := []
 		add_DevToolsProtocolEventReceived(handler) => (ComCall(3, this, 'ptr', handler, 'int64*', &token := 0), token)	; ICoreWebView2DevToolsProtocolEventReceivedEventHandler
 		remove_DevToolsProtocolEventReceived(token) => ComCall(4, this, 'int64', token)
 	}
 	class DownloadOperation extends WebView2.Base {
 		static IID := "{3d6b6cf2-afe1-44c7-a995-c65117714336}"
+		handlers := []
 		add_BytesReceivedChanged(eventHandler) => (ComCall(3, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2BytesReceivedChangedEventHandler
 		remove_BytesReceivedChanged(token) => ComCall(4, this, 'int64', token)
 		add_EstimatedEndTimeChanged(eventHandler) => (ComCall(5, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2EstimatedEndTimeChangedEventHandler
@@ -396,7 +418,7 @@ class WebView2 extends WebView2.Base {
 	}
 	class DownloadStartingEventArgs extends WebView2.Base {
 		static IID := "{e99bbe21-43e9-4544-a732-282764eafa60}"
-		DownloadOperation => (ComCall(3, this, 'ptr*', &downloadOperation := 0), WebView2.DownloadOperation(downloadOperation))
+		DownloadOperation => (ComCall(3, this, 'ptr*', downloadOperation := WebView2.DownloadOperation()), downloadOperation)
 		Cancel {
 			get => (ComCall(4, this, 'int*', &cancel := 0), cancel)
 			set => ComCall(5, this, 'int', Value)
@@ -409,22 +431,23 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(8, this, 'int*', &handled := 0), handled)
 			set => ComCall(9, this, 'int', Value)
 		}
-		GetDeferral() => (ComCall(10, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
+		GetDeferral() => (ComCall(10, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class Environment extends WebView2.Base {
 		static IID := "{b96d755e-0319-4e92-a296-23436f46a1fc}"
+		handlers := []
 		CreateCoreWebView2Controller(parentWindow, handler) => ComCall(3, this, 'ptr', parentWindow, 'ptr', handler)	; ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
-		CreateWebResourceResponse(content, statusCode, reasonPhrase, headers) => (ComCall(4, this, 'ptr', content, 'int', statusCode, 'wstr', reasonPhrase, 'wstr', headers, 'ptr*', &response := 0), WebView2.WebResourceResponse(response))
+		CreateWebResourceResponse(content, statusCode, reasonPhrase, headers) => (ComCall(4, this, 'ptr', content, 'int', statusCode, 'wstr', reasonPhrase, 'wstr', headers, 'ptr*', response := WebView2.WebResourceResponse()), response)
 		BrowserVersionString => (ComCall(5, this, 'ptr*', &versionInfo := 0), CoTaskMem_String(versionInfo))
 		add_NewBrowserVersionAvailable(eventHandler) => (ComCall(6, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2NewBrowserVersionAvailableEventHandler
 		remove_NewBrowserVersionAvailable(token) => ComCall(7, this, 'int64', token)
 
 		static IID_2 := "{41F3632B-5EF4-404F-AD82-2D606C5A9A21}"
-		CreateWebResourceRequest(uri, method, postData, headers) => (ComCall(8, this, 'wstr', uri, 'wstr', method, 'ptr', postData, 'wstr', headers, 'ptr*', &request := 0), WebView2.WebResourceRequest(request))
+		CreateWebResourceRequest(uri, method, postData, headers) => (ComCall(8, this, 'wstr', uri, 'wstr', method, 'ptr', postData, 'wstr', headers, 'ptr*', request := WebView2.WebResourceRequest()), request)
 
 		static IID_3 := "{80a22ae3-be7c-4ce2-afe1-5a50056cdeeb}"
 		CreateCoreWebView2CompositionController(parentWindow, handler) => ComCall(9, this, 'ptr', parentWindow, 'ptr', handler)	; ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler
-		CreateCoreWebView2PointerInfo() => (ComCall(10, this, 'ptr*', &pointerInfo := 0), WebView2.PointerInfo(pointerInfo))
+		CreateCoreWebView2PointerInfo() => (ComCall(10, this, 'ptr*', pointerInfo := WebView2.PointerInfo()), pointerInfo)
 
 		static IID_4 := "{20944379-6dcf-41d6-a0a0-abc0fc50de0d}"
 		GetProviderForHwnd(hwnd) => (ComCall(11, this, 'ptr', hwnd, 'ptr*', &provider := 0), ComValue(0xd, provider))
@@ -454,6 +477,7 @@ class WebView2 extends WebView2.Base {
 	}
 	class Frame extends WebView2.Base {
 		static IID := "{f1131a5e-9ba9-11eb-a8b3-0242ac130003}"
+		handlers := []
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		add_NameChanged(eventHandler) => (ComCall(4, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2FrameNameChangedEventHandler
 		remove_NameChanged(token) => ComCall(5, this, 'int64', token)
@@ -465,7 +489,7 @@ class WebView2 extends WebView2.Base {
 	}
 	class FrameCreatedEventArgs extends WebView2.Base {
 		static IID := "{4d6e7b5e-9baa-11eb-a8b3-0242ac130003}"
-		Frame => (ComCall(3, this, 'ptr*', &frame := 0), WebView2.Frame(frame))
+		Frame => (ComCall(3, this, 'ptr*', frame := WebView2.Frame()), frame)
 	}
 	class FrameInfo extends WebView2.Base {
 		static IID := "{da86b8a1-bdf3-4f11-9955-528cefa59727}"
@@ -474,12 +498,12 @@ class WebView2 extends WebView2.Base {
 	}
 	class FrameInfoCollection extends WebView2.Base {
 		static IID := "{8f834154-d38e-4d90-affb-6800a7272839}"
-		GetIterator() => (ComCall(3, this, 'ptr*', &iterator := 0), WebView2.FrameInfoCollectionIterator(iterator))
+		GetIterator() => (ComCall(3, this, 'ptr*', iterator := WebView2.FrameInfoCollectionIterator()), iterator)
 	}
 	class FrameInfoCollectionIterator extends WebView2.Base {
 		static IID := "{1bf89e2d-1b2b-4629-b28f-05099b41bb03}"
 		HasCurrent => (ComCall(3, this, 'int*', &hasCurrent := 0), hasCurrent)
-		GetCurrent() => (ComCall(4, this, 'ptr*', &frameInfo := 0), WebView2.FrameInfo(frameInfo))
+		GetCurrent() => (ComCall(4, this, 'ptr*', frameInfo := WebView2.FrameInfo()), frameInfo)
 		MoveNext() => (ComCall(5, this, 'int*', &hasNext := 0), hasNext)
 	}
 	class Handler extends Buffer {
@@ -560,19 +584,19 @@ class WebView2 extends WebView2.Base {
 	class HttpRequestHeaders extends WebView2.Base {
 		static IID := "{e86cac0e-5523-465c-b536-8fb9fc8c8c60}"
 		GetHeader(name) => (ComCall(3, this, 'wstr', name, 'ptr*', &value := 0), CoTaskMem_String(value))
-		GetHeaders(name) => (ComCall(4, this, 'wstr', name, 'ptr*', &iterator := 0), WebView2.HttpHeadersCollectionIterator(iterator))
+		GetHeaders(name) => (ComCall(4, this, 'wstr', name, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 		RetVal(name) => (ComCall(5, this, 'wstr', name, 'int*', &RetVal := 0), RetVal)
 		SetHeader(name, value) => ComCall(6, this, 'wstr', name, 'wstr', value)
 		RemoveHeader(name) => ComCall(7, this, 'wstr', name)
-		GetIterator() => (ComCall(8, this, 'ptr*', &iterator := 0), WebView2.HttpHeadersCollectionIterator(iterator))
+		GetIterator() => (ComCall(8, this, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 	}
 	class HttpResponseHeaders extends WebView2.Base {
 		static IID := "{03c5ff5a-9b45-4a88-881c-89a9f328619c}"
 		AppendHeader(name, value) => ComCall(3, this, 'wstr', name, 'wstr', value)
 		RetVal(name) => (ComCall(4, this, 'wstr', name, 'int*', &RetVal := 0), RetVal)
 		GetHeader(name) => (ComCall(5, this, 'wstr', name, 'ptr*', &value := 0), CoTaskMem_String(value))
-		GetHeaders(name) => (ComCall(6, this, 'wstr', name, 'ptr*', &iterator := 0), WebView2.HttpHeadersCollectionIterator(iterator))
-		GetIterator() => (ComCall(7, this, 'ptr*', &iterator := 0), WebView2.HttpHeadersCollectionIterator(iterator))
+		GetHeaders(name) => (ComCall(6, this, 'wstr', name, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
+		GetIterator() => (ComCall(7, this, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 	}
 	class MoveFocusRequestedEventArgs extends WebView2.Base {
 		static IID := "{2d6aa13b-3839-4a15-92fc-d88b3c0d9c9d}"
@@ -593,7 +617,7 @@ class WebView2 extends WebView2.Base {
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		IsUserInitiated => (ComCall(4, this, 'int*', &isUserInitiated := 0), isUserInitiated)
 		IsRedirected => (ComCall(5, this, 'int*', &isRedirected := 0), isRedirected)
-		RequestHeaders => (ComCall(6, this, 'ptr*', &requestHeaders := 0), WebView2.HttpRequestHeaders(requestHeaders))
+		RequestHeaders => (ComCall(6, this, 'ptr*', requestHeaders := WebView2.HttpRequestHeaders()), requestHeaders)
 		Cancel {
 			get => (ComCall(7, this, 'int*', &cancel := 0), cancel)
 			set => ComCall(8, this, 'int', Value)
@@ -605,15 +629,15 @@ class WebView2 extends WebView2.Base {
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		NewWindow {
 			set => ComCall(4, this, 'ptr', Value)
-			get => (ComCall(5, this, 'ptr*', &newWindow := 0), WebView2.Core(newWindow))
+			get => (ComCall(5, this, 'ptr*', newWindow := WebView2.Core()), newWindow)
 		}
 		Handled {
 			set => ComCall(6, this, 'int', Value)
 			get => (ComCall(7, this, 'int*', &handled := 0), handled)
 		}
 		IsUserInitiated => (ComCall(8, this, 'int*', &isUserInitiated := 0), isUserInitiated)
-		GetDeferral() => (ComCall(9, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
-		WindowFeatures => (ComCall(10, this, 'ptr*', &value := 0), WebView2.WindowFeatures(value))
+		GetDeferral() => (ComCall(9, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
+		WindowFeatures => (ComCall(10, this, 'ptr*', value := WebView2.WindowFeatures()), value)
 
 		static IID_2 := "{bbc7baed-74c6-4c92-b63a-7f5aeae03de3}"
 		Name => (ComCall(11, this, 'ptr*', &value := 0), CoTaskMem_String(value))
@@ -627,7 +651,7 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(6, this, 'int*', &state := 0), state)	; COREWEBVIEW2_PERMISSION_STATE
 			set => ComCall(7, this, 'int', Value)
 		}
-		GetDeferral() => (ComCall(8, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
+		GetDeferral() => (ComCall(8, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class PointerInfo extends WebView2.Base {
 		static IID := "{e6995887-d10d-4f5d-9359-4ce46e4f96b9}"
@@ -752,7 +776,7 @@ class WebView2 extends WebView2.Base {
 		Reason => (ComCall(4, this, 'int*', &reason := 0), reason)	; COREWEBVIEW2_PROCESS_FAILED_REASON
 		ExitCode => (ComCall(5, this, 'int*', &exitCode := 0), exitCode)
 		ProcessDescription => (ComCall(6, this, 'ptr*', &processDescription := 0), CoTaskMem_String(processDescription))
-		FrameInfosForFailedProcess => (ComCall(7, this, 'ptr*', &frames := 0), WebView2.FrameInfoCollection(frames))
+		FrameInfosForFailedProcess => (ComCall(7, this, 'ptr*', frames := WebView2.FrameInfoCollection()), frames)
 	}
 	class ScriptDialogOpeningEventArgs extends WebView2.Base {
 		static IID := "{7390bb70-abe0-4843-9529-f143b31b03d6}"
@@ -765,7 +789,7 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(8, this, 'ptr*', &resultText := 0), CoTaskMem_String(resultText))
 			set => ComCall(9, this, 'wstr', Value)
 		}
-		GetDeferral() => (ComCall(10, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
+		GetDeferral() => (ComCall(10, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class Settings extends WebView2.Base {
 		static IID := "{e562e4f0-d7fa-43ac-8d71-c05150499f00}"
@@ -864,16 +888,16 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(7, this, 'ptr*', &content := 0), content)	; IStream*
 			set => ComCall(8, this, 'ptr', Value)
 		}
-		Headers => (ComCall(9, this, 'ptr*', &headers := 0), WebView2.HttpRequestHeaders(headers))
+		Headers => (ComCall(9, this, 'ptr*', headers := WebView2.HttpRequestHeaders()), headers)
 	}
 	class WebResourceRequestedEventArgs extends WebView2.Base {
 		static IID := "{453e667f-12c7-49d4-be6d-ddbe7956f57a}"
-		Request => (ComCall(3, this, 'ptr*', &request := 0), WebView2.WebResourceRequest(request))
+		Request => (ComCall(3, this, 'ptr*', request := WebView2.WebResourceRequest()), request)
 		Response {
-			get => (ComCall(4, this, 'ptr*', &response := 0), WebView2.WebResourceResponse(response))
+			get => (ComCall(4, this, 'ptr*', response := WebView2.WebResourceResponse()), response)
 			set => ComCall(5, this, 'ptr', Value)
 		}
-		GetDeferral() => (ComCall(6, this, 'ptr*', &deferral := 0), WebView2.Deferral(deferral))
+		GetDeferral() => (ComCall(6, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 		ResourceContext => (ComCall(7, this, 'int*', &context := 0), context)	; COREWEBVIEW2_WEB_RESOURCE_CONTEXT
 	}
 	class WebResourceResponse extends WebView2.Base {
@@ -882,7 +906,7 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(3, this, 'ptr*', &content := 0), content)	; IStream*
 			set => ComCall(4, this, 'ptr', Value)
 		}
-		Headers => (ComCall(5, this, 'ptr*', &headers := 0), WebView2.HttpResponseHeaders(headers))
+		Headers => (ComCall(5, this, 'ptr*', headers := WebView2.HttpResponseHeaders()), headers)
 		StatusCode {
 			get => (ComCall(6, this, 'int*', &statusCode := 0), statusCode)
 			set => ComCall(7, this, 'int', Value)
@@ -894,12 +918,12 @@ class WebView2 extends WebView2.Base {
 	}
 	class WebResourceResponseReceivedEventArgs extends WebView2.Base {
 		static IID := "{D1DB483D-6796-4B8B-80FC-13712BB716F4}"
-		Request => (ComCall(3, this, 'ptr*', &request := 0), WebView2.WebResourceRequest(request))
-		Response => (ComCall(4, this, 'ptr*', &response := 0), WebView2.WebResourceResponseView(response))
+		Request => (ComCall(3, this, 'ptr*', request := WebView2.WebResourceRequest()), request)
+		Response => (ComCall(4, this, 'ptr*', response := WebView2.WebResourceResponseView()), response)
 	}
 	class WebResourceResponseView extends WebView2.Base {
 		static IID := "{79701053-7759-4162-8F7D-F1B3F084928D}"
-		Headers => (ComCall(3, this, 'ptr*', &headers := 0), WebView2.HttpResponseHeaders(headers))
+		Headers => (ComCall(3, this, 'ptr*', headers := WebView2.HttpResponseHeaders()), headers)
 		StatusCode => (ComCall(4, this, 'int*', &statusCode := 0), statusCode)
 		ReasonPhrase => (ComCall(5, this, 'ptr*', &reasonPhrase := 0), CoTaskMem_String(reasonPhrase))
 		GetContent(handler) => ComCall(6, this, 'ptr', handler)	; ICoreWebView2WebResourceResponseViewGetContentCompletedHandler
