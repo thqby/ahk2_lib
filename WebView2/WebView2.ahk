@@ -3,7 +3,7 @@
  * @file WebView2.ahk
  * @author thqby
  * @date 2021/10/18
- * @version 0.0.9
+ * @version 1.0.1
  * @webview2version 1.0.992.28
  ***********************************************************************/
 
@@ -12,57 +12,53 @@ class WebView2 extends WebView2.Base {
 	/**
 	 * create Edge WebView2 control.
 	 * @param hwnd the hwnd of Gui or Control.
+	 * @param callback Wait for the webview2 control to be created when the callback is unset; otherwise, don't wait and call the callback function after completion.
+	 * @param createdEnvironment Create WebView2 controls from the created environment.
 	 * @param datadir User data folder.
 	 * @param edgeruntime The path of Edge Runtime or Edge(dev..) Bin.
 	 * @param dllPath The path of `WebView2Loader.dll`.
-	 * @param autosize Automatically resizes when the Gui is resized.
 	 */
-	static create(hwnd, datadir := "", edgeruntime := "", dllPath := "WebView2Loader.dll", autosize := true) {
-		if (!FileExist(dllPath) && FileExist(t := A_LineFile "\..\" (A_PtrSize * 8) "bit\WebView2Loader.dll"))
-			dllPath := t
-		if (!edgeruntime) {
-			loop files "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*", "D"
-				if (A_LoopFilePath ~= "\\[\d.]+$") {
-					edgeruntime := A_LoopFileFullPath
-					break
-				}
-		}
+	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := "", edgeruntime := "", dllPath := "WebView2Loader.dll") {
 		Controller := WebView2.Controller()
 		ControllerCompletedHandler := WebView2.Handler(ControllerCompleted_Invoke)
-		EnvironmentCompletedHandler := WebView2.Handler(EnvironmentCompleted_Invoke)
-		if (R := DllCall(dllPath "\CreateCoreWebView2EnvironmentWithOptions", "str", edgeruntime,
-			"str", datadir || RegExReplace(A_AppData, "Roaming$", "Local\Microsoft\Edge\User Data"), 'ptr', 0,
-			'ptr', EnvironmentCompletedHandler, "uint")) {
-			ControllerCompletedHandler := EnvironmentCompletedHandler := 0
-			throw OSError(R)
+		if (createdEnvironment)
+			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)	; ICoreWebView2Environment::CreateCoreWebView2Controller Method.
+		else {
+			if (!FileExist(dllPath) && FileExist(t := A_LineFile "\..\" (A_PtrSize * 8) "bit\WebView2Loader.dll"))
+				dllPath := t
+			if (!edgeruntime) {
+				loop files "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*", "D"
+					if (A_LoopFilePath ~= "\\[\d.]+$") {
+						edgeruntime := A_LoopFileFullPath
+						break
+					}
+			}
+			EnvironmentCompletedHandler := WebView2.Handler(EnvironmentCompleted_Invoke)
+			if (R := DllCall(dllPath "\CreateCoreWebView2EnvironmentWithOptions", "str", edgeruntime,
+				"str", datadir || RegExReplace(A_AppData, "Roaming$", "Local\Microsoft\Edge\User Data"), 'ptr', 0,
+				'ptr', EnvironmentCompletedHandler, "uint")) {
+				ControllerCompletedHandler := EnvironmentCompletedHandler := 0
+				throw OSError(R)
+			}
 		}
-		while (!Controller.ptr)
-			Sleep(-1)
-		ControllerCompletedHandler := EnvironmentCompletedHandler := 0
-		if (autosize && ((g := GuiFromHwnd(hwnd)) || (g := GuiCtrlFromHwnd(hwnd)) && (g := g.Gui)))
-			g.OnEvent('Size', OnSize, -1)
+		if (!IsSet(callback))
+			while (!Controller.ptr)
+				Sleep(-1)
 		return Controller
 
+		Free(handler) => (handler := 0)
 		EnvironmentCompleted_Invoke(com_this, hresult, createdEnvironment) {
-			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)	; ICoreWebView2Environment::CreateCoreWebView2Controller Method.
+			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)
+			SetTimer(Free.Bind(EnvironmentCompletedHandler), -100)
 			return 0
 		}
 		ControllerCompleted_Invoke(com_this, hresult, createdController) {
-			if (!createdController)
-				throw OSError(hresult)
 			DllCall("user32\GetClientRect", 'ptr', hwnd, 'ptr', RECT := Buffer(16)), ObjAddRef(createdController)
 			Controller.ptr := createdController, Controller.Bounds := RECT
+			if (IsSet(callback))
+				try callback(Controller)
+			SetTimer(Free.Bind(ControllerCompletedHandler), -50)
 			return 0
-		}
-		OnSize(GuiObj, MinMax, Width, Height) {
-			if (!Controller)
-				return
-			if (MinMax = -1)
-				Controller.IsVisible := false
-			else {
-				DllCall("user32\GetClientRect", 'ptr', hwnd, 'ptr', RECT := Buffer(16))
-				Controller.IsVisible := true, Controller.Bounds := RECT
-			}
 		}
 	}
 
@@ -77,11 +73,6 @@ class WebView2 extends WebView2.Base {
 			}
 		}
 		__Delete() {
-			try {
-				handlers := this.handlers
-				while (true)
-					handlers.Pop()
-			}
 			if (this.ptr)
 				this.Release()
 		}
@@ -90,7 +81,7 @@ class WebView2 extends WebView2.Base {
 				if (!IsInteger(handler := Params[1]) && !(handler is WebView2.Handler))
 					handler := WebView2.Handler(Params*)
 				token := this.add_%Name%(handler)
-				this.handlers.Push({ ptr: this.ptr, handler: handler, __Delete: this.remove_%Name%.Bind(,token) })
+				return { ptr: this.ptr, handler: handler, __Delete: this.remove_%Name%.Bind(, token) }
 			} else
 				throw Error('This value of type "' this.__Class '" has no method named "' Name '".', -1)
 		}
@@ -117,7 +108,6 @@ class WebView2 extends WebView2.Base {
 	}
 	class CompositionController extends WebView2.Base {
 		static IID := "{3df9b733-b9ae-4a15-86b4-eb9ee9826469}"
-		handlers := []
 		RootVisualTarget {
 			get => (ComCall(3, this, 'ptr*', &target := 0), ComValue(0xd, target))
 			set => ComCall(4, this, 'ptr', Value)
@@ -134,10 +124,15 @@ class WebView2 extends WebView2.Base {
 	}
 	class Controller extends WebView2.Base {
 		static IID := "{4d00c0d1-9434-4eb6-8078-8697a560334f}"
-		handlers := []
 		__Delete() {
 			if (this.ptr)
 				this.Close(), super.__Delete()
+		}
+		Fill() {
+			if !this.ptr
+				return
+			DllCall("user32\GetClientRect", 'ptr', this.ParentWindow, 'ptr', RECT := Buffer(16))
+			this.Bounds := RECT
 		}
 		IsVisible {
 			get => (ComCall(3, this, 'int*', &isVisible := 0), isVisible)
@@ -243,7 +238,6 @@ class WebView2 extends WebView2.Base {
 	}
 	class Core extends WebView2.Base {
 		static IID := "{76eceacb-0462-4d94-ac83-423a6793775e}"
-		handlers := []
 		Settings => (ComCall(3, this, 'ptr*', settings := WebView2.Settings()), settings)
 		Source => (ComCall(4, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		Navigate(uri) => ComCall(5, this, 'wstr', uri)
@@ -389,13 +383,11 @@ class WebView2 extends WebView2.Base {
 	}
 	class DevToolsProtocolEventReceiver extends WebView2.Base {
 		static IID := "{b32ca51a-8371-45e9-9317-af021d080367}"
-		handlers := []
 		add_DevToolsProtocolEventReceived(handler) => (ComCall(3, this, 'ptr', handler, 'int64*', &token := 0), token)	; ICoreWebView2DevToolsProtocolEventReceivedEventHandler
 		remove_DevToolsProtocolEventReceived(token) => ComCall(4, this, 'int64', token)
 	}
 	class DownloadOperation extends WebView2.Base {
 		static IID := "{3d6b6cf2-afe1-44c7-a995-c65117714336}"
-		handlers := []
 		add_BytesReceivedChanged(eventHandler) => (ComCall(3, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2BytesReceivedChangedEventHandler
 		remove_BytesReceivedChanged(token) => ComCall(4, this, 'int64', token)
 		add_EstimatedEndTimeChanged(eventHandler) => (ComCall(5, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2EstimatedEndTimeChangedEventHandler
@@ -435,7 +427,6 @@ class WebView2 extends WebView2.Base {
 	}
 	class Environment extends WebView2.Base {
 		static IID := "{b96d755e-0319-4e92-a296-23436f46a1fc}"
-		handlers := []
 		CreateCoreWebView2Controller(parentWindow, handler) => ComCall(3, this, 'ptr', parentWindow, 'ptr', handler)	; ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
 		CreateWebResourceResponse(content, statusCode, reasonPhrase, headers) => (ComCall(4, this, 'ptr', content, 'int', statusCode, 'wstr', reasonPhrase, 'wstr', headers, 'ptr*', response := WebView2.WebResourceResponse()), response)
 		BrowserVersionString => (ComCall(5, this, 'ptr*', &versionInfo := 0), CoTaskMem_String(versionInfo))
@@ -477,7 +468,6 @@ class WebView2 extends WebView2.Base {
 	}
 	class Frame extends WebView2.Base {
 		static IID := "{f1131a5e-9ba9-11eb-a8b3-0242ac130003}"
-		handlers := []
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		add_NameChanged(eventHandler) => (ComCall(4, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2FrameNameChangedEventHandler
 		remove_NameChanged(token) => ComCall(5, this, 'int64', token)
