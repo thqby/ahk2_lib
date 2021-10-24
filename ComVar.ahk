@@ -6,12 +6,13 @@ class ComVar {
 	 * ### example
 	 * `var1 := ComVar('string'), MsgBox(var1[])`
 	 * 
-	 * `var2 := ComVar([1,2,3,4])`
+	 * `var2 := ComVar([1,2,3,4], , true)`
 	 * 
 	 * `var3 := ComVar(ComValue(0xb, -1))`
 	 * @param vType Variant's type, VT_VARIANT(default)
+	 * @param convert Convert AHK's array to ComObjArray
 	 */
-	__New(vVal := unset, vType := 0xC) {
+	__New(vVal := unset, vType := 0xC, convert := false) {
 		static size := 8 + 2 * A_PtrSize
 		this.var := Buffer(size, 0), this.owner := true
 		this.ref := ComValue(0x4000 | vType, this.var.Ptr + (vType = 0xC ? 0 : 8))
@@ -22,7 +23,7 @@ class ComVar {
 				if (IsObject(vVal)) {
 					if (vType != 0xC)
 						this.ref := ComValue(0x400C, this.var.ptr)
-					if (vVal is Array) {
+					if convert && (vVal is Array) {
 						switch Type(vVal[1]) {
 							case "Integer": vType := 3
 							case "String": vType := 8

@@ -2,8 +2,8 @@
  * @description UI Automation class wrapper, based on https://github.com/neptercn/UIAutomation/blob/master/UIA2.ahk
  * @file UIAutomation.ahk
  * @author thqby, neptercn(v1 version)
- * @date 2021/10/15
- * @version 1.0.11
+ * @date 2021/10/21
+ * @version 1.0.12
  ***********************************************************************/
 
 #Include <BSTR>
@@ -18,7 +18,7 @@ class NativeArray {
 		this.DefineProp("__Item", { get: (s, i) => NumGet(s, i * bit, type) })
 		this.DefineProp("__Enum", { call: (s, i) => (i = 1 ?
 				(i := 0, (&v) => i < count ? (v := NumGet(s, i * bit, type), ++i) : false) :
-				(i := 0, (&k, &v) => (i < count ? (k := i, v := NumGet(s, i * bit, type), ++i) : false))
+					(i := 0, (&k, &v) => (i < count ? (k := i, v := NumGet(s, i * bit, type), ++i) : false))
 			) })
 	}
 	__Delete() => DllCall("ole32\CoTaskMemFree", "ptr", this)
@@ -398,18 +398,18 @@ class UIA {
 	; Creates a condition that selects elements that have a property with the specified value.
 	static CreatePropertyCondition(propertyId, value) {
 		if A_PtrSize = 4
-			v := ComVar(value), ComCall(23, this, "int", propertyId, "int64", NumGet(v, 'int64'), "int64", NumGet(v, 8, "int64"), "ptr*", &newCondition := 0)
+			v := ComVar(value, , true), ComCall(23, this, "int", propertyId, "int64", NumGet(v, 'int64'), "int64", NumGet(v, 8, "int64"), "ptr*", &newCondition := 0)
 		else
-			ComCall(23, this, "int", propertyId, "ptr", ComVar(value), "ptr*", &newCondition := 0)
+			ComCall(23, this, "int", propertyId, "ptr", ComVar(value, , true), "ptr*", &newCondition := 0)
 		return IUIAutomationPropertyCondition(newCondition)
 	}
 
 	; Creates a condition that selects elements that have a property with the specified value, using optional flags.
 	static CreatePropertyConditionEx(propertyId, value, flags) {
 		if A_PtrSize = 4
-			v := ComVar(value), ComCall(24, this, "int", propertyId, "int64", NumGet(v, 'int64'), "int64", NumGet(v, 8, "int64"), "int", flags, "ptr*", &newCondition := 0)
+			v := ComVar(value, , true), ComCall(24, this, "int", propertyId, "int64", NumGet(v, 'int64'), "int64", NumGet(v, 8, "int64"), "int", flags, "ptr*", &newCondition := 0)
 		else
-			ComCall(24, this, "int", propertyId, "ptr", ComVar(value), "int", flags, "ptr*", &newCondition := 0)
+			ComCall(24, this, "int", propertyId, "ptr", ComVar(value, , true), "int", flags, "ptr*", &newCondition := 0)
 		return IUIAutomationPropertyCondition(newCondition)
 	}
 
@@ -531,9 +531,9 @@ class UIA {
 	; After retrieving a property for a UI Automation element, call this method to determine whether the element supports the retrieved property. CheckNotSupported is typically called after calling a property retrieving method such as GetCurrentPropertyValue.
 	static CheckNotSupported(value) {
 		if A_PtrSize = 4
-			value := ComVar(value), ComCall(53, this, "int64", NumGet(value, "int64"), "int64", NumGet(value, 8, "int64"), "int*", &isNotSupported := 0)
+			value := ComVar(value, , true), ComCall(53, this, "int64", NumGet(value, "int64"), "int64", NumGet(value, 8, "int64"), "int*", &isNotSupported := 0)
 		else
-			ComCall(53, this, "ptr", ComVar(value), "int*", &isNotSupported := 0)
+			ComCall(53, this, "ptr", ComVar(value, , true), "int*", &isNotSupported := 0)
 		return isNotSupported
 	}
 
@@ -645,7 +645,7 @@ class IUIAutomationElement extends IUIABase {
 	/**
 	 * Find or wait target control element.
 	 * @param ControlType target control type, such as 'button' or UIA.ControlType.Button
-	 * @param propertys The property object or 'Name' property. 
+	 * @param propertys The property object or 'Name' property.
 	 * @param propertyId The property identifier. `Name`(default)
 	 * @param waittime Waiting time for control element to appear.
 	 */
@@ -662,9 +662,9 @@ class IUIAutomationElement extends IUIABase {
 			propertys := {}
 		switch Type(propertys) {
 			case "String":
-				propertys := {Name: propertys}
+				propertys := { Name: propertys }
 			case "Array":
-				propertys := {0: propertys}
+				propertys := { 0: propertys }
 			case "Object":
 			default:
 				throw ValueError("invalid param")
@@ -922,7 +922,7 @@ class IUIAutomationElement extends IUIABase {
 	CurrentItemStatus => (ComCall(42, this, "ptr*", &retVal := 0), BSTR(retVal))
 
 	; Retrieves the coordinates of the rectangle that completely encloses the element, in screen coordinates.
-	CurrentBoundingRectangle => (ComCall(43, this, "ptr", retVal := NativeArray(0, 4, "int")), {left: retVal[0], top: retVal[1], right: retVal[2], bottom: retVal[3]})
+	CurrentBoundingRectangle => (ComCall(43, this, "ptr", retVal := NativeArray(0, 4, "int")), { left: retVal[0], top: retVal[1], right: retVal[2], bottom: retVal[3] })
 
 	; This property maps to the Accessible Rich Internet Applications (ARIA) property.
 
@@ -1021,7 +1021,7 @@ class IUIAutomationElement extends IUIABase {
 	CachedItemStatus => (ComCall(74, this, "ptr*", &retVal := 0), BSTR(retVal))
 
 	; Retrieves the cached coordinates of the rectangle that completely encloses the element.
-	CachedBoundingRectangle => (ComCall(75, this, "ptr", retVal := NativeArray(0, 4, "int")), {left: retVal[0], top: retVal[1], right: retVal[2], bottom: retVal[3]})
+	CachedBoundingRectangle => (ComCall(75, this, "ptr", retVal := NativeArray(0, 4, "int")), { left: retVal[0], top: retVal[1], right: retVal[2], bottom: retVal[3] })
 
 	; Retrieves the cached element that contains the text label for this element.
 	CachedLabeledBy => (ComCall(76, this, "ptr*", &retVal := 0), IUIAutomationElement(retVal))
@@ -1053,7 +1053,7 @@ class IUIAutomationElement extends IUIABase {
 	; • Call the SendInput function to send a right-mouse-down, right-mouse-up sequence.
 	GetClickablePoint() {
 		if (ComCall(84, this, "int64*", &clickable := 0, "int*", &gotClickable := 0), gotClickable)
-			return {x: clickable & 0xffff, y: clickable >> 32}
+			return { x: clickable & 0xffff, y: clickable >> 32 }
 		throw TargetError('The element has no clickable point')
 	}
 
@@ -1219,9 +1219,9 @@ class IUIAutomationItemContainerPattern extends IUIABase {
 	; When the propertyId parameter is specified as 0 (zero), the provider is expected to return the next item after pStartAfter. If pStartAfter is specified as NULL with a propertyId of 0, the provider should return the first item in the container. When propertyId is specified as 0, the value parameter should be VT_EMPTY.
 	FindItemByProperty(pStartAfter, propertyId, value) {
 		if A_PtrSize = 4
-			value := ComVar(value), ComCall(3, this, "ptr", pStartAfter, "int", propertyId, "int64", NumGet(value, "int64"), "int64", NumGet(value, 8, "int64"), "ptr*", &pFound := 0)
+			value := ComVar(value, , true), ComCall(3, this, "ptr", pStartAfter, "int", propertyId, "int64", NumGet(value, "int64"), "int64", NumGet(value, 8, "int64"), "ptr*", &pFound := 0)
 		else
-			ComCall(3, this, "ptr", pStartAfter, "int", propertyId, "ptr", ComVar(value), "ptr*", &pFound := 0)
+			ComCall(3, this, "ptr", pStartAfter, "int", propertyId, "ptr", ComVar(value, , true), "ptr*", &pFound := 0)
 		if (pFound)
 			return IUIAutomationElement(pFound)
 		throw TargetError("Target elements not found.")
@@ -1684,9 +1684,9 @@ class IUIAutomationTextRange extends IUIABase {
 	; The FindAttribute method retrieves matching text regardless of whether the text is hidden or visible. Use UIA_IsHiddenAttributeId to check text visibility.
 	FindAttribute(attr, val, backward) {
 		if A_PtrSize = 4
-			val := ComVar(val), ComCall(7, this, "int", attr, "int64", NumGet(val, "int64"), "int64", NumGet(val, 8, "int64"), "int", backward, "ptr*", &found := 0)
+			val := ComVar(val, , true), ComCall(7, this, "int", attr, "int64", NumGet(val, "int64"), "int64", NumGet(val, 8, "int64"), "int", backward, "ptr*", &found := 0)
 		else
-			ComCall(7, this, "int", attr, "ptr", ComVar(val), "int", backward, "ptr*", &found := 0)
+			ComCall(7, this, "int", attr, "ptr", ComVar(val, , true), "int", backward, "ptr*", &found := 0)
 		if (found)
 			return IUIAutomationTextRange(found)
 		throw TargetError("Target textrange not found.")

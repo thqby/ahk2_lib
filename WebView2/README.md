@@ -4,7 +4,7 @@ The Microsoft Edge WebView2 control enables you to host web content in your appl
 
 The WebView2 Runtime is built into Win10(latest version) and Win11 and can be easily used in AHK.
 
-#### Example1: AddHostObjectToEdge
+#### Example1: AddHostObjectToEdge, Open with multiple windows
 ```autohotkey
 #Include <WebView2\WebView2>
 
@@ -25,7 +25,7 @@ obj = await window.chrome.webview.hostObjects.ahk;
 obj.func('call from edge\n' + (await obj.str));
 ```
 
-#### Example2: With only one Tab
+#### Example2: Open with only one Tab
 ```autohotkey
 #Include <WebView2\WebView2>
 
@@ -46,7 +46,7 @@ NewWindowRequestedHandler(handler, wv2, arg) {
 }
 ```
 
-#### Example3: With multiple Tabs
+#### Example3: Open with multiple Tabs in a window
 ```autohotkey
 #Include <WebView2\WebView2>
 

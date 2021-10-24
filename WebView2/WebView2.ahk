@@ -2,8 +2,8 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2021/10/18
- * @version 1.0.1
+ * @date 2021/10/21
+ * @version 1.0.16
  * @webview2version 1.0.992.28
  ***********************************************************************/
 
@@ -46,10 +46,9 @@ class WebView2 extends WebView2.Base {
 				Sleep(-1)
 		return Controller
 
-		Free(handler) => (handler := 0)
 		EnvironmentCompleted_Invoke(com_this, hresult, createdEnvironment) {
 			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)
-			SetTimer(Free.Bind(EnvironmentCompletedHandler), -100)
+			EnvironmentCompletedHandler := 0
 			return 0
 		}
 		ControllerCompleted_Invoke(com_this, hresult, createdController) {
@@ -57,7 +56,7 @@ class WebView2 extends WebView2.Base {
 			Controller.ptr := createdController, Controller.Bounds := RECT
 			if (IsSet(callback))
 				try callback(Controller)
-			SetTimer(Free.Bind(ControllerCompletedHandler), -50)
+			ControllerCompletedHandler := 0
 			return 0
 		}
 	}
@@ -284,7 +283,15 @@ class WebView2 extends WebView2.Base {
 		add_DocumentTitleChanged(eventHandler) => (ComCall(46, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2DocumentTitleChangedEventHandler
 		remove_DocumentTitleChanged(token) => ComCall(47, this, 'int64', token)
 		DocumentTitle => (ComCall(48, this, 'ptr*', &title := 0), CoTaskMem_String(title))
-		AddHostObjectToScript(name, object) => ComCall(49, this, 'wstr', name, 'ptr', ComVar(object))
+		AddHostObjectToScript(name, object) {
+			if (object is Array) {
+				if !object.HasProp('__Get')
+					object.DefineProp('__Get', { call: (s, n, p) => IsInteger(n) ? s[n] : ComValue(0, 0) })
+				if !object.HasProp('__Set')
+					object.DefineProp('__Set', { call: (s, n, p, v) => IsInteger(n) ? (s[n] := v) : p.Length ? '' : s.DefineProp(n, { value: v }) })
+			}
+			ComCall(49, this, 'wstr', name, 'ptr', ComVar(object))
+		}
 		RemoveHostObjectFromScript(name) => ComCall(50, this, 'wstr', name)
 		OpenDevToolsWindow() => ComCall(51, this)
 		add_ContainsFullScreenElementChanged(eventHandler) => (ComCall(52, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2ContainsFullScreenElementChangedEventHandler
@@ -548,14 +555,16 @@ class WebView2 extends WebView2.Base {
 		 */
 		__New(invoke_cb, paramcount := 0) {
 			super.__New(6 * A_PtrSize)
-			NumPut('ptr', this.Ptr + 2 * A_PtrSize, "uint", 1, this)
-			for cb in [QueryInterface, ObjAddRef, ObjRelease]
+			NumPut('ptr', this.Ptr + 2 * A_PtrSize, "ptr", p := ObjPtr(this), this)
+			for cb in [QueryInterface, AddRef, Release]
 				NumPut('ptr', CallbackCreate(cb), this, (A_Index + 1) * A_PtrSize)
 			NumPut('ptr', paramcount ? CallbackCreate(invoke_cb, , paramcount) : CallbackCreate(invoke_cb), this, 5 * A_PtrSize)
 
 			QueryInterface(interface, riid, ppvObject) {
 
 			}
+			AddRef(this) => ObjAddRef(NumGet(this, A_PtrSize, 'ptr'))
+			Release(this) => ObjRelease(NumGet(this, A_PtrSize, 'ptr'))
 		}
 		__Delete() {
 			loop 4
