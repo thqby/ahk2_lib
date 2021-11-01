@@ -2,9 +2,9 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2021/10/21
- * @version 1.0.16
- * @webview2version 1.0.992.28
+ * @date 2021/11/01
+ * @version 1.0.25
+ * @webview2version 1.0.1020.30
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -18,25 +18,24 @@ class WebView2 extends WebView2.Base {
 	 * @param edgeruntime The path of Edge Runtime or Edge(dev..) Bin.
 	 * @param dllPath The path of `WebView2Loader.dll`.
 	 */
-	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := "", edgeruntime := "", dllPath := "WebView2Loader.dll") {
+	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := '', edgeruntime := '', dllPath := 'WebView2Loader.dll') {
 		Controller := WebView2.Controller()
 		ControllerCompletedHandler := WebView2.Handler(ControllerCompleted_Invoke)
 		if (createdEnvironment)
 			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)	; ICoreWebView2Environment::CreateCoreWebView2Controller Method.
 		else {
-			if (!FileExist(dllPath) && FileExist(t := A_LineFile "\..\" (A_PtrSize * 8) "bit\WebView2Loader.dll"))
+			if (!FileExist(dllPath) && FileExist(t := A_LineFile '\..\' (A_PtrSize * 8) 'bit\WebView2Loader.dll'))
 				dllPath := t
 			if (!edgeruntime) {
-				loop files "C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*", "D"
-					if (A_LoopFilePath ~= "\\[\d.]+$") {
-						edgeruntime := A_LoopFileFullPath
-						break
-					}
+				ver := '0.0.0.0'
+				loop files 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*', 'D'
+					if RegExMatch(A_LoopFilePath, '\\([\d.]+)$', &m) && VerCompare(m[1], ver) > 0
+						edgeruntime := A_LoopFileFullPath, ver := m[1]
 			}
 			EnvironmentCompletedHandler := WebView2.Handler(EnvironmentCompleted_Invoke)
-			if (R := DllCall(dllPath "\CreateCoreWebView2EnvironmentWithOptions", "str", edgeruntime,
-				"str", datadir || RegExReplace(A_AppData, "Roaming$", "Local\Microsoft\Edge\User Data"), 'ptr', 0,
-				'ptr', EnvironmentCompletedHandler, "uint")) {
+			if (R := DllCall(dllPath '\CreateCoreWebView2EnvironmentWithOptions', 'str', edgeruntime,
+				'str', datadir || RegExReplace(A_AppData, 'Roaming$', 'Local\Microsoft\Edge\User Data'), 'ptr', 0,
+				'ptr', EnvironmentCompletedHandler, 'uint')) {
 				ControllerCompletedHandler := EnvironmentCompletedHandler := 0
 				throw OSError(R)
 			}
@@ -52,13 +51,35 @@ class WebView2 extends WebView2.Base {
 			return 0
 		}
 		ControllerCompleted_Invoke(com_this, hresult, createdController) {
-			DllCall("user32\GetClientRect", 'ptr', hwnd, 'ptr', RECT := Buffer(16)), ObjAddRef(createdController)
+			DllCall('user32\GetClientRect', 'ptr', hwnd, 'ptr', RECT := Buffer(16)), ObjAddRef(createdController)
 			Controller.ptr := createdController, Controller.Bounds := RECT
 			if (IsSet(callback))
 				try callback(Controller)
 			ControllerCompletedHandler := 0
 			return 0
 		}
+	}
+
+	static AHKObjHelper() {
+		return { get: get, set: set, call: call }
+
+		get(this, prop, params := unset) {
+			if !IsSet(params) {
+				if (this is Array && prop is Integer) || (this is Map)
+					return this[prop]
+				params := []
+			}
+			return this.%prop%[params*]
+		}
+		set(this, prop, value, params := unset) {
+			if !IsSet(params) {
+				if (this is Array && prop is Integer) || (this is Map)
+					return this[prop] := value
+				params := []
+			}
+			return this.%prop%[params*] := value
+		}
+		call(this, method, params*) => this.%method%(params*)
 	}
 
 	; Interfaces Base class
@@ -90,7 +111,7 @@ class WebView2 extends WebView2.Base {
 
 	;#region WebView2 Interfaces
 	class AcceleratorKeyPressedEventArgs extends WebView2.Base {
-		static IID := "{9f760f8a-fb79-42be-9990-7b56900fa9c7}"
+		static IID := '{9f760f8a-fb79-42be-9990-7b56900fa9c7}'
 		KeyEventKind => (ComCall(3, this, 'int*', &keyEventKind := 0), keyEventKind)	; COREWEBVIEW2_KEY_EVENT_KIND
 		VirtualKey => (ComCall(4, this, 'uint*', &virtualKey := 0), virtualKey)
 		KeyEventLParam => (ComCall(5, this, 'int*', &lParam := 0), lParam)
@@ -101,12 +122,12 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class BrowserProcessExitedEventArgs extends WebView2.Base {
-		static IID := "{1f00663f-af8c-4782-9cdd-dd01c52e34cb}"
+		static IID := '{1f00663f-af8c-4782-9cdd-dd01c52e34cb}'
 		BrowserProcessExitKind => (ComCall(3, this, 'int*', &browserProcessExitKind := 0), browserProcessExitKind)	; COREWEBVIEW2_BROWSER_PROCESS_EXIT_KIND
 		BrowserProcessId => (ComCall(4, this, 'uint*', &value := 0), value)
 	}
 	class CompositionController extends WebView2.Base {
-		static IID := "{3df9b733-b9ae-4a15-86b4-eb9ee9826469}"
+		static IID := '{3df9b733-b9ae-4a15-86b4-eb9ee9826469}'
 		RootVisualTarget {
 			get => (ComCall(3, this, 'ptr*', &target := 0), ComValue(0xd, target))
 			set => ComCall(4, this, 'ptr', Value)
@@ -118,11 +139,11 @@ class WebView2 extends WebView2.Base {
 		add_CursorChanged(eventHandler) => (ComCall(9, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2CursorChangedEventHandler
 		remove_CursorChanged(token) => ComCall(10, this, 'int64', token)
 
-		static IID_2 := "{0b6a3d24-49cb-4806-ba20-b5e0734a7b26}"
+		static IID_2 := '{0b6a3d24-49cb-4806-ba20-b5e0734a7b26}'
 		UIAProvider => (ComCall(11, this, 'ptr*', &provider := 0), ComValue(0xd, provider))
 	}
 	class Controller extends WebView2.Base {
-		static IID := "{4d00c0d1-9434-4eb6-8078-8697a560334f}"
+		static IID := '{4d00c0d1-9434-4eb6-8078-8697a560334f}'
 		__Delete() {
 			if (this.ptr)
 				this.Close(), super.__Delete()
@@ -130,7 +151,7 @@ class WebView2 extends WebView2.Base {
 		Fill() {
 			if !this.ptr
 				return
-			DllCall("user32\GetClientRect", 'ptr', this.ParentWindow, 'ptr', RECT := Buffer(16))
+			DllCall('user32\GetClientRect', 'ptr', this.ParentWindow, 'ptr', RECT := Buffer(16))
 			this.Bounds := RECT
 		}
 		IsVisible {
@@ -165,13 +186,13 @@ class WebView2 extends WebView2.Base {
 		Close() => ComCall(24, this)
 		CoreWebView2 => (ComCall(25, this, 'ptr*', coreWebView2 := WebView2.Core()), coreWebView2)
 
-		static IID_2 := "{c979903e-d4ca-4228-92eb-47ee3fa96eab}"
+		static IID_2 := '{c979903e-d4ca-4228-92eb-47ee3fa96eab}'
 		DefaultBackgroundColor {
 			get => (ComCall(26, this, 'int*', &backgroundColor := 0), backgroundColor)	; COREWEBVIEW2_COLOR
 			set => ComCall(27, this, 'int', Value)
 		}
 
-		static IID_3 := "{f9614724-5d2b-41dc-aef7-73d62b51543b}"
+		static IID_3 := '{f9614724-5d2b-41dc-aef7-73d62b51543b}'
 		RasterizationScale {
 			get => (ComCall(28, this, 'double*', &scale := 0), scale)
 			set => ComCall(29, this, 'double', Value)
@@ -188,12 +209,12 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class ContentLoadingEventArgs extends WebView2.Base {
-		static IID := "{0c8a1275-9b6b-4901-87ad-70df25bafa6e}"
+		static IID := '{0c8a1275-9b6b-4901-87ad-70df25bafa6e}'
 		IsErrorPage => (ComCall(3, this, 'int*', &isErrorPage := 0), isErrorPage)
 		NavigationId => (ComCall(4, this, 'int64*', &navigationId := 0), navigationId)
 	}
 	class Cookie extends WebView2.Base {
-		static IID := "{AD26D6BE-1486-43E6-BF87-A2034006CA21}"
+		static IID := '{AD26D6BE-1486-43E6-BF87-A2034006CA21}'
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		Value {
 			get => (ComCall(4, this, 'ptr*', &value := 0), CoTaskMem_String(value))
@@ -220,12 +241,12 @@ class WebView2 extends WebView2.Base {
 		IsSession => (ComCall(16, this, 'int*', &isSession := 0), isSession)
 	}
 	class CookieList extends WebView2.Base {
-		static IID := "{F7F6F714-5D2A-43C6-9503-346ECE02D186}"
+		static IID := '{F7F6F714-5D2A-43C6-9503-346ECE02D186}'
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', cookie := WebView2.Cookie()), cookie)
 	}
 	class CookieManager extends WebView2.Base {
-		static IID := "{177CD9E7-B6F5-451A-94A0-5D7A3A4C4141}"
+		static IID := '{177CD9E7-B6F5-451A-94A0-5D7A3A4C4141}'
 		CreateCookie(name, value, domain, path) => (ComCall(3, this, 'wstr', name, 'wstr', value, 'wstr', domain, 'wstr', path, 'ptr*', cookie := WebView2.Cookie()), cookie)
 		CopyCookie(cookieParam) => (ComCall(4, this, 'ptr', cookieParam, 'ptr*', cookie := WebView2.Cookie()), cookie)	; ICoreWebView2Cookie
 		GetCookies(uri, handler) => ComCall(5, this, 'wstr', uri, 'ptr', handler)	; ICoreWebView2GetCookiesCompletedHandler
@@ -236,7 +257,8 @@ class WebView2 extends WebView2.Base {
 		DeleteAllCookies() => ComCall(10, this)
 	}
 	class Core extends WebView2.Base {
-		static IID := "{76eceacb-0462-4d94-ac83-423a6793775e}"
+		static IID := '{76eceacb-0462-4d94-ac83-423a6793775e}'
+		AddAHKObjHelper() => this.AddHostObjectToScript('AHKObjHelper', WebView2.AHKObjHelper())
 		Settings => (ComCall(3, this, 'ptr*', settings := WebView2.Settings()), settings)
 		Source => (ComCall(4, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		Navigate(uri) => ComCall(5, this, 'wstr', uri)
@@ -283,15 +305,7 @@ class WebView2 extends WebView2.Base {
 		add_DocumentTitleChanged(eventHandler) => (ComCall(46, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2DocumentTitleChangedEventHandler
 		remove_DocumentTitleChanged(token) => ComCall(47, this, 'int64', token)
 		DocumentTitle => (ComCall(48, this, 'ptr*', &title := 0), CoTaskMem_String(title))
-		AddHostObjectToScript(name, object) {
-			if (object is Array) {
-				if !object.HasProp('__Get')
-					object.DefineProp('__Get', { call: (s, n, p) => IsInteger(n) ? s[n] : ComValue(0, 0) })
-				if !object.HasProp('__Set')
-					object.DefineProp('__Set', { call: (s, n, p, v) => IsInteger(n) ? (s[n] := v) : p.Length ? '' : s.DefineProp(n, { value: v }) })
-			}
-			ComCall(49, this, 'wstr', name, 'ptr', ComVar(object))
-		}
+		AddHostObjectToScript(name, object) => ComCall(49, this, 'wstr', name, 'ptr', ComVar(object))
 		RemoveHostObjectFromScript(name) => ComCall(50, this, 'wstr', name)
 		OpenDevToolsWindow() => ComCall(51, this)
 		add_ContainsFullScreenElementChanged(eventHandler) => (ComCall(52, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2ContainsFullScreenElementChangedEventHandler
@@ -304,7 +318,7 @@ class WebView2 extends WebView2.Base {
 		add_WindowCloseRequested(eventHandler) => (ComCall(59, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2WindowCloseRequestedEventHandler
 		remove_WindowCloseRequested(token) => ComCall(60, this, 'int64', token)
 
-		static IID_2 := "{9E8F0CF8-E670-4B5E-B2BC-73E061E3184C}"
+		static IID_2 := '{9E8F0CF8-E670-4B5E-B2BC-73E061E3184C}'
 		add_WebResourceResponseReceived(eventHandler) => (ComCall(61, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2WebResourceResponseReceivedEventHandler
 		remove_WebResourceResponseReceived(token) => ComCall(62, this, 'int64', token)
 		NavigateWithWebResourceRequest(request) => ComCall(63, this, 'ptr', request)	; ICoreWebView2WebResourceRequest
@@ -313,28 +327,31 @@ class WebView2 extends WebView2.Base {
 		CookieManager => (ComCall(66, this, 'ptr*', cookieManager := WebView2.CookieManager()), cookieManager)
 		Environment => (ComCall(67, this, 'ptr*', environment := WebView2.Environment()), environment)
 
-		static IID_3 := "{A0D6DF20-3B92-416D-AA0C-437A9C727857}"
+		static IID_3 := '{A0D6DF20-3B92-416D-AA0C-437A9C727857}'
 		TrySuspend(handler) => ComCall(68, this, 'ptr', handler)	; ICoreWebView2TrySuspendCompletedHandler
 		Resume() => ComCall(69, this)
 		IsSuspended => (ComCall(70, this, 'int*', &isSuspended := 0), isSuspended)
 		SetVirtualHostNameToFolderMapping(hostName, folderPath, accessKind) => ComCall(71, this, 'wstr', hostName, 'wstr', folderPath, 'int', accessKind)
 		ClearVirtualHostNameToFolderMapping(hostName) => ComCall(72, this, 'wstr', hostName)
 
-		static IID_4 := "{20d02d59-6df2-42dc-bd06-f98a694b1302}"
+		static IID_4 := '{20d02d59-6df2-42dc-bd06-f98a694b1302}'
 		add_FrameCreated(eventHandler) => (ComCall(73, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2FrameCreatedEventHandler
 		remove_FrameCreated(token) => ComCall(74, this, 'int64', token)
 		add_DownloadStarting(eventHandler) => (ComCall(75, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2DownloadStartingEventHandler
 		remove_DownloadStarting(token) => ComCall(76, this, 'int64', token)
 
-		static IID_5 := "{bedb11b8-d63c-11eb-b8bc-0242ac130003}"
+		static IID_5 := '{bedb11b8-d63c-11eb-b8bc-0242ac130003}'
 		add_ClientCertificateRequested(eventHandler) => (ComCall(77, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2ClientCertificateRequestedEventHandler
 		remove_ClientCertificateRequested(token) => ComCall(78, this, 'int64', token)
 
-		static IID_6 := "{499aadac-d92c-4589-8a75-111bfc167795}"
+		static IID_6 := '{499aadac-d92c-4589-8a75-111bfc167795}'
 		OpenTaskManagerWindow() => ComCall(79, this)
+
+		static IID_7 := '{79c24d83-09a3-45ae-9418-487f32a58740}'
+		PrintToPdf(resultFilePath, printSettings, handler) => ComCall(80, this, 'wstr', resultFilePath, 'ptr', printSettings, 'ptr', handler)
 	}
 	class ClientCertificate extends WebView2.Base {
-		static IID := "{e7188076-bcc3-11eb-8529-0242ac130003}"
+		static IID := '{e7188076-bcc3-11eb-8529-0242ac130003}'
 		Subject => (ComCall(3, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		Issuer => (ComCall(4, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		ValidFrom => (ComCall(5, this, 'double*', &value := 0), value)
@@ -346,17 +363,17 @@ class WebView2 extends WebView2.Base {
 		Kind => (ComCall(11, this, 'int*', &value := 0), value)	; COREWEBVIEW2_CLIENT_CERTIFICATE_KIND
 	}
 	class StringCollection extends WebView2.Base {
-		static IID := "{f41f3f8a-bcc3-11eb-8529-0242ac130003}"
+		static IID := '{f41f3f8a-bcc3-11eb-8529-0242ac130003}'
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
 	class ClientCertificateCollection extends WebView2.Base {
-		static IID := "{ef5674d2-bcc3-11eb-8529-0242ac130003}"
+		static IID := '{ef5674d2-bcc3-11eb-8529-0242ac130003}'
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', certificate := WebView2.ClientCertificate()), certificate)
 	}
 	class ClientCertificateRequestedEventArgs extends WebView2.Base {
-		static IID := "{bc59db28-bcc3-11eb-8529-0242ac130003}"
+		static IID := '{bc59db28-bcc3-11eb-8529-0242ac130003}'
 		Host => (ComCall(3, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		Port => (ComCall(4, this, 'int*', &value := 0), value)
 		IsProxy => (ComCall(5, this, 'int*', &value := 0), value)
@@ -377,24 +394,24 @@ class WebView2 extends WebView2.Base {
 		GetDeferral() => (ComCall(14, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class DOMContentLoadedEventArgs extends WebView2.Base {
-		static IID := "{16B1E21A-C503-44F2-84C9-70ABA5031283}"
+		static IID := '{16B1E21A-C503-44F2-84C9-70ABA5031283}'
 		NavigationId => (ComCall(3, this, 'int64*', &navigationId := 0), navigationId)
 	}
 	class Deferral extends WebView2.Base {
-		static IID := "{c10e7f7b-b585-46f0-a623-8befbf3e4ee0}"
+		static IID := '{c10e7f7b-b585-46f0-a623-8befbf3e4ee0}'
 		Complete() => ComCall(3, this)
 	}
 	class DevToolsProtocolEventReceivedEventArgs extends WebView2.Base {
-		static IID := "{653c2959-bb3a-4377-8632-b58ada4e66c4}"
+		static IID := '{653c2959-bb3a-4377-8632-b58ada4e66c4}'
 		ParameterObjectAsJson => (ComCall(3, this, 'ptr*', &parameterObjectAsJson := 0), CoTaskMem_String(parameterObjectAsJson))
 	}
 	class DevToolsProtocolEventReceiver extends WebView2.Base {
-		static IID := "{b32ca51a-8371-45e9-9317-af021d080367}"
+		static IID := '{b32ca51a-8371-45e9-9317-af021d080367}'
 		add_DevToolsProtocolEventReceived(handler) => (ComCall(3, this, 'ptr', handler, 'int64*', &token := 0), token)	; ICoreWebView2DevToolsProtocolEventReceivedEventHandler
 		remove_DevToolsProtocolEventReceived(token) => ComCall(4, this, 'int64', token)
 	}
 	class DownloadOperation extends WebView2.Base {
-		static IID := "{3d6b6cf2-afe1-44c7-a995-c65117714336}"
+		static IID := '{3d6b6cf2-afe1-44c7-a995-c65117714336}'
 		add_BytesReceivedChanged(eventHandler) => (ComCall(3, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2BytesReceivedChangedEventHandler
 		remove_BytesReceivedChanged(token) => ComCall(4, this, 'int64', token)
 		add_EstimatedEndTimeChanged(eventHandler) => (ComCall(5, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2EstimatedEndTimeChangedEventHandler
@@ -416,7 +433,7 @@ class WebView2 extends WebView2.Base {
 		CanResume => (ComCall(21, this, 'int*', &canResume := 0), canResume)
 	}
 	class DownloadStartingEventArgs extends WebView2.Base {
-		static IID := "{e99bbe21-43e9-4544-a732-282764eafa60}"
+		static IID := '{e99bbe21-43e9-4544-a732-282764eafa60}'
 		DownloadOperation => (ComCall(3, this, 'ptr*', downloadOperation := WebView2.DownloadOperation()), downloadOperation)
 		Cancel {
 			get => (ComCall(4, this, 'int*', &cancel := 0), cancel)
@@ -433,29 +450,32 @@ class WebView2 extends WebView2.Base {
 		GetDeferral() => (ComCall(10, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class Environment extends WebView2.Base {
-		static IID := "{b96d755e-0319-4e92-a296-23436f46a1fc}"
+		static IID := '{b96d755e-0319-4e92-a296-23436f46a1fc}'
 		CreateCoreWebView2Controller(parentWindow, handler) => ComCall(3, this, 'ptr', parentWindow, 'ptr', handler)	; ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
 		CreateWebResourceResponse(content, statusCode, reasonPhrase, headers) => (ComCall(4, this, 'ptr', content, 'int', statusCode, 'wstr', reasonPhrase, 'wstr', headers, 'ptr*', response := WebView2.WebResourceResponse()), response)
 		BrowserVersionString => (ComCall(5, this, 'ptr*', &versionInfo := 0), CoTaskMem_String(versionInfo))
 		add_NewBrowserVersionAvailable(eventHandler) => (ComCall(6, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2NewBrowserVersionAvailableEventHandler
 		remove_NewBrowserVersionAvailable(token) => ComCall(7, this, 'int64', token)
 
-		static IID_2 := "{41F3632B-5EF4-404F-AD82-2D606C5A9A21}"
+		static IID_2 := '{41F3632B-5EF4-404F-AD82-2D606C5A9A21}'
 		CreateWebResourceRequest(uri, method, postData, headers) => (ComCall(8, this, 'wstr', uri, 'wstr', method, 'ptr', postData, 'wstr', headers, 'ptr*', request := WebView2.WebResourceRequest()), request)
 
-		static IID_3 := "{80a22ae3-be7c-4ce2-afe1-5a50056cdeeb}"
+		static IID_3 := '{80a22ae3-be7c-4ce2-afe1-5a50056cdeeb}'
 		CreateCoreWebView2CompositionController(parentWindow, handler) => ComCall(9, this, 'ptr', parentWindow, 'ptr', handler)	; ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler
 		CreateCoreWebView2PointerInfo() => (ComCall(10, this, 'ptr*', pointerInfo := WebView2.PointerInfo()), pointerInfo)
 
-		static IID_4 := "{20944379-6dcf-41d6-a0a0-abc0fc50de0d}"
+		static IID_4 := '{20944379-6dcf-41d6-a0a0-abc0fc50de0d}'
 		GetProviderForHwnd(hwnd) => (ComCall(11, this, 'ptr', hwnd, 'ptr*', &provider := 0), ComValue(0xd, provider))
 
-		static IID_5 := "{319e423d-e0d7-4b8d-9254-ae9475de9b17}"
+		static IID_5 := '{319e423d-e0d7-4b8d-9254-ae9475de9b17}'
 		add_BrowserProcessExited(eventHandler) => (ComCall(12, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2BrowserProcessExitedEventHandler
 		remove_BrowserProcessExited(token) => ComCall(13, this, 'int64', token)
+
+		static IID_6 := '{e59ee362-acbd-4857-9a8e-d3644d9459a9}'
+		CreatePrintSettings() => (ComCall(14, this, 'ptr*', printSettings := WebView2.PrintSettings()), printSettings)
 	}
 	class EnvironmentOptions extends WebView2.Base {
-		static IID := "{2fde08a8-1e9a-4766-8c05-95a9ceb9d1c5}"
+		static IID := '{2fde08a8-1e9a-4766-8c05-95a9ceb9d1c5}'
 		AdditionalBrowserArguments {
 			get => (ComCall(3, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 			set => ComCall(4, this, 'wstr', Value)
@@ -474,31 +494,39 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class Frame extends WebView2.Base {
-		static IID := "{f1131a5e-9ba9-11eb-a8b3-0242ac130003}"
+		static IID := '{f1131a5e-9ba9-11eb-a8b3-0242ac130003}'
+		AddAHKObjHelper() => this.AddHostObjectToScriptWithOrigins('AHKObjHelper', WebView2.AHKObjHelper())
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		add_NameChanged(eventHandler) => (ComCall(4, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2FrameNameChangedEventHandler
 		remove_NameChanged(token) => ComCall(5, this, 'int64', token)
-		AddHostObjectToScriptWithOrigins(name, object, originsCount, origins) => ComCall(6, this, 'wstr', name, 'ptr', ComVar(object), 'uint', originsCount, 'ptr', origins)	; LPCWSTR*
+		AddHostObjectToScriptWithOrigins(name, object, originsArr*) {
+			if originsCount := originsArr.Length {
+				p := (origins := Buffer(originsCount * A_PtrSize)).Ptr
+				loop originsCount
+					p := NumPut('ptr', StrPtr(originsArr[A_Index]), p)
+			}
+			ComCall(6, this, 'wstr', name, 'ptr', ComVar(object), 'uint', originsCount, 'ptr', origins)	; LPCWSTR*
+		}
 		RemoveHostObjectFromScript(name) => ComCall(7, this, 'wstr', name)
 		add_Destroyed(eventHandler) => (ComCall(8, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2FrameDestroyedEventHandler
 		remove_Destroyed(token) => ComCall(9, this, 'int64', token)
 		IsDestroyed() => (ComCall(10, this, 'int*', &destroyed := 0), destroyed)
 	}
 	class FrameCreatedEventArgs extends WebView2.Base {
-		static IID := "{4d6e7b5e-9baa-11eb-a8b3-0242ac130003}"
+		static IID := '{4d6e7b5e-9baa-11eb-a8b3-0242ac130003}'
 		Frame => (ComCall(3, this, 'ptr*', frame := WebView2.Frame()), frame)
 	}
 	class FrameInfo extends WebView2.Base {
-		static IID := "{da86b8a1-bdf3-4f11-9955-528cefa59727}"
+		static IID := '{da86b8a1-bdf3-4f11-9955-528cefa59727}'
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		Source => (ComCall(4, this, 'ptr*', &source := 0), CoTaskMem_String(source))
 	}
 	class FrameInfoCollection extends WebView2.Base {
-		static IID := "{8f834154-d38e-4d90-affb-6800a7272839}"
+		static IID := '{8f834154-d38e-4d90-affb-6800a7272839}'
 		GetIterator() => (ComCall(3, this, 'ptr*', iterator := WebView2.FrameInfoCollectionIterator()), iterator)
 	}
 	class FrameInfoCollectionIterator extends WebView2.Base {
-		static IID := "{1bf89e2d-1b2b-4629-b28f-05099b41bb03}"
+		static IID := '{1bf89e2d-1b2b-4629-b28f-05099b41bb03}'
 		HasCurrent => (ComCall(3, this, 'int*', &hasCurrent := 0), hasCurrent)
 		GetCurrent() => (ComCall(4, this, 'ptr*', frameInfo := WebView2.FrameInfo()), frameInfo)
 		MoveNext() => (ComCall(5, this, 'int*', &hasNext := 0), hasNext)
@@ -550,12 +578,13 @@ class WebView2 extends WebView2.Base {
 		 * - CreateCoreWebView2EnvironmentCompletedHandler::Invoke(HRESULT errorCode, Environment *createdEnvironment);
 		 * - ExecuteScriptCompletedHandler::Invoke(HRESULT errorCode, LPCWSTR resultObjectAsJson);
 		 * - GetCookiesCompletedHandler::Invoke(HRESULT result, CookieList *cookieList);
+		 * - PrintToPdfCompletedHandler::Invoke(HRESULT result, BOOL isSuccessful);
 		 * - TrySuspendCompletedHandler::Invoke(HRESULT errorCode, BOOL isSuccessful);
 		 * - WebResourceResponseViewGetContentCompletedHandler::Invoke(HRESULT errorCode, IStream *content);
 		 */
 		__New(invoke_cb, paramcount := 0) {
 			super.__New(6 * A_PtrSize)
-			NumPut('ptr', this.Ptr + 2 * A_PtrSize, "ptr", p := ObjPtr(this), this)
+			NumPut('ptr', this.Ptr + 2 * A_PtrSize, 'ptr', p := ObjPtr(this), this)
 			for cb in [QueryInterface, AddRef, Release]
 				NumPut('ptr', CallbackCreate(cb), this, (A_Index + 1) * A_PtrSize)
 			NumPut('ptr', paramcount ? CallbackCreate(invoke_cb, , paramcount) : CallbackCreate(invoke_cb), this, 5 * A_PtrSize)
@@ -572,7 +601,7 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class HttpHeadersCollectionIterator extends WebView2.Base {
-		static IID := "{0702fc30-f43b-47bb-ab52-a42cb552ad9f}"
+		static IID := '{0702fc30-f43b-47bb-ab52-a42cb552ad9f}'
 		GetCurrentHeader(&name, &value) {
 			ComCall(3, this, 'ptr*', &name := 0, 'ptr*', &value := 0)
 			name := CoTaskMem_String(name), value := CoTaskMem_String(value)
@@ -581,7 +610,7 @@ class WebView2 extends WebView2.Base {
 		MoveNext() => (ComCall(5, this, 'int*', &hasNext := 0), hasNext)
 	}
 	class HttpRequestHeaders extends WebView2.Base {
-		static IID := "{e86cac0e-5523-465c-b536-8fb9fc8c8c60}"
+		static IID := '{e86cac0e-5523-465c-b536-8fb9fc8c8c60}'
 		GetHeader(name) => (ComCall(3, this, 'wstr', name, 'ptr*', &value := 0), CoTaskMem_String(value))
 		GetHeaders(name) => (ComCall(4, this, 'wstr', name, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 		RetVal(name) => (ComCall(5, this, 'wstr', name, 'int*', &RetVal := 0), RetVal)
@@ -590,7 +619,7 @@ class WebView2 extends WebView2.Base {
 		GetIterator() => (ComCall(8, this, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 	}
 	class HttpResponseHeaders extends WebView2.Base {
-		static IID := "{03c5ff5a-9b45-4a88-881c-89a9f328619c}"
+		static IID := '{03c5ff5a-9b45-4a88-881c-89a9f328619c}'
 		AppendHeader(name, value) => ComCall(3, this, 'wstr', name, 'wstr', value)
 		RetVal(name) => (ComCall(4, this, 'wstr', name, 'int*', &RetVal := 0), RetVal)
 		GetHeader(name) => (ComCall(5, this, 'wstr', name, 'ptr*', &value := 0), CoTaskMem_String(value))
@@ -598,7 +627,7 @@ class WebView2 extends WebView2.Base {
 		GetIterator() => (ComCall(7, this, 'ptr*', iterator := WebView2.HttpHeadersCollectionIterator()), iterator)
 	}
 	class MoveFocusRequestedEventArgs extends WebView2.Base {
-		static IID := "{2d6aa13b-3839-4a15-92fc-d88b3c0d9c9d}"
+		static IID := '{2d6aa13b-3839-4a15-92fc-d88b3c0d9c9d}'
 		Reason => (ComCall(3, this, 'int*', &reason := 0), reason)	; COREWEBVIEW2_MOVE_FOCUS_REASON
 		Handled {
 			get => (ComCall(4, this, 'int*', &value := 0), value)
@@ -606,13 +635,13 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class NavigationCompletedEventArgs extends WebView2.Base {
-		static IID := "{30d68b7d-20d9-4752-a9ca-ec8448fbb5c1}"
+		static IID := '{30d68b7d-20d9-4752-a9ca-ec8448fbb5c1}'
 		IsSuccess => (ComCall(3, this, 'int*', &isSuccess := 0), isSuccess)
 		WebErrorStatus => (ComCall(4, this, 'int*', &webErrorStatus := 0), webErrorStatus)	; COREWEBVIEW2_WEB_ERROR_STATUS
 		NavigationId => (ComCall(5, this, 'int64*', &navigationId := 0), navigationId)
 	}
 	class NavigationStartingEventArgs extends WebView2.Base {
-		static IID := "{5b495469-e119-438a-9b18-7604f25f2e49}"
+		static IID := '{5b495469-e119-438a-9b18-7604f25f2e49}'
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		IsUserInitiated => (ComCall(4, this, 'int*', &isUserInitiated := 0), isUserInitiated)
 		IsRedirected => (ComCall(5, this, 'int*', &isRedirected := 0), isRedirected)
@@ -624,7 +653,7 @@ class WebView2 extends WebView2.Base {
 		NavigationId => (ComCall(9, this, 'int64*', &navigationId := 0), navigationId)
 	}
 	class NewWindowRequestedEventArgs extends WebView2.Base {
-		static IID := "{34acb11c-fc37-4418-9132-f9c21d1eafb9}"
+		static IID := '{34acb11c-fc37-4418-9132-f9c21d1eafb9}'
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		NewWindow {
 			set => ComCall(4, this, 'ptr', Value)
@@ -638,11 +667,11 @@ class WebView2 extends WebView2.Base {
 		GetDeferral() => (ComCall(9, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 		WindowFeatures => (ComCall(10, this, 'ptr*', value := WebView2.WindowFeatures()), value)
 
-		static IID_2 := "{bbc7baed-74c6-4c92-b63a-7f5aeae03de3}"
+		static IID_2 := '{bbc7baed-74c6-4c92-b63a-7f5aeae03de3}'
 		Name => (ComCall(11, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
 	class PermissionRequestedEventArgs extends WebView2.Base {
-		static IID := "{973ae2ef-ff18-4894-8fb2-3c758f046810}"
+		static IID := '{973ae2ef-ff18-4894-8fb2-3c758f046810}'
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		PermissionKind => (ComCall(4, this, 'int*', &permissionKind := 0), permissionKind)	; COREWEBVIEW2_PERMISSION_KIND
 		IsUserInitiated => (ComCall(5, this, 'int*', &isUserInitiated := 0), isUserInitiated)
@@ -653,7 +682,7 @@ class WebView2 extends WebView2.Base {
 		GetDeferral() => (ComCall(8, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class PointerInfo extends WebView2.Base {
-		static IID := "{e6995887-d10d-4f5d-9359-4ce46e4f96b9}"
+		static IID := '{e6995887-d10d-4f5d-9359-4ce46e4f96b9}'
 		PointerKind {
 			get => (ComCall(3, this, 'uint*', &pointerKind := 0), pointerKind)
 			set => ComCall(4, this, 'uint', Value)
@@ -767,18 +796,73 @@ class WebView2 extends WebView2.Base {
 			set => ComCall(58, this, 'uint', Value)
 		}
 	}
+	class PrintSettings extends WebView2.Base {
+		static IID := '{377f3721-c74e-48ca-8db1-df68e51d60e2}'
+		Orientation {
+			get => (ComCall(3, this, 'int*', &orientation := 0), orientation)
+			set => ComCall(4, this, 'int', Value)
+		}
+		ScaleFactor {
+			get => (ComCall(5, this, 'double*', &scaleFactor := 0), scaleFactor)
+			set => ComCall(6, this, 'double', Value)
+		}
+		PageWidth {
+			get => (ComCall(7, this, 'double*', &pageWidth := 0), pageWidth)
+			set => ComCall(8, this, 'double', Value)
+		}
+		PageHeight {
+			get => (ComCall(9, this, 'double*', &pageHeight := 0), pageHeight)
+			set => ComCall(10, this, 'double', Value)
+		}
+		MarginTop {
+			get => (ComCall(11, this, 'double*', &marginTop := 0), marginTop)
+			set => ComCall(12, this, 'double', Value)
+		}
+		MarginBottom {
+			get => (ComCall(13, this, 'double*', &marginBottom := 0), marginBottom)
+			set => ComCall(14, this, 'double', Value)
+		}
+		MarginLeft {
+			get => (ComCall(15, this, 'double*', &marginLeft := 0), marginLeft)
+			set => ComCall(16, this, 'double', Value)
+		}
+		MarginRight {
+			get => (ComCall(17, this, 'double*', &marginRight := 0), marginRight)
+			set => ComCall(18, this, 'double', Value)
+		}
+		ShouldPrintBackgrounds {
+			get => (ComCall(19, this, 'int*', &shouldPrintBackgrounds := 0), shouldPrintBackgrounds)
+			set => ComCall(20, this, 'int', Value)
+		}
+		ShouldPrintSelectionOnly {
+			get => (ComCall(21, this, 'int*', &shouldPrintSelectionOnly := 0), shouldPrintSelectionOnly)
+			set => ComCall(22, this, 'int', Value)
+		}
+		ShouldPrintHeaderAndFooter {
+			get => (ComCall(23, this, 'int*', &shouldPrintHeaderAndFooter := 0), shouldPrintHeaderAndFooter)
+			set => ComCall(24, this, 'int', Value)
+		}
+		HeaderTitle {
+			get => (ComCall(25, this, 'ptr*', &headerTitle := 0), CoTaskMem_String(headerTitle))
+			set => ComCall(26, this, 'wstr', Value)
+		}
+		FooterUri {
+			get => (ComCall(27, this, 'ptr*', &footerUri := 0), CoTaskMem_String(footerUri))
+			set => ComCall(28, this, 'wstr', Value)
+		}
+	}
 	class ProcessFailedEventArgs extends WebView2.Base {
-		static IID := "{8155a9a4-1474-4a86-8cae-151b0fa6b8ca}"
+		static IID := '{8155a9a4-1474-4a86-8cae-151b0fa6b8ca}'
 		ProcessFailedKind => (ComCall(3, this, 'int*', &processFailedKind := 0), processFailedKind)	; COREWEBVIEW2_PROCESS_FAILED_KIND
 
-		static IID_2 := "{4dab9422-46fa-4c3e-a5d2-41d2071d3680}"
+		static IID_2 := '{4dab9422-46fa-4c3e-a5d2-41d2071d3680}'
 		Reason => (ComCall(4, this, 'int*', &reason := 0), reason)	; COREWEBVIEW2_PROCESS_FAILED_REASON
 		ExitCode => (ComCall(5, this, 'int*', &exitCode := 0), exitCode)
 		ProcessDescription => (ComCall(6, this, 'ptr*', &processDescription := 0), CoTaskMem_String(processDescription))
 		FrameInfosForFailedProcess => (ComCall(7, this, 'ptr*', frames := WebView2.FrameInfoCollection()), frames)
 	}
 	class ScriptDialogOpeningEventArgs extends WebView2.Base {
-		static IID := "{7390bb70-abe0-4843-9529-f143b31b03d6}"
+		static IID := '{7390bb70-abe0-4843-9529-f143b31b03d6}'
 		Uri => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 		Kind => (ComCall(4, this, 'int*', &kind := 0), kind)	; COREWEBVIEW2_SCRIPT_DIALOG_KIND
 		Message => (ComCall(5, this, 'ptr*', &message := 0), CoTaskMem_String(message))
@@ -791,7 +875,7 @@ class WebView2 extends WebView2.Base {
 		GetDeferral() => (ComCall(10, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class Settings extends WebView2.Base {
-		static IID := "{e562e4f0-d7fa-43ac-8d71-c05150499f00}"
+		static IID := '{e562e4f0-d7fa-43ac-8d71-c05150499f00}'
 		IsScriptEnabled {
 			get => (ComCall(3, this, 'int*', &isScriptEnabled := 0), isScriptEnabled)
 			set => ComCall(4, this, 'int', Value)
@@ -829,19 +913,19 @@ class WebView2 extends WebView2.Base {
 			set => ComCall(20, this, 'int', Value)
 		}
 
-		static IID_2 := "{ee9a0f68-f46c-4e32-ac23-ef8cac224d2a}"
+		static IID_2 := '{ee9a0f68-f46c-4e32-ac23-ef8cac224d2a}'
 		UserAgent {
 			get => (ComCall(21, this, 'ptr*', &userAgent := 0), CoTaskMem_String(userAgent))
 			set => ComCall(22, this, 'wstr', Value)
 		}
 
-		static IID_3 := "{fdb5ab74-af33-4854-84f0-0a631deb5eba}"
+		static IID_3 := '{fdb5ab74-af33-4854-84f0-0a631deb5eba}'
 		AreBrowserAcceleratorKeysEnabled {
 			get => (ComCall(23, this, 'int*', &areBrowserAcceleratorKeysEnabled := 0), areBrowserAcceleratorKeysEnabled)
 			set => ComCall(24, this, 'int', Value)
 		}
 
-		static IID_4 := "{cb56846c-4168-4d53-b04f-03b6d6796ff2}"
+		static IID_4 := '{cb56846c-4168-4d53-b04f-03b6d6796ff2}'
 		IsPasswordAutosaveEnabled {
 			get => (ComCall(25, this, 'int*', &value := 0), value)
 			set => ComCall(26, this, 'int', Value)
@@ -851,30 +935,30 @@ class WebView2 extends WebView2.Base {
 			set => ComCall(28, this, 'int', Value)
 		}
 
-		static IID_5 := "{183e7052-1d03-43a0-ab99-98e043b66b39}"
+		static IID_5 := '{183e7052-1d03-43a0-ab99-98e043b66b39}'
 		IsPinchZoomEnabled {
 			get => (ComCall(29, this, 'int*', &enabled := 0), enabled)
 			set => ComCall(30, this, 'int', Value)
 		}
 
-		static IID_6 := "{11cb3acd-9bc8-43b8-83bf-f40753714f87}"
+		static IID_6 := '{11cb3acd-9bc8-43b8-83bf-f40753714f87}'
 		IsSwipeNavigationEnabled {
 			get => (ComCall(31, this, 'int*', &enabled := 0), enabled)
 			set => ComCall(32, this, 'int', Value)
 		}
 	}
 	class SourceChangedEventArgs extends WebView2.Base {
-		static IID := "{31e0e545-1dba-4266-8914-f63848a1f7d7}"
+		static IID := '{31e0e545-1dba-4266-8914-f63848a1f7d7}'
 		IsNewDocument => (ComCall(3, this, 'int*', &isNewDocument := 0), isNewDocument)
 	}
 	class WebMessageReceivedEventArgs extends WebView2.Base {
-		static IID := "{0f99a40c-e962-4207-9e92-e3d542eff849}"
+		static IID := '{0f99a40c-e962-4207-9e92-e3d542eff849}'
 		Source => (ComCall(3, this, 'ptr*', &source := 0), CoTaskMem_String(source))
 		WebMessageAsJson => (ComCall(4, this, 'ptr*', &webMessageAsJson := 0), CoTaskMem_String(webMessageAsJson))
 		TryGetWebMessageAsString() => (ComCall(5, this, 'ptr*', &webMessageAsString := 0), CoTaskMem_String(webMessageAsString))
 	}
 	class WebResourceRequest extends WebView2.Base {
-		static IID := "{97055cd4-512c-4264-8b5f-e3f446cea6a5}"
+		static IID := '{97055cd4-512c-4264-8b5f-e3f446cea6a5}'
 		Uri {
 			get => (ComCall(3, this, 'ptr*', &uri := 0), CoTaskMem_String(uri))
 			set => ComCall(4, this, 'wstr', Value)
@@ -890,7 +974,7 @@ class WebView2 extends WebView2.Base {
 		Headers => (ComCall(9, this, 'ptr*', headers := WebView2.HttpRequestHeaders()), headers)
 	}
 	class WebResourceRequestedEventArgs extends WebView2.Base {
-		static IID := "{453e667f-12c7-49d4-be6d-ddbe7956f57a}"
+		static IID := '{453e667f-12c7-49d4-be6d-ddbe7956f57a}'
 		Request => (ComCall(3, this, 'ptr*', request := WebView2.WebResourceRequest()), request)
 		Response {
 			get => (ComCall(4, this, 'ptr*', response := WebView2.WebResourceResponse()), response)
@@ -900,7 +984,7 @@ class WebView2 extends WebView2.Base {
 		ResourceContext => (ComCall(7, this, 'int*', &context := 0), context)	; COREWEBVIEW2_WEB_RESOURCE_CONTEXT
 	}
 	class WebResourceResponse extends WebView2.Base {
-		static IID := "{aafcc94f-fa27-48fd-97df-830ef75aaec9}"
+		static IID := '{aafcc94f-fa27-48fd-97df-830ef75aaec9}'
 		Content {
 			get => (ComCall(3, this, 'ptr*', &content := 0), content)	; IStream*
 			set => ComCall(4, this, 'ptr', Value)
@@ -916,19 +1000,19 @@ class WebView2 extends WebView2.Base {
 		}
 	}
 	class WebResourceResponseReceivedEventArgs extends WebView2.Base {
-		static IID := "{D1DB483D-6796-4B8B-80FC-13712BB716F4}"
+		static IID := '{D1DB483D-6796-4B8B-80FC-13712BB716F4}'
 		Request => (ComCall(3, this, 'ptr*', request := WebView2.WebResourceRequest()), request)
 		Response => (ComCall(4, this, 'ptr*', response := WebView2.WebResourceResponseView()), response)
 	}
 	class WebResourceResponseView extends WebView2.Base {
-		static IID := "{79701053-7759-4162-8F7D-F1B3F084928D}"
+		static IID := '{79701053-7759-4162-8F7D-F1B3F084928D}'
 		Headers => (ComCall(3, this, 'ptr*', headers := WebView2.HttpResponseHeaders()), headers)
 		StatusCode => (ComCall(4, this, 'int*', &statusCode := 0), statusCode)
 		ReasonPhrase => (ComCall(5, this, 'ptr*', &reasonPhrase := 0), CoTaskMem_String(reasonPhrase))
 		GetContent(handler) => ComCall(6, this, 'ptr', handler)	; ICoreWebView2WebResourceResponseViewGetContentCompletedHandler
 	}
 	class WindowFeatures extends WebView2.Base {
-		static IID := "{5eaf559f-b46e-4397-8860-e422f287ff1e}"
+		static IID := '{5eaf559f-b46e-4397-8860-e422f287ff1e}'
 		HasPosition => (ComCall(3, this, 'int*', &value := 0), value)
 		HasSize => (ComCall(4, this, 'int*', &value := 0), value)
 		Left => (ComCall(5, this, 'uint*', &value := 0), value)
@@ -948,28 +1032,28 @@ class WebView2 extends WebView2.Base {
 			super.__New(24, 0)
 		}
 		RepeatCount {
-			get => NumGet(this, "uint")
-			set => NumPut("uint", Value, this)
+			get => NumGet(this, 'uint')
+			set => NumPut('uint', Value, this)
 		}
 		ScanCode {
-			get => NumGet(this, 4, "uint")
-			set => NumPut("uint", Value, this, 4)
+			get => NumGet(this, 4, 'uint')
+			set => NumPut('uint', Value, this, 4)
 		}
 		IsExtendedKey {
-			get => NumGet(this, 8, "int")
-			set => NumPut("int", Value, this, 8)
+			get => NumGet(this, 8, 'int')
+			set => NumPut('int', Value, this, 8)
 		}
 		IsMenuKeyDown {
-			get => NumGet(this, 12, "int")
-			set => NumPut("int", Value, this, 12)
+			get => NumGet(this, 12, 'int')
+			set => NumPut('int', Value, this, 12)
 		}
 		WasKeyDown {
-			get => NumGet(this, 16, "int")
-			set => NumPut("int", Value, this, 16)
+			get => NumGet(this, 16, 'int')
+			set => NumPut('int', Value, this, 16)
 		}
 		IsKeyReleased {
-			get => NumGet(this, 20, "int")
-			set => NumPut("int", Value, this, 20)
+			get => NumGet(this, 20, 'int')
+			set => NumPut('int', Value, this, 20)
 		}
 	}
 	;#endregion
@@ -1114,6 +1198,7 @@ class WebView2 extends WebView2.Base {
 		USER_PAUSED: 28,
 		DOWNLOAD_PROCESS_CRASHED: 29
 	}
+	static PRINT_ORIENTATION := { PORTRAIT: 0, LANDSCAPE: 1 }
 	;#endregion
 }
 CoTaskMem_String(ptr) {

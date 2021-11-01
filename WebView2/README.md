@@ -96,3 +96,23 @@ _exit_(*) {
 	ExitApp()
 }
 ```
+
+#### Example4: PrintToPDF
+```
+#Include <WebView2\WebView2>
+
+g := Gui()
+g.Show('w800 h600')
+wvc := WebView2.create(g.Hwnd)
+wv := wvc.CoreWebView2
+wv.Navigate('https://autohotkey.com')
+MsgBox('Wait for loading to complete')
+set := wv.Environment.CreatePrintSettings()
+set.Orientation := WebView2.PRINT_ORIENTATION.LANDSCAPE
+wv.PrintToPdf(A_ScriptDir '\11.pdf', set, WebView2.Handler(handler))
+
+handler(handlerptr, result, success) {
+	if (!success)
+		MsgBox 'PrintToPdf fail`nerr: ' result
+}
+```
