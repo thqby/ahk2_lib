@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2021/09/18
- * @version 1.0.0
+ * @date 2021/11/02
+ * @version 1.0.1
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -642,7 +642,7 @@ class CGdip
 		}
 
 		GetPixelFormat() {
-			DllCall("gdiplus\GdipGetImagePixelFormat", "Ptr", this, "UInt*", &Format := 0)
+			DllCall("gdiplus\GdipGetImagePixelFormat", "Ptr", this, "int*", &Format := 0)
 			return Format
 		}
 
