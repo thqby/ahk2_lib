@@ -1,8 +1,8 @@
 /************************************************************************
  * @description YoloX, High performance detector. compiled by https://github.com/DefTruth/lite.ai.toolkit/blob/main/lite/ort/cv/yolox.cpp
  * @author thqby, DefTruth
- * @date 2021/11/02
- * @version 1.0.9
+ * @date 2021/11/10
+ * @version 1.0.13
  * @dependencies cpu: onnxRuntime 1.9.0, opencv 4.5.2; gpu: cuda 11.4, cudnn 8.2.26; tensorrt: tensorrt 
  * - [Microsoft.ML.OnnxRuntime.Gpu 1.9.0](https://globalcdn.nuget.org/packages/microsoft.ml.onnxruntime.gpu.1.9.0.nupkg)
  * - [opencv 452](https://nchc.dl.sourceforge.net/project/opencvlibrary/4.5.2/opencv-4.5.2-vc14_vc15.exe)
@@ -17,6 +17,12 @@ class YoloX {
 			throw Error('load YoloX fail', -1)
 	}
 
+	static destroyWindow(name) => DllCall('YoloX\destroyWindow', 'astr', name)
+	static moveWindow(name, x, y) => DllCall('YoloX\moveWindow', 'astr', name, 'int', x, 'int', y)
+	static namedWindow(name, flag := 1) => DllCall('YoloX\namedWindow', 'astr', name, 'int', flag)
+	static showImage(name, mat) => DllCall('YoloX\showImage', 'astr', name, 'ptr', mat)
+
+	preview := 0
 	/**
 	 * create a YoloX instance
 	 * @param onnx_path onnx Model path
@@ -51,11 +57,13 @@ class YoloX {
 	 * @param iou_threshold Intersection over Union threshold
 	 * @param topk max detect boxes size
 	 * @param nms_type non maximum suppression type, HARD = 0, BLEND = 1, OFFSET = 2
-	 * @param output_path draw detect boxes and output picture file
+	 * @param output_path draw detect boxes and output picture file when output_path is path.
+	 * Draw the raw data of the picture when output_path = 1 and data is `YoloX.ImageData`.
 	 */
 	detect(data, size_flag := 0, score_threshold := 0.25, iou_threshold := 0.45, topk := 100, nms_type := 2, output_path := '') {
-		static params := Buffer(24), boxs := [], callback := CallbackCreate(receive)
-		NumPut('float', score_threshold, 'float', iou_threshold, 'uint', topk, 'uint', nms_type, 'ptr', output_path ? StrPtr(output_path) : 0, params)
+		static params := Buffer(24), obj := {boxs: [], preview: 0}, callback := CallbackCreate(receive)
+		NumPut('float', score_threshold, 'float', iou_threshold, 'uint', topk, 'uint', nms_type, 'ptr', output_path ? (output_path is Integer ? output_path : StrPtr(output_path)) : 0, params)
+		obj.preview := this.preview
 		if data is YoloX.ImageData
 			size_flag := -1
 		else if !size_flag && data is String
@@ -65,11 +73,12 @@ class YoloX {
 				throw Error('Invalid picture path')
 		if DllCall('YoloX\detect', 'ptr', this, 'ptr', data, 'int', size_flag, 'ptr', params, 'ptr', callback, 'int') < 0
 			throw Error('Invalid picture')
-		res := boxs, boxs := []
+		res := obj.boxs, obj.boxs := []
 		return res
 
-		receive(data, len) {
+		receive(data, len, mat) {
 			static empty := '', p := StrPtr(empty)
+			boxs := obj.boxs
 			loop len
 				boxs.Push({
 					x1: NumGet(data, 'float'),
@@ -81,6 +90,7 @@ class YoloX {
 					label: NumGet(data, 32, 'uint'),
 					flag: NumGet(data, 36, 'char')
 				}), data += 40
+			try (obj.preview)(mat)
 		}
 	}
 	__Delete() {

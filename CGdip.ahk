@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2021/11/02
- * @version 1.0.1
+ * @date 2021/11/09
+ * @version 1.0.3
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -603,7 +603,8 @@ class CGdip
 						if (NumGet(EncoderParameters, elem + 16, "UInt") = 1) && (NumGet(EncoderParameters, elem + 20, "UInt") = 6)
 						{
 							p := elem + EncoderParameters.Ptr - pad - 4
-							NumPut("UInt", Quality, NumGet(NumPut("UInt", 4, NumPut("UInt", 1, p + 0) + 20), "Ptr"))
+							tt := NumGet(NumPut("UInt", 4, NumPut("UInt", 1, p + 0) + 20), "UPtr")
+							NumPut("UInt", Quality, NumGet(NumPut("UInt", 4, NumPut("UInt", 1, p + 0) + 20), "UPtr"))
 							break
 						}
 					}
