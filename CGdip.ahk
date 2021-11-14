@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2021/11/09
- * @version 1.0.3
+ * @date 2021/11/14
+ * @version 1.0.4
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -202,7 +202,7 @@ class CGdip
 			DllCall("gdiplus\GdipMeasureString", "Ptr", this, "Ptr", StrPtr(sString), "int", -1
 				, "Ptr", hFont, "Ptr", RectF, "Ptr", hFormat
 				, "Ptr", RC, "Uint*", &Chars := 0, "Uint*", &Lines := 0)
-			return RC.Ptr ? {x: NumGet(RC, 0, "float"), y: NumGet(RC, 4, "float"), w: NumGet(RC, 8, "float"), h: NumGet(RC, 12, "float"), chars: Chars, lines: Lines} : 0
+			return RC.Ptr ? { x: NumGet(RC, 0, "float"), y: NumGet(RC, 4, "float"), w: NumGet(RC, 8, "float"), h: NumGet(RC, 12, "float"), chars: Chars, lines: Lines } : 0
 		}
 
 		FillRectangle(pBrush, x, y, w, h) {
@@ -599,12 +599,13 @@ class CGdip
 					DllCall("gdiplus\GdipGetEncoderParameterList", "Ptr", this, "Ptr", pCodec, "Uint", nSize, "Ptr", EncoderParameters)
 					Loop NumGet(EncoderParameters, "UInt")	;%
 					{
-						elem := (24 + (A_PtrSize ? A_PtrSize : 4)) * (A_Index - 1) + 4 + (pad := A_PtrSize = 8 ? 4 : 0)
+						elem := (24 + A_PtrSize) * (A_Index - 1) + A_PtrSize
 						if (NumGet(EncoderParameters, elem + 16, "UInt") = 1) && (NumGet(EncoderParameters, elem + 20, "UInt") = 6)
 						{
-							p := elem + EncoderParameters.Ptr - pad - 4
-							tt := NumGet(NumPut("UInt", 4, NumPut("UInt", 1, p + 0) + 20), "UPtr")
-							NumPut("UInt", Quality, NumGet(NumPut("UInt", 4, NumPut("UInt", 1, p + 0) + 20), "UPtr"))
+							ep := EncoderParameters.ptr + elem - A_PtrSize
+							NumPut("uptr", 1, ep)
+							NumPut("uint", 4, ep, 20 + A_PtrSize)
+							NumPut("uint", quality, NumGet(ep + 24 + A_PtrSize, "uptr"))
 							break
 						}
 					}
@@ -805,7 +806,7 @@ class CGdip
 				DllCall("gdiplus\GdipCreateFontFamilyFromName", "Ptr", StrPtr(Font), "Uint", 0, "Ptr*", &hFamily := 0)
 				if (!hFamily)
 					throw "Create Font Family Failed"
-				FontFamilys[font] := {Ptr: hFamily, Fonts: Map()}
+				FontFamilys[font] := { Ptr: hFamily, Fonts: Map() }
 			} else hFamily := FontFamilys[font].Ptr
 			prop := size " " style
 			if FontFamilys[font].Fonts.Has(prop)
@@ -817,7 +818,7 @@ class CGdip
 						DllCall("gdiplus\GdipDeleteFontFamily", "Ptr", hFamily), FontFamilys.Delete(font)
 					throw "Create Font Failed"
 				}
-				FontFamilys[font].Fonts[prop] := {Ptr: (this.Ptr := hFont), RefCount: 1}
+				FontFamilys[font].Fonts[prop] := { Ptr: (this.Ptr := hFont), RefCount: 1 }
 			}
 			this.prop := prop, this.font := font
 		}
@@ -848,7 +849,7 @@ class CGdip
 			if (this.prop := prop) {
 				Pens := CGdip.Pen.Pens
 				if (!Pens.Has(prop))
-					Pens[prop] := {Ptr: pPen, RefCount: 1}
+					Pens[prop] := { Ptr: pPen, RefCount: 1 }
 				else Pens[prop].RefCount++
 			}
 		}
@@ -893,7 +894,7 @@ class CGdip
 			if (this.prop := prop) {
 				SolidBrushs := CGdip.Brush.SolidBrushs
 				if (!SolidBrushs.Has(prop))
-					SolidBrushs[prop] := {Ptr: pBrush, RefCount: 1}
+					SolidBrushs[prop] := { Ptr: pBrush, RefCount: 1 }
 				else SolidBrushs[prop].RefCount++
 			}
 		}
@@ -1122,7 +1123,7 @@ UpdateLayeredWindow(hwnd, hdc, x := "", y := "", w := "", h := "", Alpha := 255)
 		WinGetPos(, , &w, &h, Integer(hwnd))
 
 	return DllCall("UpdateLayeredWindow", "Ptr", hwnd, "Ptr", 0, "Ptr", ((x = "") && (y = "")) ? 0 : pt
-		, "int64*", Integer(w) | Integer(h) << 32, "Ptr", hdc, "int64*", 0, "Uint", 0, "UInt*", Alpha << 16 | 1 << 24, "Uint", 2)
+			, "int64*", Integer(w) | Integer(h) << 32, "Ptr", hdc, "int64*", 0, "Uint", 0, "UInt*", Alpha << 16 | 1 << 24, "Uint", 2)
 }
 
 MDMF_FromPoint(X := "", Y := "") {
@@ -1141,7 +1142,7 @@ MDMF_GetInfo(HMON) {
 	If DllCall("User32.dll\GetMonitorInfo", "Ptr", HMON, "Ptr", MIEX) {
 		MonName := StrGet(MIEX.Ptr + 40, 32)	; CCHDEVICENAME = 32
 		MonNum := RegExReplace(MonName, ".*(\d+)$", "$1")
-		Return {Name: (Name := StrGet(MIEX.Ptr + 40, 32)), Num: RegExReplace(Name, ".*(\d+)$", "$1"), Left: NumGet(MIEX, 4, "Int"),	; display rectangle
+		Return { Name: (Name := StrGet(MIEX.Ptr + 40, 32)), Num: RegExReplace(Name, ".*(\d+)$", "$1"), Left: NumGet(MIEX, 4, "Int"),	; display rectangle
 			Top: NumGet(MIEX, 8, "Int"),	; "
 			Right: NumGet(MIEX, 12, "Int"),	; "
 			Bottom: NumGet(MIEX, 16, "Int"),	; "
@@ -1149,7 +1150,7 @@ MDMF_GetInfo(HMON) {
 			WATop: NumGet(MIEX, 24, "Int"),	; "
 			WARight: NumGet(MIEX, 28, "Int"),	; "
 			WABottom: NumGet(MIEX, 32, "Int"),	; "
-			Primary: NumGet(MIEX, 36, "UInt")}	; contains a non-zero value for the primary monitor.
+			Primary: NumGet(MIEX, 36, "UInt") }	; contains a non-zero value for the primary monitor.
 	}
 	Return False
 }
