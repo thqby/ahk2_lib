@@ -1,4 +1,4 @@
-MCode(hex, argtypes := 0) {
+MCode(hex, argtypes := 0, &code := 0) {
 	static reg := "^([12]?).*" (c := A_PtrSize = 8 ? "x64" : "x86") ":([A-Za-z\d+/=]+)"
 	if (RegExMatch(hex, reg, &m))
 		hex := m[2], flag := m[1] = "1" ? 4 : m[1] = "2" ? 1 : hex ~= "[+/=]" ? 1 : 4

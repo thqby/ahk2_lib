@@ -2,8 +2,8 @@
  * @description Number Theory Lib, used for high precision integer and floating point number calculation
  * @file NTLCalc.ahk
  * @author thqby
- * @date 2021/10/04
- * @version 1.0.1
+ * @date 2021/12/12
+ * @version 1.0.3
  ***********************************************************************/
 
 class NTLCalc {
@@ -22,7 +22,7 @@ class NTLCalc {
 	 * - round(x, n = 0)
 	 */
 	static Call(exp) {
-		switch (DllCall("ntl\Calc", "astr", exp, "ptr*", &val := 0)) {
+		switch (DllCall("ntl\Calc", "astr", exp, "ptr*", &val := 0, 'cdecl')) {
 			case 0: return StrGet(val, "cp0")
 			case 1: throw Error("ExpressionError")
 			case 2: throw ValueError("ParamCountError")
@@ -34,16 +34,16 @@ class NTLCalc {
 
 	; Set Debug Mode, Print the results of each step in the stdout.
 	static SetDebugMode(p := false) {
-		DllCall("ntl\SetDebugMode", "char", p)
+		DllCall("ntl\SetDebugMode", "char", p, "cdecl")
 	}
 
 	; Set output precision(number of bits).
 	static SetOutputPrecision(p) {
-		DllCall("ntl\SetOutputPrecision", "int", p)
+		DllCall("ntl\SetOutputPrecision", "int", p, "cdecl")
 	}
 
 	; Set the precision(number of bits).
 	static SetPrecision(p) {
-		DllCall("ntl\SetPrecision", "int", p)
+		DllCall("ntl\SetPrecision", "int", p, "cdecl")
 	}
 }
