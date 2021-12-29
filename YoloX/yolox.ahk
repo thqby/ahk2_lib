@@ -1,14 +1,14 @@
 /************************************************************************
  * @description YoloX, High performance detector. compiled by https://github.com/DefTruth/lite.ai.toolkit/blob/main/lite/ort/cv/yolox.cpp
  * @author thqby, DefTruth
- * @date 2021/11/10
- * @version 1.0.13
+ * @date 2021/12/26
+ * @version 1.0.16
  * @dependencies cpu: onnxRuntime 1.9.0, opencv 4.5.2; gpu: cuda 11.4, cudnn 8.2.26; tensorrt: tensorrt 
  * - [Microsoft.ML.OnnxRuntime.Gpu 1.9.0](https://globalcdn.nuget.org/packages/microsoft.ml.onnxruntime.gpu.1.9.0.nupkg)
  * - [opencv 452](https://nchc.dl.sourceforge.net/project/opencvlibrary/4.5.2/opencv-4.5.2-vc14_vc15.exe)
  * - [cuda 11.4](https://developer.download.nvidia.cn/compute/cuda/11.4.2/local_installers/cuda_11.4.2_471.41_win10.exe)
  * - [cudnn 8.2.2.26](https://developer.nvidia.com/rdp/cudnn-archive)
- * - [tensorrt ?](https://developer.nvidia.com/nvidia-tensorrt-8x-download)	Haven't test
+ * - [tensorrt](https://developer.nvidia.com/nvidia-tensorrt-8x-download)
  ***********************************************************************/
 class YoloX {
 	static hModule := 0
@@ -102,14 +102,14 @@ class YoloX {
 		/**
 		 * create `ImageData` struct.
 		 * @param imageData bitmap pixel data, maybe from `Gdiplus::Bitmap::LockBits`, etc.
+		 * @param widthStep size of aligned image row in bytes.
 		 * @param width image width in pixels.
 		 * @param height image height in pixels.
-		 * @param widthStep size of aligned image row in bytes.
 		 * @param nChannels RGBA 4, RGB 3, 2, GRAY 1
 		 */
-		__New(imageData, width, height, widthStep, nChannels := 4) {
+		__New(imageData, widthStep, width, height, nChannels := 4) {
 			super.__New(24)
-			NumPut('ptr', imageData, 'int', nChannels, 'int', width, 'int', height, 'int', widthStep, this)
+			NumPut('ptr', imageData, 'int', widthStep, 'int', width, 'int', height, 'int', nChannels, this)
 		}
 	}
 }

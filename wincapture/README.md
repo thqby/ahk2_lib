@@ -1,20 +1,20 @@
-﻿# DXGI
+﻿# wincapture
 
-## example
+## DXGI
+
+### example
 ```autohotkey
-dxcp := dxgicapture()
+dxcp := wincapture.DXGI()
 
 F7:: {
 	t := A_TickCount, i := 0
 	loop n := 100000
 		; capture full screen
-		if !hr := dxcp.captureAndSave(&data) {
+		try bb := dxcp.captureAndSave() {
 			i++
 			continue
-		} else if hr == 0x887A0027	; DXGI_ERROR_WAIT_TIMEOUT
+		} catch TimeoutError	; DXGI_ERROR_WAIT_TIMEOUT
 			continue
-		else
-			throw OSError(hr)
 	t := A_TickCount - t
 	MsgBox '每帧' (t / i) 'ms (有效帧)`n每帧' (t / n) 'ms (总)'
 }
@@ -22,14 +22,11 @@ F7:: {
 box := Buffer(16,0)
 ; capture range
 NumPut("uint", 400, "uint", 400, "uint", 800, "uint", 800, box)
-hr := dxcp.captureAndSave(&data, box)
-if hr = 0 || (hr = 0x887A0027 && data)
-	BitmapBuffer.fromCaptureData(data).savebmp('1.bmp', data)
+try dxcp.captureAndSave(box).savebmp('1.bmp')
 
 cb := CallbackCreate(revice)
 ; revice by callback
-if !dxcp.capture(cb)
-	throw
+dxcp.capture(cb)
 revice(pdata, pitch, sw, sh, tick) {
 	if tick && pdata {
 		bb := BitmapBuffer(pdata, pitch, sw, sh)
@@ -48,3 +45,7 @@ revice(pdata, pitch, sw, sh, tick) {
 	}
 }
 ```
+
+## DWM
+
+## WGC
