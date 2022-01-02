@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2021/11/14
- * @version 1.0.4
+ * @date 2022/01/02
+ * @version 1.0.5
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -372,7 +372,7 @@ class CGdip
 			If !(pStream := DllCall("shlwapi\SHCreateMemStream", "Ptr", Dec, "UInt", DecLen, "UPtr"))
 				return -3
 			DllCall("gdiplus\GdipCreateBitmapFromStreamICM", "Ptr", pStream, "Ptr*", &pBitmap := 0)
-			DllCall("DeleteObject", "Ptr", pStream)
+			ObjRelease(pStream)
 			return CGdip.Bitmap(pBitmap)
 		}
 
