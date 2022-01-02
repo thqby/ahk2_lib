@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description Windows capture library, including `DXGI`, `DWM`, `WGC`. And some bitmap functions.
  * @author thqby
- * @date 2021/12/29
- * @version 1.1.176
+ * @date 2022/01/02
+ * @version 1.2.3
  ***********************************************************************/
 
 class wincapture {
@@ -85,9 +85,20 @@ class wincapture {
 		 * @param index The index of the output. release last captured texture when index = -1
 		 */
 		release(index := -1) => DllCall("wincapture\dxgi_releaseTexture", "int", index)
+		; free thread-local bitmap data from calling `captureAndSave`
+		freeBuffer() => DllCall("wincapture\dxgi_freeBuffer")
+		; Wait for an area of the screen to change
+		waitScreenChange(timeout, box := 0, index := 0) {
+			switch hr := DllCall("wincapture\dxgi_waitScreenChange", "int", timeout, "ptr", box, "int", index, "uint") {
+				case 0: return 1
+				case 0x887A0027: return 0
+				default:
+					throw OSError(hr)
+			}
+		}
 	}
 
-	; Window capture by `DwmGetDxSharedSurface`, background windows are supported, but the minimized windows and some windows are not supported.
+	; Window capture by `DwmGetDxSharedSurface`, background windows(excluding minimization) are supported, but some windows are not supported.
 	; https://docs.microsoft.com/en-us/windows/win32/dwm/dwm-overview
 	class DWM {
 		ptr := 0
@@ -108,11 +119,11 @@ class wincapture {
 		release() => DllCall("wincapture\dwm_releaseTexture", "ptr", this)
 	}
 
-	; Window and Monitor capture by `Windows.Graphics.Capture`, background windows are supported, and only win10 1903 or above is supported.
+	; Window and Monitor capture by `Windows.Graphics.Capture`, background windows(excluding minimization) are supported, and only win10 1903 or above is supported.
 	; https://docs.microsoft.com/en-us/uwp/api/windows.graphics.capture?view=winrt-20348
 	class WGC {
 		ptr := 0
-		__New(hwnd_or_monitor_or_index := 1, persistent := true, path := "") {
+		__New(hwnd_or_monitor_or_index := 0, persistent := true, path := "") {
 			wincapture.init(path)
 			if (hwnd_or_monitor_or_index <= MonitorGetCount())
 				ptr := DllCall("wincapture\wgc_init_monitorindex", "int", hwnd_or_monitor_or_index, "int", persistent, "ptr")
@@ -162,17 +173,7 @@ class BitmapBuffer {
 		this.size := pitch * height
 		this.bytespixel := bytespixel
 		this.offsetx := offsetx, this.offsety := offsety
-		switch bytespixel {
-			case 4: tp := "uint"
-			case 2: ; tp := "ushort"
-				throw TypeError("unsupported bitmap type")
-			case 1: tp := "uchar"
-			case 3: this.DefineProp("__Item", { get: (s, x, y) => NumGet(s, y * s.pitch + x * 3, "uint") & 0xffffff, set: (s, v, x, y) => NumPut("uint", v, s, y * s.pitch + x * 3) })
-			default:
-				throw ValueError("invalid bytespixel")
-		}
-		if (bytespixel != 3)
-			this.DefineProp("__Item", { get: (s, x, y) => NumGet(s, y * s.pitch + x * bytespixel, tp), set: (s, v, x, y) => NumPut(tp, v, s, y * s.pitch + x * bytespixel) })
+		this.updateDesc(false)
 	}
 	static fromCaptureData(data, offsetx := 0, offsety := 0) {
 		bb := BitmapBuffer(NumGet(data, "ptr"), NumGet(data += A_PtrSize, "uint"), NumGet(data += 4, "int"), NumGet(data += 4, "int"), 4, offsetx, offsety)
@@ -186,58 +187,242 @@ class BitmapBuffer {
 		bb.data := data
 		return bb
 	}
-	updateDesc() {
-		b := this.info, o := A_PtrSize
-		this.pitch := NumGet(b, o, "int")
-		this.width := NumGet(b, o += 4, "int")
-		this.height := NumGet(b, o += 4, "int")
-		this.bytespixel := NumGet(b, o += 4, "int")
-		this.offsetx := NumGet(b, o += 4, "int")
-		this.offsety := NumGet(b, o += 4, "int")
-		this.size := this.pitch * this.height
+	/**
+	 * load picture
+	 * @param pic picture file path, `HBITMAP:xxxx`, `IStream*`, picture binary buffer
+	 * @param gray convert to grayscale after loading, the param is same as `cvtGray`
+	 * @param thresh same as `threshold`, or params array
+	 */
+	static loadPicture(pic, gray := unset, thresh := unset) {
+		static bmBitsoffset := 16 + A_PtrSize
+		hbm := 0, stream := pic
+		if (pic is Buffer) || ((pic is Object) && pic.HasProp("ptr") && pic.HasProp("size")) {
+			hglobal := DllCall("GlobalAlloc", "uint", 0x2, "uint", pic.Size, "ptr")
+			p := DllCall("GlobalLock", "ptr", hglobal, "ptr")
+			DllCall("RtlMoveMemory", "ptr", p, "ptr", pic, "uptr", pic.Size)
+			DllCall("GlobalUnlock", "ptr", hglobal), autofree := { ptr: hglobal, __Delete: (s) => DllCall("GlobalFree", "ptr", s) }
+			if hr := DllCall("combase\CreateStreamOnHGlobal", "ptr", hglobal, "int", 0, "ptr*", &stream := 0)
+				throw OSError(hr)
+		}
+		if stream is Integer {
+			DllCall("ole32\IIDFromString", "str", "{7BF80980-BF32-101A-8BBB-00AA00300CAB}", "ptr", IID_IPicture := Buffer(16))
+			try {
+				if hr := DllCall("oleaut32\OleLoadPicture", "ptr", stream, "int", 0, "int", false, "ptr", IID_IPicture, "ptr*", &pic := 0)
+					throw OSError(hr)
+				ComCall(3, pic, "ptr*", &hbm := 0)
+				hbm := DllCall("CopyImage", "ptr", hbm, "uint", 0, "int", 0, "int", 0, "uint", 0x2000)
+			} catch
+				throw
+			finally {
+				ObjRelease(stream), autofree := 0
+				if pic
+					ObjRelease(pic)
+			}
+		}
+		if (hbm)
+			pic := "HBITMAP:" hbm
+		else hbm := LoadPicture(pic)
+		DllCall("GetObject", "ptr", hbm, "int", 32, "ptr", bitmap := Buffer(32, 0))
+		ptr := NumGet(bitmap, bmBitsoffset, "ptr")
+		width := NumGet(bitmap, 4, "int")
+		height := NumGet(bitmap, 8, "int")
+		pitch := NumGet(bitmap, 12, "int")
+		bits := NumGet(bitmap, 18, "ushort")
+		if (bits != 32) {
+			if SubStr(pic, 1, 8) = "HBITMAP:" {
+				hModule := DllCall("LoadLibrary", "str", "gdiplus")
+				NumPut("uint", 1, si := Buffer(24, 0))
+				DllCall("gdiplus\GdiplusStartup", "ptr*", &pToken := 0, "ptr", si, "ptr", 0)
+				DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "ptr", hbm, "Ptr", 0, "ptr*", &pBitmap := 0)
+				DllCall("DeleteObject", "ptr", hbm)
+				DllCall("gdiplus\GdipCreateHBITMAPFromBitmap", "ptr", pBitmap, "ptr*", &hbm := 0, "int", 0xff000000)
+				DllCall("gdiplus\GdipDisposeImage", "ptr", pBitmap), DllCall("gdiplus\GdiplusShutdown", "ptr", pToken)
+				DllCall("FreeLibrary", "ptr", hModule)
+			} else
+				DllCall("DeleteObject", "ptr", hbm), hbm := LoadPicture(pic, "GDI+")
+			DllCall("GetObject", "ptr", hbm, "int", 32, "ptr", bitmap)
+			ptr := NumGet(bitmap, bmBitsoffset, "ptr")
+			pitch := NumGet(bitmap, 12, "int")
+		}
+		bb := BitmapBuffer.create(width, height)
+		NumPut("ptr", ptr + (height - 1) * pitch, "int", -pitch, "uint", width, "uint", height, "uint", 4, info := Buffer(40, 0))
+		DllCall("wincapture\copyBitmapData", "ptr", info, "ptr", bb, "int", bb.pitch, "ptr", 0)
+		DllCall("DeleteObject", "ptr", hbm)
+		if IsSet(gray)
+			bb.cvtGray(gray, bb)
+		if IsSet(thresh)
+			if thresh is Array
+				thresh.Length := 4, thresh[4] := bb, bb.threshold(thresh*), thresh.Pop()
+			else bb.threshold(thresh,,, bb)
+		if (bits <= 8 && bb.bytespixel != 1)
+			bb.cvtBytes(1, bb)
+		return bb
 	}
+	; load gdip bitmap
+	static loadGpBitmap(pBitmap, gray := unset, thresh := unset) {
+		DllCall("gdiplus\GdipBitmapLockBits", "ptr", pBitmap, "ptr", 0, "uint", 1, "int", 0x26200a, "ptr", bmpdata := Buffer(32, 0))
+		width := NumGet(bmpdata, "uint")
+		height := NumGet(bmpdata, 4, "uint")
+		stride := NumGet(bmpdata, 8, "int")
+		scan0 := NumGet(bmpdata, 16, "ptr")
+		data := ClipboardAll(scan0, stride * height)
+		DllCall("gdiplus\GdipBitmapUnlockBits", "ptr", bmpdata)
+		bb := BitmapBuffer(data.Ptr, stride, width, height), bb.data := data
+		if IsSet(gray)
+			bb.cvtGray(gray, bb)
+		if IsSet(thresh)
+			thresh.Length := 4, thresh[4] := bb, bb.threshold(thresh*), thresh.Pop()
+		return bb
+	}
+	static loadBase64(base64, params*) {
+		if !DllCall("crypt32\CryptStringToBinary", "str", base64, "uint", 0, "uint", 0x01, "ptr", 0, "uint*", &size := 0, "ptr", 0, "ptr", 0)
+			throw OSError(A_LastError)
+		buf := Buffer(size)
+		if !DllCall("crypt32\CryptStringToBinary", "str", base64, "uint", 0, "uint", 0x01, "ptr", buf, "uint*", &size, "ptr", 0, "ptr", 0)
+			throw OSError(A_LastError)
+		return this.loadPicture(buf, params*)
+	}
+	updateDesc(update := true) {
+		if (update) {
+			this.pitch := NumGet(b := this.info, o := A_PtrSize, "int")
+			this.width := NumGet(b, o += 4, "int")
+			this.height := NumGet(b, o += 4, "int")
+			this.bytespixel := NumGet(b, o += 4, "int")
+			this.offsetx := NumGet(b, o += 4, "int")
+			this.offsety := NumGet(b, o += 4, "int")
+			this.size := this.pitch * this.height
+		}
+		pitch := this.pitch
+		switch bytespixel := this.bytespixel {
+			case 4: tp := "uint"
+			case 2: ; tp := "ushort"
+				throw TypeError("unsupported bitmap type")
+			case 1: tp := "uchar"
+			case 3: this.DefineProp("__Item", { get: (s, x, y) => NumGet(s, y * pitch + x * 3, "uint") & 0xffffff, set: (s, v, x, y) => NumPut("uint", v, s, y * pitch + x * 3) })
+			default:
+				throw ValueError("invalid bytespixel")
+		}
+		if (bytespixel != 3)
+			this.DefineProp("__Item", { get: (s, x, y) => NumGet(s, y * pitch + x * bytespixel, tp), set: (s, v, x, y) => NumPut(tp, v, s, y * pitch + x * bytespixel) })
+	}
+	
 	getHexColor(x, y) => Format("0x{:08X}", this[x, y])
-	cvtBytes(bytes := 4, bmp := unset) {
-		if !IsSet(bmp)
-			bmp := BitmapBuffer.create(this.width, this.height, Max(1, bytes))
-		if !DllCall("wincapture\cvtBytes", "ptr", this.info, "ptr", bmp.info, "short", bytes)
+
+	/**
+	 * @param type thresholding type
+	 *
+	 * THRESH_BINARY = 0, ; dst(x,y) = src(x,y) > thresh ? maxval : 0
+	 *
+	 * THRESH_BINARY_INV = 1, ; dst(x,y) = src(x,y) > thresh ? 0 : maxval
+	 *
+	 * THRESH_TRUNC = 2, ; dst(x,y) = src(x,y) > thresh > threshold : src(x,y)
+	 *
+	 * THRESH_TOZERO = 3, ; dst(x,y) = src(x,y) > thresh ? src(x,y) : 0
+	 *
+	 * THRESH_TOZERO_INV = 4, ; dst(x,y) = src(x,y) > thresh ? 0 : src(x,y)
+	 *
+	 * THRESH_MASK = 7,
+	 * THRESH_OTSU = 8,
+	 * THRESH_ITERATIVEBEST = 16,
+	 * THRESH_MEAN = 32,
+	 *
+	 * THRESH_ADAPTIVE_SAUVOLA = 64	; local threshold adaptive
+	 * @param params thresholding params
+	 *
+	 * (threshold_min & 0xff) | (((threshold_max ?? 0) & 0xff) << 8) when (type & ~THRESH_MASK = 0)
+	 *
+	 * threshold = auto_threshold + params(-255~255 correction_value) when (type & (THRESH_OTSU | THRESH_ITERATIVEBEST | THRESH_MEAN))
+	 *
+	 * threshold = mean*(1 + k*((std / 128) - 1)) when (type & THRESH_ADAPTIVE_SAUVOLA),
+	 * correction_factor(-1.0<= params && params <= 1.0)
+	 * or radius(params > 1 ? params : bmp_width >> -params)
+	 * or [correction_factor, radius]
+	 * @param maxval maximum value to use with the `THRESH_BINARY` and `THRESH_BINARY_INV` thresholding types
+	 */
+	threshold(type := 8, params := unset, maxval := 0xff, dst := unset) {
+		if !IsSet(dst)
+			dst := BitmapBuffer.create(this.width, this.height, 1)
+		if !IsSet(params)
+			params := 0
+		else if !(params is Buffer) {
+			t := params, params := Buffer(8, 0)
+			if t is Array {
+				if !(type & ~7)
+					NumPut("uchar", t[1], "uchar", t[2], params)
+				else if (type & 64)
+					NumPut("float", t.Has(1) ? t[1] : 0, "int", t.Has(2) ? t[2] : 1, params)
+				else NumPut("short", t[1], params)
+			} else if ((type & 64) && t is Number) {
+				if -1.0 <= t && t <= 1.0
+					NumPut("float", t, params)
+				else NumPut("int", t, params, 4)
+			} else if t is Number
+				NumPut("short", t, params)
+			else
+				throw ValueError("invalid param")
+		}
+		if !DllCall("wincapture\threshold", "ptr", this.info, "ptr", dst.info, "int", type, "ptr", params, "uchar", maxval)
 			throw TypeError("invalid BitmapData")
-		bmp.updateDesc()
-		return bmp
+		dst.updateDesc()
+		dst.thresh := { type: type }
+		if params && (type & 56)
+			dst.thresh.val := NumGet(params, 2, "ushort")
+		return dst
 	}
-	cvtGray(mode := 0, threshold := unset, bmp := unset) {
-		if !IsSet(bmp)
-			bmp := BitmapBuffer.create(this.width, this.height, 1)
-		if IsSet(threshold)
-			tp := "char*"
-		else tp := "ptr", threshold := 0
+	; 8bpp(only grayscale), 24bpp, 32bpp transformation
+	cvtBytes(bytes := 4, dst := unset) {
+		if !IsSet(dst)
+			dst := BitmapBuffer.create(this.width, this.height, bytes)
+		if !DllCall("wincapture\cvtBytes", "ptr", this.info, "ptr", dst.info, "short", bytes)
+			throw TypeError("invalid BitmapData")
+		dst.updateDesc()
+		if bytes = 1
+			dst.gray := 0
+		return dst
+	}
+	/**
+	 * @param mode Grayscale conversion mode.
+	 *
+	 * (r * 19595 + g * 38469 + b * 7472) >> 32 (mode 0)
+	 *
+	 * (r ^ 2.2 * 0.2973 + g ^ 2.2 * 0.6274 + b ^ 2.2 * 0.0753) ^ (1 / 2.2)	(mode 1 Adobe RGB (1998) [gamma=2.20])
+	 *
+	 * [r, g, b] custom rgb ratio, the percentages are `r/(r+g+b)`, `g/(r+g+b)`, `b/(r+g+b)`
+	 */
+	cvtGray(mode := 0, dst := unset) {
+		if !IsSet(dst)
+			dst := BitmapBuffer.create(this.width, this.height, 1)
 		if IsObject(mode) {
-			buf := Buffer(24, 0)
-			for k, v in mode
-				switch k, false {
-					case 1, "r": NumPut("double", v, buf)
-					case 2, "g": NumPut("double", v, buf)
-					case 3, "b": NumPut("double", v, buf)
-					default:
-						throw ValueError("invalid key")
-				}
-			if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", bmp.info, tp, threshold, "ptr", buf)
+			if mode is Buffer
+				buf := mode
+			else {
+				buf := Buffer(12, 0)
+				for k, v in mode
+					switch k, false {
+						case 1, "r": NumPut("uint", v, buf)
+						case 2, "g": NumPut("uint", v, buf)
+						case 3, "b": NumPut("uint", v, buf)
+					}
+			}
+			if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", dst.info, "ptr", buf)
 				throw TypeError("invalid BitmapData")
+			dst.gray := buf
 		}
 		if mode != 0 && mode != 1
 			throw ValueError("mode only is 0 or 1")
-		if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", bmp.info, tp, threshold, "ptr", mode)
+		if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", dst.info, "ptr", mode)
 			throw TypeError("invalid BitmapData")
-		if bmp != this
-			bmp.updateDesc()
-		return bmp
+		else dst.gray := mode
+		dst.updateDesc()
+		return dst
 	}
-	copyRangeData(dst, linestep, x := 0, y := 0, w := 0, h := 0) {
+	copyTo(dst, linestep, x := 0, y := 0, w := 0, h := 0) {
 		if (w * h)
 			NumPut("uint", x, "uint", y, "uint", w, "uint", h, roi := Buffer(16))
 		else roi := 0
 		DllCall("wincapture\copyBitmapData", "ptr", this.info, "ptr", dst, "int", linestep, "ptr", roi)
 	}
+	; Select or copy part of the image 
 	range(x1 := 0, y1 := 0, x2 := unset, y2 := unset, copy := false) {
 		if !IsSet(x2)
 			x2 := this.width
@@ -265,6 +450,7 @@ class BitmapBuffer {
 			return t
 		}
 	}
+	; the same as `findAllMultiColors`
 	findMultiColors(&x, &y, colors, similarity := 1.0, variation := 0, direction := 0) {
 		if colors is Array {
 			t := colors
@@ -275,6 +461,14 @@ class BitmapBuffer {
 		}
 		return DllCall("wincapture\findMultiColors", "int*", &x := 0, "int*", &y := 0, "ptr", this.info, "ptr", colors, "float", similarity, "uint", variation, "int", direction)
 	}
+	/**
+	 * find multiple colors with relative position
+	 * @param colors the colors to find, `[[color1, x1, y1], [color2, x2, y2]]`, omitting alpha will ignore alpha of pixel color
+	 * @param similarity matching total_colors * silmilarity
+	 * @param maxcount the max position count
+	 * @param variation gradient value of each channel, 0x05050505
+	 * @param direction find direction, x→ y↓ 0, x← y↓ 1, x→ y↑ 2, x← y↑ 3
+	 */
 	findAllMultiColors(colors, similarity := 1.0, maxcount := 10, variation := 0, direction := 0) {
 		if colors is Array {
 			t := colors
@@ -290,7 +484,33 @@ class BitmapBuffer {
 			return t
 		}
 	}
+	; the same as `findAllPic`
+	findPic(&x, &y, bmp, similarity := 1.0, variation := 0, direction := 0) {
+		if DllCall("wincapture\findPic", "int*", &x := 0, "int*", &y := 0, "ptr", this.info, "ptr", bmp.info, "float", similarity, "int64", variation, "int", direction)
+			return true
+		return false
+	}
+	/**
+	 * find a region of the image for an image.
+	 * @param bmp `BitmapBuffer`, the image to find
+	 * @param similarity Similarity, matching total_pixels * similarity
+	 * @param maxcount the max position count
+	 * @param variation gradient value and transparent color, transparent_color << 32 | variation,
+	 * black transparent color must is 0xff000000(32bpp) or 0xff00(8bpp)
+	 *
+	 * for 32bpp bitmap, a pixel color that alpha < 255 will be considered transparent, and `ignore alpha of source bitmap`
+	 * @param direction find direction, x→ y↓ 0, x← y↓ 1, x→ y↑ 2, x← y↑ 3
+	 */
+	findAllPic(bmp, similarity := 1.0, maxcount := 10, variation := 0, direction := 0) {
+		if n := DllCall("wincapture\findAllPic", "ptr", buf := Buffer(8 * maxcount), "uint", maxcount, "ptr", this.info, "ptr", bmp.info, "float", similarity, "int64", variation, "int", direction) {
+			t := [], p := buf.Ptr
+			loop n
+				t.Push({ x: NumGet(p, "int"), y: NumGet(p += 4, "int") }), p += 4
+			return t
+		}
+	}
 	clone() => this.range(0, 0, this.width, this.height, true)
+	; save to bmp file
 	save(path) {
 		if this.bytespixel < 3
 			return this.cvtBytes(3).save(path)
@@ -309,12 +529,13 @@ class BitmapBuffer {
 		}
 		file.Close()
 	}
+	; display bitmap
 	show(guiname := "") {
 		static guis := Map()
 		if this.bytespixel < 3
 			return this.cvtBytes(3).show(guiname)
 		if (!guis.Has(guiname)) {
-			g := guis[guiname] := Gui("AlwaysOnTop +Resize +E0x08000000 -DPIScale", guiname), g.obm := 0
+			g := guis[guiname] := Gui("AlwaysOnTop +Resize -DPIScale", guiname), g.obm := 0
 			g.hdc := { ptr: DllCall("GetDC", "ptr", g.hwnd, "ptr"), __Delete: (s) => DllCall("ReleaseDC", "ptr", g.Hwnd, "ptr", s) }
 			g.mdc := { ptr: DllCall("CreateCompatibleDC", "ptr", g.hdc, "ptr"), __Delete: (s) => DllCall("DeleteDC", "ptr", s) }
 			DllCall("SetStretchBltMode", "Ptr", g.hdc, "int", 4)
@@ -328,16 +549,20 @@ class BitmapBuffer {
 			g.OnEvent("Size", (g, * ) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
 		} else (g := guis[guiname]).Show("NA")
 
-		bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, ptr := this.ptr, size := this.size, linebytes := (sw * this.bytespixel + 3) >> 2 << 2
-		NumPut("uint", 40, "int", sw, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", linebytes * sh, bm)
-		if linebytes != this.pitch
-			NumPut("int", Integer(this.pitch / this.bytespixel), bm2 := ClipboardAll(bm2), 4), NumPut("uint", size, bm2, 20)
-		hbm := DllCall("CreateDIBitmap", "ptr", g.hdc, "ptr", bm, "uint", 4, "ptr", ptr, "ptr", bm2, "int", 0, "ptr")
+		hbm := getHBITMAP()
+		g.width := this.width, g.height := this.height
 		if (g.obm)
 			DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", hbm, "ptr"))
 		else g.obm := DllCall("SelectObject", "ptr", g.mdc, "ptr", hbm, "ptr")
-		g.width := this.width, g.height := this.height
 		g.GetClientPos(, , &w, &h)
 		DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020)
+
+		getHBITMAP() {
+			bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, ptr := this.ptr, size := this.size, linebytes := (sw * this.bytespixel + 3) >> 2 << 2
+			NumPut("uint", 40, "int", this.width, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", linebytes * sh, bm)
+			if linebytes != this.pitch
+				NumPut("int", Integer(this.pitch / this.bytespixel), bm2 := ClipboardAll(bm2), 4), NumPut("uint", size, bm2, 20)
+			return DllCall("CreateDIBitmap", "ptr", g.hdc, "ptr", bm, "uint", 4, "ptr", ptr, "ptr", bm2, "int", 0, "ptr")
+		}
 	}
 }
