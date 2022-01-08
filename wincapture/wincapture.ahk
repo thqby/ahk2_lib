@@ -544,8 +544,8 @@ class BitmapBuffer {
 			else if this.height > 0.8 * A_ScreenHeight
 				g.Show("NA h" (h := 0.8 * A_ScreenHeight) " w" (h / this.height * this.width))
 			else g.Show("NA w" this.width " h" this.height)
-
-			g.OnEvent("Close", (g, * ) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := g.hdc := 0, WinClose(g), guis.Delete(guiname)))
+			g.name := guiname
+			g.OnEvent("Close", (g, * ) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := g.hdc := 0, OutputDebug(g.Name "`n"), guis.Delete(g.name)))
 			g.OnEvent("Size", (g, * ) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
 		} else (g := guis[guiname]).Show("NA")
 
