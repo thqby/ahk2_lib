@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2022/01/02
- * @version 1.0.5
+ * @date 2022/01/14
+ * @version 1.0.6
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -1015,11 +1015,11 @@ DestroyIcon(hIcon) {
 }
 
 CreateCompatibleDC(hdc := 0) {
-	return DllCall("CreateCompatibleDC", "Ptr", hdc)
+	return DllCall("CreateCompatibleDC", "Ptr", hdc, "ptr")
 }
 
 SelectObject(hdc, hgdiobj) {
-	return DllCall("SelectObject", "Ptr", hdc, "Ptr", hgdiobj)
+	return DllCall("SelectObject", "Ptr", hdc, "Ptr", hgdiobj, "ptr")
 }
 
 DeleteObject(hObject) {
@@ -1027,11 +1027,11 @@ DeleteObject(hObject) {
 }
 
 GetDC(hwnd := 0) {
-	return DllCall("GetDC", "Ptr", hwnd)
+	return DllCall("GetDC", "Ptr", hwnd, "ptr")
 }
 
 GetDCEx(hwnd, flags := 0, hrgnClip := 0) {
-	return DllCall("GetDCEx", "Ptr", hwnd, "Ptr", hrgnClip, "int", flags)
+	return DllCall("GetDCEx", "Ptr", hwnd, "Ptr", hrgnClip, "int", flags, "ptr")
 }
 
 ReleaseDC(hdc, hwnd := 0) {

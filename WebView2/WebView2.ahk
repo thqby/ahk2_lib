@@ -2,9 +2,9 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2021/11/01
- * @version 1.0.25
- * @webview2version 1.0.1020.30
+ * @date 2022/01/16
+ * @version 1.0.26
+ * @webview2version 1.0.1072.54
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -349,6 +349,17 @@ class WebView2 extends WebView2.Base {
 
 		static IID_7 := '{79c24d83-09a3-45ae-9418-487f32a58740}'
 		PrintToPdf(resultFilePath, printSettings, handler) => ComCall(80, this, 'wstr', resultFilePath, 'ptr', printSettings, 'ptr', handler)
+
+		static IID_8 := '{E9632730-6E1E-43AB-B7B8-7B2C9E62E094}'
+		add_IsMutedChanged(eventHandler) => (ComCall(81, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2IsMutedChangedEventHandler
+		remove_IsMutedChanged(token) => ComCall(82, this, 'int64', token)
+		IsMuted {
+			get => (ComCall(83, this, 'int*', &value := 0), value)
+			set => ComCall(84, this, 'int', Value)
+		}
+		add_IsDocumentPlayingAudioChanged(eventHandler) => (ComCall(85, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2IsDocumentPlayingAudioChangedEventHandler
+		remove_IsDocumentPlayingAudioChanged(token) => ComCall(86, this, 'int64', token)
+		IsDocumentPlayingAudio => (ComCall(87, this, 'int*', &value := 0), value)
 	}
 	class ClientCertificate extends WebView2.Base {
 		static IID := '{e7188076-bcc3-11eb-8529-0242ac130003}'
@@ -473,6 +484,9 @@ class WebView2 extends WebView2.Base {
 
 		static IID_6 := '{e59ee362-acbd-4857-9a8e-d3644d9459a9}'
 		CreatePrintSettings() => (ComCall(14, this, 'ptr*', printSettings := WebView2.PrintSettings()), printSettings)
+
+		static IID_7 := '{43C22296-3BBD-43A4-9C00-5C0DF6DD29A2}'
+		UserDataFolder => (ComCall(15, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
 	class EnvironmentOptions extends WebView2.Base {
 		static IID := '{2fde08a8-1e9a-4766-8c05-95a9ceb9d1c5}'
@@ -581,6 +595,8 @@ class WebView2 extends WebView2.Base {
 		 * - PrintToPdfCompletedHandler::Invoke(HRESULT result, BOOL isSuccessful);
 		 * - TrySuspendCompletedHandler::Invoke(HRESULT errorCode, BOOL isSuccessful);
 		 * - WebResourceResponseViewGetContentCompletedHandler::Invoke(HRESULT errorCode, IStream *content);
+		 * - CoreWebView2IsDefaultDownloadDialogOpenChangedEventHandler::Invoke(ICoreWebView2 *sender, IUnknown *args);
+		 * - CoreWebView2IsMutedChangedEventHandler::Invoke(ICoreWebView2 *sender, IUnknown *args);
 		 */
 		__New(invoke_cb, paramcount := 0) {
 			super.__New(6 * A_PtrSize)
@@ -1199,6 +1215,7 @@ class WebView2 extends WebView2.Base {
 		DOWNLOAD_PROCESS_CRASHED: 29
 	}
 	static PRINT_ORIENTATION := { PORTRAIT: 0, LANDSCAPE: 1 }
+	static DEFAULT_DOWNLOAD_DIALOG_CORNER_ALIGNMENT := { TOP_LEFT: 0, TOP_RIGHT: 1, BOTTOM_LEFT: 2, BOTTOM_RIGHT: 3 }
 	;#endregion
 }
 CoTaskMem_String(ptr) {

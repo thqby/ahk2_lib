@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description Windows capture library, including `DXGI`, `DWM`, `WGC`. And some bitmap functions.
  * @author thqby
- * @date 2022/01/02
- * @version 1.2.3
+ * @date 2022/01/18
+ * @version 1.2.5
  ***********************************************************************/
 
 class wincapture {
@@ -39,15 +39,17 @@ class wincapture {
 		/**
 		 * @param callback A callback function for accepting data, the received data is valid before the next capture or release. `void callback(BYTE* pBits, UINT Pitch, UINT Width, UINT Height, INT64 Tick)`, no data available when Tick is 0
 		 * @param box Coordinates of the top left and bottom right corner of the capture area.
-		 * struct { int x1, int y1, int x2, int y2 }
+		 * 
+		 * struct { int x1, int y1, int x2, int y2 } or Array [x1, y1, x2, y2] or 0 (full screen)
 		 * 
 		 * The coordinates in the top left corner of the capture screen are {0,0} when index >= 0
 		 * 
 		 * The coordinates are the virtual screen coordinates when index < 0, don't supported across multiple screens
 		 * @param index The index of the output.
-		 * @returns HRESULT	S_OK, DXGI_ERROR_WAIT_TIMEOUT, ...
 		 */
 		capture(callback, box := 0, index := 0) {
+			if box is Array
+				t := box, NumPut("int", t[1], "int", t[2], "int", t[3], "int", t[4], box := Buffer(16))
 			switch hr := DllCall("wincapture\dxgi_capture", "ptr", callback, "ptr", box, "uint", index, "uint") {
 				case 0:
 				case 0x887A0027:
@@ -56,8 +58,20 @@ class wincapture {
 					throw OSError(hr, -1)
 			}
 		}
-		; @param data struct { BYTE* pBits, UINT Pitch, UINT Width, UINT Height, INT64 Tick }
+		/**
+		 * @param box Coordinates of the top left and bottom right corner of the capture area.
+		 * 
+		 * struct { int x1, int y1, int x2, int y2 } or Array [x1, y1, x2, y2] or 0 (full screen area)
+		 * 
+		 * The coordinates in the top left corner of the capture screen are {0,0} when index >= 0
+		 * 
+		 * The coordinates are the virtual screen coordinates when index < 0, don't supported across multiple screens
+		 * @param index The index of the output.
+		 * @returns bitmapbuffer
+		 */
 		captureAndSave(box := 0, index := 0) {
+			if box is Array
+				t := box, NumPut("int", t[1], "int", t[2], "int", t[3], "int", t[4], box := Buffer(16))
 			switch hr := DllCall("wincapture\dxgi_captureAndSave", "ptr*", &pdata := 0, "ptr", box, "uint", index, "uint") {
 				case 0:
 					return BitmapBuffer.fromCaptureData(pdata)
@@ -87,8 +101,21 @@ class wincapture {
 		release(index := -1) => DllCall("wincapture\dxgi_releaseTexture", "int", index)
 		; free thread-local bitmap data from calling `captureAndSave`
 		freeBuffer() => DllCall("wincapture\dxgi_freeBuffer")
-		; Wait for an area of the screen to change
+		/**
+		 * Wait for an area of the screen to change
+		 * @param timeout The milliseconds to wait.
+		 * @param box Coordinates of the top left and bottom right corner of the capture area.
+		 * 
+		 * struct { int x1, int y1, int x2, int y2 } or Array [x1, y1, x2, y2] or 0 (full screen area)
+		 * 
+		 * The coordinates in the top left corner of the capture screen are {0,0} when index >= 0
+		 * 
+		 * The coordinates are the virtual screen coordinates when index < 0, don't supported across multiple screens
+		 * @param index The index of the output.
+		 */
 		waitScreenChange(timeout, box := 0, index := 0) {
+			if box is Array
+				t := box, NumPut("int", t[1], "int", t[2], "int", t[3], "int", t[4], box := Buffer(16))
 			switch hr := DllCall("wincapture\dxgi_waitScreenChange", "int", timeout, "ptr", box, "int", index, "uint") {
 				case 0: return 1
 				case 0x887A0027: return 0
@@ -111,7 +138,16 @@ class wincapture {
 			DllCall("wincapture\dwm_free", "ptr", this)
 			wincapture.free()
 		}
+		/**
+		 * @param hwnd The hwnd of capture window.
+		 * @param box Coordinates that of the top left and bottom right corner of the capture area, relative to the window.
+		 * 
+		 * struct { uint x1, uint y1, uint x2, uint y2 } or Array [x1, y1, x2, y2] or 0 (full window area) or 1 (window client area)
+		 * @returns bitmapbuffer
+		 */
 		capture(hwnd, box := 0) {
+			if box is Array
+				t := box, NumPut("uint", t[1], "uint", t[2], "uint", t[3], "uint", t[4], box := Buffer(16))
 			if hr := DllCall("wincapture\dwm_capture", "ptr", this, "ptr", hwnd, "ptr", box, "ptr", data := Buffer(32))
 				throw OSError(hr)
 			return BitmapBuffer.fromCaptureData(data.Ptr)
@@ -146,7 +182,14 @@ class wincapture {
 		; Acquire all the frames of the capture source in the free thread to speed up each capture
 		persistent(persistent := true) => DllCall("wincapture\wgc_persistent", "ptr", this, "int", persistent)
 		release() => DllCall("wincapture\wgc_releaseTexture", "ptr", this)
+		/**
+		 * @param box Coordinates that of the top left and bottom right corner of the capture area, relative to the capture window or monitor.
+		 * 
+		 * struct { uint x1, uint y1, uint x2, uint y2 } or Array [x1, y1, x2, y2] or 0 (full monitor or window area) or 1 (window client area)
+		 */
 		capture(box := 0) {
+			if box is Array
+				t := box, NumPut("uint", t[1], "uint", t[2], "uint", t[3], "uint", t[4], box := Buffer(16))
 			switch r := DllCall("wincapture\wgc_capture", "ptr", this, "ptr", box, "ptr", data := Buffer(32)) {
 				case 0:
 					return BitmapBuffer.fromCaptureData(data.Ptr)
@@ -181,7 +224,7 @@ class BitmapBuffer {
 		return bb
 	}
 	static create(width, height, bytespixel := 4) {
-		line := (width * bytespixel + 3) >> 2 << 2
+		line := (width * bytespixel + 3) & -4
 		data := Buffer(line * height, 0)
 		bb := BitmapBuffer(data.Ptr, line, width, height, bytespixel)
 		bb.data := data
@@ -430,7 +473,7 @@ class BitmapBuffer {
 			y2 := this.height
 		w := x2 - x1, h := y2 - y1, pitch := this.pitch, src := this.ptr + y1 * pitch + x1 * this.bytespixel
 		if (copy) {
-			line := (this.bytespixel * w + 3) >> 2 << 2
+			line := (this.bytespixel * w + 3) & -4
 			data := Buffer(size := line * h, 0), ptr := data.Ptr
 			bb := BitmapBuffer(ptr, line, w, h, this.bytespixel, this.offsetx + x1, this.offsety + y1), bb.data := data
 			NumPut("uint", x1, "uint", y1, "uint", x2, "uint", y2, roi := Buffer(16))
@@ -510,24 +553,35 @@ class BitmapBuffer {
 		}
 	}
 	clone() => this.range(0, 0, this.width, this.height, true)
+	BMP(bpp24 := false) {
+		sw := this.width, sh := this.height, bytespixel := bpp24 ? 3 : 4
+		bytes := sw * bytespixel, line := (bytes + 3) & -4
+		bmp := Buffer(54 + (size := sh * line), 0)
+		NumPut("ushort", 0x4d42, "uint", 54 + size, "uint", 0, "uint", 54, "uint", 40,
+			"int", sw, "int", -sh, "ushort", 1, "ushort", bytespixel * 8, "uint", 0, "uint", size, bmp)
+		if (bytespixel == this.bytespixel)
+			this.copyTo(bmp.Ptr + 54, line)
+		else
+			this.cvtBytes(3, BitmapBuffer(bmp.Ptr + 54, line, sw, sh, 3))
+		return bmp
+	}
+	HBITMAP(bpp24 := false) {
+		sw := this.width, sh := this.height, bytespixel := bpp24 ? 3 : 4, pitch := (sw * bytespixel + 3) & -4
+		if (pitch == this.pitch)
+			hbm := DllCall("CreateBitmap", "int", sw, "int", sh, "uint", 1, "uint", bytespixel * 8, "ptr", this, "ptr")
+		else {
+			NumPut("uint", 40, "int", sw, "int", -sh, "ushort", 1, "ushort", bytespixel * 8, bm := Buffer(40, 0))
+			hbm := DllCall("CreateDIBSection", "ptr", 0, "ptr", bm, "int", 0, "ptr*", &pvBits := 0, "ptr", 0, "uint", 0, "ptr")
+			if (bytespixel == this.bytespixel)
+				this.copyTo(pvBits, pitch)
+			else
+				this.cvtBytes(bpp24 ? 3 : 4, BitmapBuffer(pvBits, pitch, sw, sh))
+		}
+		return { ptr: hbm, __Delete: (s) => DllCall("DeleteObject", "ptr", s) }
+	}
 	; save to bmp file
 	save(path) {
-		if this.bytespixel < 3
-			return this.cvtBytes(3).save(path)
-		bm := Buffer(54, 0), pitch := this.pitch
-		sw := this.width, sh := this.height
-		line := (sw * this.bytespixel + 3) >> 2 << 2, size := this.size
-		NumPut("ushort", 0x4d42, "uint", 54 + size, "uint", 0, "uint", 54, "uint", 40,
-			"int", sw, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", size, bm)
-		file := FileOpen(path, "w"), file.RawWrite(bm)
-		if (line == pitch)
-			file.RawWrite(this)
-		else {
-			p := this.ptr
-			loop sh
-				file.RawWrite(p, line), p += pitch
-		}
-		file.Close()
+		file := FileOpen(path, "w"), file.RawWrite(this.BMP()), file.Close()
 	}
 	; display bitmap
 	show(guiname := "") {
@@ -544,12 +598,11 @@ class BitmapBuffer {
 			else if this.height > 0.8 * A_ScreenHeight
 				g.Show("NA h" (h := 0.8 * A_ScreenHeight) " w" (h / this.height * this.width))
 			else g.Show("NA w" this.width " h" this.height)
-			g.name := guiname
-			g.OnEvent("Close", (g, * ) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := g.hdc := 0, OutputDebug(g.Name "`n"), guis.Delete(g.name)))
+			g.OnEvent("Close", (g, * ) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := 0, g.hdc := 0, guis.Delete(guiname)))
 			g.OnEvent("Size", (g, * ) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
 		} else (g := guis[guiname]).Show("NA")
 
-		hbm := getHBITMAP()
+		hbm := getDIBitmap()
 		g.width := this.width, g.height := this.height
 		if (g.obm)
 			DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", hbm, "ptr"))
@@ -557,8 +610,8 @@ class BitmapBuffer {
 		g.GetClientPos(, , &w, &h)
 		DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020)
 
-		getHBITMAP() {
-			bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, ptr := this.ptr, size := this.size, linebytes := (sw * this.bytespixel + 3) >> 2 << 2
+		getDIBitmap() {
+			bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, ptr := this.ptr, size := this.size, linebytes := (sw * this.bytespixel + 3) & -4
 			NumPut("uint", 40, "int", this.width, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", linebytes * sh, bm)
 			if linebytes != this.pitch
 				NumPut("int", Integer(this.pitch / this.bytespixel), bm2 := ClipboardAll(bm2), 4), NumPut("uint", size, bm2, 20)
