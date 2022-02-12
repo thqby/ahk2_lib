@@ -532,11 +532,7 @@ class ComObject : public IObject
 {
 protected:
 	ULONG mRefCount;
-#ifdef _WIN64
-	// Used by Object, but defined here on (x64 builds only) to utilize the space
-	// that would otherwise just be padding, due to alignment requirements.
 	UINT _mFlags;
-#endif
 
 public:
 	union
