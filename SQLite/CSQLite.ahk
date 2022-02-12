@@ -2,8 +2,8 @@
  * @description SQLite class
  * @file CSQLite.ahk
  * @author thqby
- * @date 2021/10/12
- * @version 0.0.2
+ * @date 2022/02/09
+ * @version 0.0.3
  ***********************************************************************/
 
 class CSQLite
@@ -144,8 +144,8 @@ class CSQLite
 		if (RC := DllCall("SQLite3.dll\sqlite3_open_v2", "Ptr", StrPtr(UTF8), "Ptr*", &HDB:=0, "Int", Flags, "Ptr", 0, "Cdecl Int"))
 			return (this._Path := "", this.ErrorMsg := this._ErrMsg(), this.ErrorCode := RC, false)
 		this._Handle := HDB
-		this.createScalarFunction(Func("regexp"), 2)
-		this.createScalarFunction(Func("regex_replace"), 3)
+		this.createScalarFunction(regexp, 2)
+		this.createScalarFunction(regex_replace, 3)
 		return true
 	}
    ; ===================================================================================================================
@@ -239,7 +239,7 @@ class CSQLite
 		if (this._Thread.pexec)
 			return
 		this._Thread.DB:=this, this._Thread.pexec:=CSQLite.execfunc_ptr
-		this._Thread._Threadobj:=CSQLite.Thread.Call(Func("_Exec"), this._Thread)
+		this._Thread._Threadobj:=CSQLite.Thread(_Exec, this._Thread)
 		
 		_Exec(pinfo){
 			_Thread:=ObjFromPtr(pinfo), hdb:=_Thread.DB._Handle, pexec:=_Thread.pexec

@@ -2,8 +2,8 @@
  * @file: Audio.ahk
  * @description: Core Audio APIs, Windows 多媒体设备API
  * @author thqby
- * @date 2021/10/11
- * @version 1.0.11
+ * @date 2022/02/09
+ * @version 1.0.12
  ***********************************************************************/
 ; https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nn-unknwn-iunknown
 class IAudioBase {
@@ -91,7 +91,7 @@ class IMMDeviceEnumerator extends IAudioBase {
 	 */
 	EnumAudioEndpoints(dataFlow := 0, dwStateMask := 1) => (ComCall(3, this, "Int", dataFlow, "UInt", dwStateMask, "Ptr*", &pDevices := 0), IMMDeviceCollection(pDevices))
 	GetDefaultAudioEndpoint(dataFlow := 0, role := 0) => (ComCall(4, this, "Int", dataFlow, "UInt", role, "Ptr*", &pEndpoint := 0), IMMDevice(pEndpoint))
-	GetDevice(pwstrId) => (ComCall(5, this, "Str", pwstrId, "Ptr*", &pEndpoint := 0), IMMDevice(pEndpoint, this))
+	GetDevice(pwstrId) => (ComCall(5, this, "Str", pwstrId, "Ptr*", &pEndpoint := 0), IMMDevice(pEndpoint))
 	RegisterEndpointNotificationCallback(pClient) => ComCall(6, this, "Ptr", pClient)
 	UnregisterEndpointNotificationCallback(pClient) => ComCall(7, this, "Ptr", pClient)
 }
