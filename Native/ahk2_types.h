@@ -74,15 +74,36 @@ struct DECLSPEC_NOVTABLE IObject // L31: Abstract interface for "objects".
 		aResultToken, aFlags, aName, aThisToken, aParam, aParamCount
 	virtual ResultType Invoke(IObject_Invoke_PARAMS_DECL) = 0;
 	virtual LPTSTR Type() = 0;
-#define IObject_Type_Impl(name) \
-		LPTSTR Type() { return _T(name); }
+#define IObject_Type_Impl(name) LPTSTR Type() { return _T(name); }
 	virtual Object* Base() = 0;
 	virtual bool IsOfType(Object* aPrototype) = 0;
 
+	STDMETHODIMP QueryInterface(REFIID riid, void** ppv)
+	{
+		return E_NOINTERFACE;
+	}
+	STDMETHODIMP GetTypeInfoCount(UINT* pctinfo)
+	{
+		*pctinfo = 0;
+		return S_OK;
+	}
+	STDMETHODIMP GetTypeInfo(UINT itinfo, LCID lcid, ITypeInfo** pptinfo)
+	{
+		*pptinfo = NULL;
+		return E_NOTIMPL;
+	}
+	STDMETHODIMP GetIDsOfNames(REFIID riid, LPOLESTR* rgszNames, UINT cNames, LCID lcid, DISPID* rgDispId)
+	{
+		return DISP_E_UNKNOWNNAME;
+	}
+	STDMETHODIMP Invoke(DISPID dispIdMember, REFIID riid, LCID lcid, WORD wFlags, DISPPARAMS* pDispParams, VARIANT* pVarResult, EXCEPINFO* pExcepInfo, UINT* puArgErr)
+	{
+		return DISP_E_MEMBERNOTFOUND;
+	}
+
 #ifdef CONFIG_DEBUGGER
-#define IObject_DebugWriteProperty_Def \
-		void DebugWriteProperty(void *, int aPage, int aPageSize, int aMaxDepth)
-	virtual IObject_DebugWriteProperty_Def;
+#define IObject_DebugWriteProperty_Def void DebugWriteProperty(void *, int aPage, int aPageSize, int aMaxDepth)
+	virtual IObject_DebugWriteProperty_Def{}
 #else
 #define IObject_DebugWriteProperty_Def
 #endif
@@ -106,13 +127,18 @@ public:
 		index_t size;
 		index_t length;
 	};
-	Data* data;
+	Data* data = &Empty;
+	struct OneT : public Data { char zero_buf[sizeof(T)]; }; // zero_buf guarantees zero-termination when used for strings (fixes an issue observed in debug mode).
+	static OneT Empty;
+
 	index_t& Length() { return data->length; }
 	index_t Capacity() { return data->size; }
 	T* Value() { return (T*)(data + 1); }
 	operator T* () { return Value(); }
 };
 
+template <typename T, typename index_t>
+typename FlatVector<T, index_t>::OneT FlatVector<T, index_t>::Empty;
 //
 // Property: Invoked when a derived object gets/sets the corresponding key.
 //
@@ -200,6 +226,11 @@ struct ExprTokenType  // Something in the compiler hates the name TokenType, so 
 		};
 	};
 	SymbolType symbol;
+	ExprTokenType() {}
+	ExprTokenType(IObject* obj) {
+		object = obj;
+		symbol = SYM_OBJECT;
+	}
 };
 
 struct ResultToken : public ExprTokenType
@@ -409,15 +440,79 @@ public:
 	// thousands of variables.
 
 	TCHAR* mName;    // The name of the var.
+
+	inline Var* ResolveAlias()
+	{
+		// Return target if it's an alias, or itself if not.
+		return mType == VAR_ALIAS ? mAliasFor->ResolveAlias() : this;
+	}
 }; // class Var
 #pragma pack(pop) // Calling pack with no arguments restores the default value (which is 8, but "the alignment of a member will be on a boundary that is either a multiple of n or a multiple of the size of the member, whichever is smaller.")
 
-
-class Object : public IObject
+class ObjectBase : public IObject
 {
 protected:
 	ULONG mRefCount;
+#ifdef _WIN64
+	// Used by Object, but defined here on (x64 builds only) to utilize the space
+	// that would otherwise just be padding, due to alignment requirements.
 	UINT mFlags;
+#endif
+	virtual bool Delete()
+	{
+		delete this; // Derived classes MUST be instantiated with 'new' or override this function.
+		return true; // See Release() for comments.
+	}
+public:
+	ULONG STDMETHODCALLTYPE AddRef()
+	{
+		return ++mRefCount;
+	}
+	ULONG STDMETHODCALLTYPE Release()
+	{
+		if (mRefCount == 1) {
+			delete this;
+			return 0;
+		}
+		return --mRefCount;
+	}
+	ObjectBase() : mRefCount(1) {}
+	virtual ~ObjectBase() {}
+	bool IsOfType(Object* aPrototype) override { return false; }
+
+	ResultType Invoke(IObject_Invoke_PARAMS_DECL) { return INVOKE_NOT_HANDLED; }
+};
+
+struct ObjectVTABLE {
+	void* RTTI;
+	void* vt[14];
+};
+
+enum class VTableIndex {
+	QueryInterface,
+	AddRef,
+	Release,
+	GetTypeInfoCount,
+	GetTypeInfo,
+	GetIDsOfNames,
+	Invoke,
+	Invoke_AHK,
+	Type,
+	Base,
+	IsOfType,
+#ifdef CONFIG_DEBUGGER
+	DebugWriteProperty,
+#endif
+	Delete,
+	dtor
+};
+
+class Object : public ObjectBase
+{
+protected:
+#ifndef _WIN64
+	UINT mFlags;
+#endif
 
 	typedef LPTSTR name_t;
 	typedef FlatVector<TCHAR> String;
@@ -462,6 +557,75 @@ public:
 
 	Object* mBase = nullptr;
 	FlatVector<FieldType, index_t> mFields;
+	FieldType* FindField(name_t name, index_t& insert_pos)
+	{
+		index_t left = 0, mid, right = mFields.Length();
+		int first_char = *name;
+		if (first_char <= 'Z' && first_char >= 'A')
+			first_char += 32;
+		if (mFlags & UnsortedFlag)
+		{
+			for (index_t i = 0; i < right; i++)
+			{
+				FieldType& field = mFields[i];
+				if (!(first_char - field.key_c) && !_tcsicmp(name, field.name))
+					return &field;
+			}
+			insert_pos = right;
+			return nullptr;
+		}
+		while (left < right)
+		{
+			mid = left + ((right - left) >> 1);
+
+			FieldType& field = mFields[mid];
+
+			// key_c contains the lower-case version of field.name[0].  Checking key_c first
+			// allows the _tcsicmp() call to be skipped whenever the first character differs.
+			// This also means that .name isn't dereferenced, which means one less potential
+			// CPU cache miss (where we wait for the data to be pulled from RAM into cache).
+			// field.key_c might cause a cache miss, but it's very likely that key.s will be
+			// read into cache at the same time (but only the pointer value, not the chars).
+			int result = first_char - field.key_c;
+			if (!result)
+				result = _tcsicmp(name, field.name);
+
+			if (result < 0)
+				right = mid;
+			else if (result > 0)
+				left = mid + 1;
+			else
+				return &field;
+		}
+		insert_pos = left;
+		return nullptr;
+	}
+	Object* Base() { return mBase; }
+	void Create(Object* ahkObj, const VTableIndex indexs[] = nullptr) {
+		ObjectVTABLE* thisvt = (ObjectVTABLE*)(*(INT_PTR**)this - 1);
+		ObjectVTABLE* ahkvt = (ObjectVTABLE*)(*(INT_PTR**)ahkObj - 1);
+		if (thisvt->RTTI != ahkvt->RTTI) {
+			DWORD old_pro;
+			ObjectVTABLE backup;
+			ResultToken result;
+			result.InitResult(_T(""));
+			ExprTokenType param, * pparam = &param;
+			param.marker = Type();
+			param.marker_length = -1;
+			param.symbol = SYM_STRING;
+			VirtualProtect(thisvt, sizeof(ObjectVTABLE), PAGE_READWRITE, &old_pro);
+			memcpy(&backup, thisvt, sizeof(ObjectVTABLE));
+			memcpy(thisvt, ahkvt, sizeof(ObjectVTABLE));
+			if (indexs) {
+				for (UINT i = 0; i < sizeof(indexs) / sizeof(int); ++i)
+					thisvt->vt[(int)indexs[i]] = backup.vt[(int)indexs[i]];
+			}
+			VirtualProtect(thisvt, sizeof(ObjectVTABLE), old_pro, &old_pro);
+			ahkObj->Invoke(result, IT_SET, _T("__Class"), ExprTokenType(ahkObj), &pparam, 1);
+		}
+		mBase = ahkObj;
+		ahkObj->AddRef();
+	}
 };
 
 //
@@ -528,12 +692,8 @@ public:
 	size_t mSize;
 };
 
-class ComObject : public IObject
+class ComObject : public ObjectBase
 {
-protected:
-	ULONG mRefCount;
-	UINT _mFlags;
-
 public:
 	union
 	{
@@ -601,3 +761,25 @@ public:
 // constexpr int size_BuiltInFunc = sizeof(BuiltInFunc);		//80	48
 // constexpr int size_BuiltInFunc = sizeof(BuiltInMethod);		//104	64
 // constexpr int size_ResultToken = sizeof(ResultToken);		//56	32
+
+template<class T> void NewObject(ResultToken& aResultToken, ExprTokenType* aParam[], int aParamCount) {
+	Object* proto = nullptr;
+	if (aParam[0]->symbol == SYM_VAR) {
+		auto var = aParam[0]->var->ResolveAlias();
+		if (var->mAttrib & VAR_ATTRIB_IS_OBJECT)
+			proto = dynamic_cast<Object*>(var->mObject);
+	}
+	else if (aParam[0]->symbol == SYM_OBJECT)
+		proto = dynamic_cast<Object*>(aParam[0]->object);
+	Object::index_t index;
+	Object::FieldType* field;
+	T* obj = nullptr;
+	aResultToken.InitResult(_T(""));
+	if (!proto || !(field = proto->FindField(_T("Prototype"), index)) || field->symbol != SYM_OBJECT || !(proto = dynamic_cast<Object*>(field->object))) {
+		aResultToken.result = FAIL;
+		return;
+	}
+	obj = new T(proto);
+	aResultToken.symbol = SYM_OBJECT;
+	aResultToken.object = obj;
+}

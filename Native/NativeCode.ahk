@@ -1,3 +1,10 @@
+/************************************************************************
+ * @description There is no need for dllcall to use native code as function or method of ahk
+ * @author thqby
+ * @date 2022/02/13
+ * @version 0.0.3
+ ***********************************************************************/
+
 /**
  * Generate a function with native code
  * @param BIF Function addresses, `void funcname(ResultToken &aResultToken, ExprTokenType *aParam[], int aParamCount)`
@@ -6,9 +13,9 @@
  * @param OutputVars The array that contains one-based indexs of outputvars, up to seven
  * @param FID Function ID, `aResultToken.func->mFID`, for code sharing: this function's ID in the group of functions which share the same C++ function
  */
- BuiltInFunc(BIF, MinParams := 0, ParamCount := 0, OutputVars := 0, FID := 0) {
+BuiltInFunc(BIF, MinParams := 0, ParamCount := 0, OutputVars := 0, FID := 0) {
 	static p__init := ObjPtr(Any.__Init), size := 8 * A_PtrSize + 16
-	; if a func obj has not own propertys, can improve `Call` performance, so use caching to store the BIF structure
+	; if a func obj has not own properties, can improve `Call` performance, so use caching to store the BIF structure
 	static bifcache := Map(), _ := %A_ThisFunc%.DefineProp('free', { call: (s, obj) => bifcache.Delete(IsObject(obj) ? ObjPtr(obj) : obj) })
 	; copy a func obj struct
 	sbif := Buffer(OutputVars ? size + 7 : size, 0), DllCall('RtlMoveMemory', 'ptr', sbif, 'ptr', p__init, 'uint', size)
@@ -77,4 +84,17 @@ ObjDefineBuiltInProp(obj, name, desc) {
 		}
 		return obim
 	}
+}
+
+/**
+ * Create a class with constructor function address
+ * @param ctor constructor function address, `void funcname(ResultToken &aResultToken, ExprTokenType *aParam[], int aParamCount)`
+ * 
+ * constructor function used to create an object
+ */
+BuiltInClass(ctor) {
+	static Prototype := (Error.Prototype).Clone(), _ := Prototype.DeleteProp('__New')
+	cls := Class(), cls.Prototype := Prototype.Clone()
+	cls.call := BuiltInFunc(ctor, 1, 3)
+	return cls
 }
