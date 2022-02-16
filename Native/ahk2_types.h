@@ -1,5 +1,5 @@
-﻿#pragma once
-
+﻿#ifndef AHK2_TYPES_H
+#define AHK2_TYPES_H
 #include <OAIdl.h>
 #include <tchar.h>
 
@@ -62,9 +62,31 @@ enum SymbolType // For use with ExpandExpression() and IsNumeric().
 
 #define CONFIG_DEBUGGER
 
+// {619f7e25-6d89-4eb4-b2fb-18e7c73c0ea6}
+const IID IID_IObjectComCompatible = { 0x619f7e25, 0x6d89, 0x4eb4, 0xb2, 0xfb, 0x18, 0xe7, 0xc7, 0x3c, 0xe, 0xa6 };
+
 struct ExprTokenType;
 struct ResultToken;
 class Object;
+
+#ifdef CONFIG_DEBUGGER
+struct IObject;
+typedef void* DebugCookie;
+struct DECLSPEC_NOVTABLE IDebugProperties
+{
+	// For simplicity/code size, the debugger handles failures internally
+	// rather than returning an error code and requiring caller to handle it.
+	virtual void WriteProperty(LPCSTR aName, ExprTokenType& aValue) = 0;
+	virtual void WriteProperty(LPCWSTR aName, ExprTokenType& aValue) = 0;
+	virtual void WriteProperty(ExprTokenType& aKey, ExprTokenType& aValue) = 0;
+	virtual void WriteBaseProperty(IObject* aBase) = 0;
+	virtual void WriteDynamicProperty(LPTSTR aName) = 0;
+	virtual void WriteEnumItems(IObject* aEnumerable, int aStart, int aEnd) = 0;
+	virtual void BeginProperty(LPCSTR aName, LPCSTR aType, int aNumChildren, DebugCookie& aCookie) = 0;
+	virtual void EndProperty(DebugCookie aCookie) = 0;
+};
+#endif
+
 struct DECLSPEC_NOVTABLE IObject // L31: Abstract interface for "objects".
 	: public IDispatch
 {
@@ -74,13 +96,21 @@ struct DECLSPEC_NOVTABLE IObject // L31: Abstract interface for "objects".
 		aResultToken, aFlags, aName, aThisToken, aParam, aParamCount
 	virtual ResultType Invoke(IObject_Invoke_PARAMS_DECL) = 0;
 	virtual LPTSTR Type() = 0;
-#define IObject_Type_Impl(name) LPTSTR Type() { return _T(name); }
+#define IObject_Type_Impl LPTSTR Type() { return _T(CLASSNAME); }
 	virtual Object* Base() = 0;
 	virtual bool IsOfType(Object* aPrototype) = 0;
 
 	STDMETHODIMP QueryInterface(REFIID riid, void** ppv)
 	{
-		return E_NOINTERFACE;
+		if (riid == IID_IDispatch || riid == IID_IUnknown || riid == IID_IObjectComCompatible) {
+			AddRef();
+			*ppv = this;
+			return S_OK;
+		}
+		else {
+			*ppv = NULL;
+			return E_NOINTERFACE;
+		}
 	}
 	STDMETHODIMP GetTypeInfoCount(UINT* pctinfo)
 	{
@@ -94,6 +124,8 @@ struct DECLSPEC_NOVTABLE IObject // L31: Abstract interface for "objects".
 	}
 	STDMETHODIMP GetIDsOfNames(REFIID riid, LPOLESTR* rgszNames, UINT cNames, LCID lcid, DISPID* rgDispId)
 	{
+		for (UINT i = 0; i < cNames; ++i)
+			rgDispId[i] = DISPID_UNKNOWN;
 		return DISP_E_UNKNOWNNAME;
 	}
 	STDMETHODIMP Invoke(DISPID dispIdMember, REFIID riid, LCID lcid, WORD wFlags, DISPPARAMS* pDispParams, VARIANT* pVarResult, EXCEPINFO* pExcepInfo, UINT* puArgErr)
@@ -102,15 +134,16 @@ struct DECLSPEC_NOVTABLE IObject // L31: Abstract interface for "objects".
 	}
 
 #ifdef CONFIG_DEBUGGER
-#define IObject_DebugWriteProperty_Def void DebugWriteProperty(void *, int aPage, int aPageSize, int aMaxDepth)
-	virtual IObject_DebugWriteProperty_Def{}
+#define IObject_DebugWriteProperty_Def void DebugWriteProperty(IDebugProperties *aDebugger, int aPage, int aPageSize, int aMaxDepth)
+	virtual void DebugWriteProperty(IDebugProperties* aDebugger, int aPage, int aPageSize, int aMaxDepth) {
+		DebugCookie cookie;
+		aDebugger->BeginProperty(NULL, "object", 0, cookie);
+		aDebugger->EndProperty(cookie);
+	}
 #else
 #define IObject_DebugWriteProperty_Def
 #endif
 };
-
-// {619f7e25-6d89-4eb4-b2fb-18e7c73c0ea6}
-const IID IID_IObjectComCompatible = { 0x619f7e25, 0x6d89, 0x4eb4, 0xb2, 0xfb, 0x18, 0xe7, 0xc7, 0x3c, 0xe, 0xa6 };
 
 #define MAXP_VARIADIC 255
 
@@ -139,6 +172,7 @@ public:
 
 template <typename T, typename index_t>
 typename FlatVector<T, index_t>::OneT FlatVector<T, index_t>::Empty;
+
 //
 // Property: Invoked when a derived object gets/sets the corresponding key.
 //
@@ -162,8 +196,6 @@ struct CallSite
 	LPTSTR member = nullptr;
 	int flags = IT_CALL;
 	int param_count = 0;
-
-	inline bool is_variadic() { return flags & EIF_VARIADIC; }
 };
 
 enum DerefTypeType : BYTE
@@ -226,10 +258,33 @@ struct ExprTokenType  // Something in the compiler hates the name TokenType, so 
 		};
 	};
 	SymbolType symbol;
-	ExprTokenType() {}
-	ExprTokenType(IObject* obj) {
-		object = obj;
-		symbol = SYM_OBJECT;
+	ExprTokenType() : value_int64(0)
+#ifdef _WIN64
+		, marker_length(0)
+#endif // _WIN64
+	{}
+	ExprTokenType(LPTSTR str) { SetValue(str); }
+	ExprTokenType(IObject* obj) { SetValue(obj); }
+	void SetValue(LPTSTR str, size_t len = -1) {
+		marker = str, marker_length = len, symbol = SYM_STRING;
+	}
+	void SetValue(__int64 val) {
+		value_int64 = val, symbol = SYM_INTEGER;
+#ifdef _WIN64
+		marker_length = 0;
+#endif // _WIN64
+	}
+	void SetValue(double val) {
+		value_double = val, symbol = SYM_FLOAT;
+#ifdef _WIN64
+		marker_length = 0;
+#endif // _WIN64
+	}
+	void SetValue(IObject* obj) {
+		object = obj, symbol = SYM_OBJECT;
+#ifdef _WIN64
+		marker_length = 0;
+#endif // _WIN64
 	}
 };
 
@@ -247,9 +302,10 @@ struct ResultToken : public ExprTokenType
 	{
 		symbol = SYM_STRING;
 		marker = (LPTSTR)_T("");
-		marker_length = -1; // Helps code size to do this here instead of in ReturnPtr(), which should be inlined.
+		marker_length = -1;
 		buf = aResultBuf;
 		mem_to_free = nullptr;
+		func = nullptr;
 #ifdef ENABLE_HALF_BAKED_NAMED_PARAMS
 		named_params = nullptr;
 #endif
@@ -265,6 +321,11 @@ struct ResultToken : public ExprTokenType
 		// If the token has memory allocated for it, free it.
 		if (mem_to_free)
 			free(mem_to_free);
+	}
+
+	bool Exited()
+	{
+		return result == FAIL || result == EARLY_EXIT;
 	}
 
 	void AcceptMem(LPTSTR aNewMem, size_t aLength)
@@ -284,14 +345,14 @@ struct ResultToken : public ExprTokenType
 struct TString
 {
 private:
-	TCHAR* _p = NULL;
-	size_t _len = 0;
+	TCHAR* s = NULL;
+	size_t len = 0;
 	size_t capacity = 0;
 	bool Realloc(size_t aNewSize) {
-		TCHAR* newp = (TCHAR*)realloc(_p, sizeof(TCHAR) * aNewSize);
+		TCHAR* newp = (TCHAR*)realloc(s, sizeof(TCHAR) * aNewSize);
 		if (!newp)
 			return false;
-		_p = newp;
+		s = newp;
 		capacity = aNewSize;
 		return true;
 	}
@@ -306,15 +367,15 @@ private:
 	}
 public:
 	TString() {}
-	~TString() { if (_p) free(_p); }
-	TCHAR* data() { _p[_len] = 0; return _p; }
-	size_t size() { return _len; }
+	~TString() { if (s) free(s); }
+	TCHAR* data() { s[len] = 0; return s; }
+	size_t size() { return len; }
 	TString& append(ResultToken& token) {
 		if (token.marker_length == -1)
 			token.marker_length = _tcsclen(token.marker);
-		if (!_p && token.mem_to_free) {
-			_p = token.marker;
-			capacity = _len = token.marker_length;
+		if (!s && token.mem_to_free) {
+			s = token.marker;
+			capacity = len = token.marker_length;
 			token.mem_to_free = nullptr;
 		}
 		else
@@ -322,33 +383,25 @@ public:
 		return *this;
 	}
 	TString& append(TCHAR ch) {
-		if (EnsureCapacity(_len + 2))
-			_p[_len++] = ch;
+		if (EnsureCapacity(len + 2))
+			s[len++] = ch;
 		return *this;
 	}
-	TString& operator+=(TCHAR* str) {
-		size_t len = _tcslen(str);
-		return append(str, len);
-	}
+	TString& operator+=(TCHAR* str) { return append(str, _tcslen(str)); }
 	TString& append(TCHAR* str, size_t len) {
-		if (EnsureCapacity(_len + len + 1)) {
+		if (EnsureCapacity(len + len + 1)) {
 #ifdef UNICODE
-			wmemcpy(_p + _len, str, len);
+			wmemcpy(s + len, str, len);
 #else
-			memcpy(_p + _len, str, len);
+			memcpy(s + len, str, len);
 #endif
-			_len += len;
+			len += len;
 		}
 		return *this;
 	}
-	TCHAR& back() {
-		return _p[_len - 1];
-	}
-	void release() { _p = NULL; _len = capacity = 0; }
-	void pop_back() {
-		if (_len)
-			_len--;
-	}
+	TCHAR& back() { return s[len - 1]; }
+	void release() { s = NULL; len = capacity = 0; }
+	void pop_back() { if (len) len--; }
 };
 
 enum AllocMethod { ALLOC_NONE, ALLOC_SIMPLE, ALLOC_MALLOC };
@@ -367,6 +420,7 @@ typedef UCHAR AllocMethodType; // UCHAR vs. AllocMethod to save memory.
 typedef UCHAR VarAttribType;   // Same.
 typedef UINT_PTR VarSizeType;  // jackieku(2009-10-23): Change this to UINT_PTR to ensure its size is the same with a pointer.
 
+#pragma warning(push)
 #ifdef _WIN64
 #pragma pack(push, 8)
 #else
@@ -448,6 +502,29 @@ public:
 	}
 }; // class Var
 #pragma pack(pop) // Calling pack with no arguments restores the default value (which is 8, but "the alignment of a member will be on a boundary that is either a multiple of n or a multiple of the size of the member, whichever is smaller.")
+#pragma warning(pop)
+
+struct ObjectVTABLE {
+	void* RTTI;
+#ifdef CONFIG_DEBUGGER
+	void* vt[14];
+#else
+	void* vt[13];
+#endif
+};
+const int OBJ_VT_COUNT = _countof(ObjectVTABLE::vt);
+
+enum class ObjectVTableIndex {
+	Invoke = 7,
+	Type,
+	Base,
+	IsOfType,
+#ifdef CONFIG_DEBUGGER
+	DebugWriteProperty,
+#endif
+	Delete,
+	dtor
+};
 
 class ObjectBase : public IObject
 {
@@ -478,34 +555,33 @@ public:
 	}
 	ObjectBase() : mRefCount(1) {}
 	virtual ~ObjectBase() {}
-	bool IsOfType(Object* aPrototype) override { return false; }
-
+	Object* Base() { return nullptr; }
+	LPTSTR Type() { return _T(""); }
+	bool IsOfType(Object* aPrototype) override { return Base() == aPrototype; }
 	ResultType Invoke(IObject_Invoke_PARAMS_DECL) { return INVOKE_NOT_HANDLED; }
-};
 
-struct ObjectVTABLE {
-	void* RTTI;
-	void* vt[14];
-};
+	static Object* ahkProvider;
+	static ObjectVTABLE ahkVT;
 
-enum class VTableIndex {
-	QueryInterface,
-	AddRef,
-	Release,
-	GetTypeInfoCount,
-	GetTypeInfo,
-	GetIDsOfNames,
-	Invoke,
-	Invoke_AHK,
-	Type,
-	Base,
-	IsOfType,
-#ifdef CONFIG_DEBUGGER
-	DebugWriteProperty,
-#endif
-	Delete,
-	dtor
+	void ReWriteVTB() {
+		ObjectVTABLE* thisvt = (ObjectVTABLE*)(*(void***)this - 1);
+		if (ahkVT.RTTI && thisvt->RTTI != ahkVT.RTTI) {
+			ObjectBase myobj;
+			ObjectVTABLE* myobjvt = (ObjectVTABLE*)(*(void***)&myobj - 1);
+			DWORD old_pro;
+			VirtualProtect(thisvt, sizeof(ObjectVTABLE), PAGE_READWRITE, &old_pro);
+			for (int i = 0; i < OBJ_VT_COUNT; i++)
+				if (thisvt->vt[i] == myobjvt->vt[i])
+					thisvt->vt[i] = ObjectBase::ahkVT.vt[i];
+			VirtualProtect(thisvt, sizeof(ObjectVTABLE), old_pro, &old_pro);
+		}
+	}
 };
+Object* ObjectBase::ahkProvider = nullptr;
+ObjectVTABLE ObjectBase::ahkVT = {};
+
+
+class VarRef : public ObjectBase, public Var {};
 
 class Object : public ObjectBase
 {
@@ -550,14 +626,14 @@ public:
 	enum Flags : decltype(mFlags)
 	{
 		UnsortedFlag = 0x80000000,  // for thqby's AHK_H
-		ClassPrototype = 0x01,
-		NativeClassPrototype = 0x02,
-		LastObjectFlag = 0x02
+			ClassPrototype = 0x01,
+			NativeClassPrototype = 0x02,
+			LastObjectFlag = 0x02
 	};
 
 	Object* mBase = nullptr;
 	FlatVector<FieldType, index_t> mFields;
-	FieldType* FindField(name_t name, index_t& insert_pos)
+	FieldType* FindField(name_t name, index_t* insert_pos = nullptr)
 	{
 		index_t left = 0, mid, right = mFields.Length();
 		int first_char = *name;
@@ -571,7 +647,8 @@ public:
 				if (!(first_char - field.key_c) && !_tcsicmp(name, field.name))
 					return &field;
 			}
-			insert_pos = right;
+			if (insert_pos)
+				*insert_pos = right;
 			return nullptr;
 		}
 		while (left < right)
@@ -597,35 +674,73 @@ public:
 			else
 				return &field;
 		}
-		insert_pos = left;
+		if (insert_pos)
+			*insert_pos = left;
 		return nullptr;
 	}
-	Object* Base() { return mBase; }
-	void Create(Object* ahkObj, const VTableIndex indexs[] = nullptr) {
-		ObjectVTABLE* thisvt = (ObjectVTABLE*)(*(INT_PTR**)this - 1);
-		ObjectVTABLE* ahkvt = (ObjectVTABLE*)(*(INT_PTR**)ahkObj - 1);
-		if (thisvt->RTTI != ahkvt->RTTI) {
-			DWORD old_pro;
-			ObjectVTABLE backup;
+	void Error(ExprTokenType msg, LPTSTR extra = nullptr, LPTSTR type = nullptr) {
+		if (ahkProvider) {
+			int paramcount = type ? 3 : extra ? 2 : msg.symbol == SYM_MISSING ? 0 : 1;
 			ResultToken result;
+			ExprTokenType param[2], * params[] = { &msg, param,param + 1 };
 			result.InitResult(_T(""));
-			ExprTokenType param, * pparam = &param;
-			param.marker = Type();
-			param.marker_length = -1;
-			param.symbol = SYM_STRING;
-			VirtualProtect(thisvt, sizeof(ObjectVTABLE), PAGE_READWRITE, &old_pro);
-			memcpy(&backup, thisvt, sizeof(ObjectVTABLE));
-			memcpy(thisvt, ahkvt, sizeof(ObjectVTABLE));
-			if (indexs) {
-				for (UINT i = 0; i < sizeof(indexs) / sizeof(int); ++i)
-					thisvt->vt[(int)indexs[i]] = backup.vt[(int)indexs[i]];
-			}
-			VirtualProtect(thisvt, sizeof(ObjectVTABLE), old_pro, &old_pro);
-			ahkObj->Invoke(result, IT_SET, _T("__Class"), ExprTokenType(ahkObj), &pparam, 1);
+			if (type)params[2]->SetValue(type);
+			if (extra)params[1]->SetValue(extra); else params[1]->symbol = SYM_MISSING;
+			ahkProvider->Invoke(result, IT_CALL, _T("throw"), ExprTokenType(ahkProvider), params, paramcount);
 		}
-		mBase = ahkObj;
-		ahkObj->AddRef();
 	}
+	ResultType New(ResultToken& aResultToken, ExprTokenType* aParam[], int aParamCount) {
+		Object* base = nullptr;
+		aResultToken.InitResult(aResultToken.buf);
+		if (aParam[0]->symbol == SYM_VAR) {
+			auto var = aParam[0]->var->ResolveAlias();
+			if (var->mAttrib & VAR_ATTRIB_IS_OBJECT)
+				base = dynamic_cast<Object*>(var->mObject);
+		}
+		else if (aParam[0]->symbol == SYM_OBJECT)
+			base = dynamic_cast<Object*>(aParam[0]->object);
+		Object* proto = nullptr;
+		if (base) {
+			auto field = base->FindField(_T("Prototype"));
+			if (field && field->symbol == SYM_OBJECT)
+				proto = dynamic_cast<Object*>(field->object);
+		}
+		if (!proto) {
+			Release();
+			return aResultToken.result = FAIL;
+		}
+		mBase = proto;
+		proto->AddRef();
+		auto result = Invoke(aResultToken, IT_CALL, _T("__Init"), ExprTokenType(this), nullptr, 0);
+		if (result != INVOKE_NOT_HANDLED) {
+			aResultToken.Free();
+			aResultToken.InitResult(aResultToken.buf);
+			if (result == FAIL || result == EARLY_EXIT) {
+				Release();
+				return aResultToken.result = result;
+			}
+		}
+		result = Invoke(aResultToken, IT_CALL, _T("__New"), ExprTokenType(this), aParam + 1, aParamCount - 1);
+		aResultToken.Free();
+		if (result == FAIL || result == EARLY_EXIT) {
+			Release();
+			Error(ExprTokenType(_T("Invalid base.")));
+			return result;
+		}
+		aResultToken.SetValue(this);
+		return aResultToken.result = OK;
+	}
+	~Object() { if (mBase)mBase->Release(); }
+
+#define Object_StaticMethod(name, impl, id, ...) \
+	{ _T(CLASSNAME"."#name), static_cast<ObjectMethod>(&impl), id, IT_CALL, __VA_ARGS__ }
+#define Object_StaticGet(name, impl, id, ...) \
+	{ _T(CLASSNAME"."#name".Get"), static_cast<ObjectMethod>(&impl), id, IT_GET, __VA_ARGS__ }
+#define Object_StaticSet(name, impl, id, ...) \
+	{ _T(CLASSNAME"."#name".Set"), static_cast<ObjectMethod>(&impl), id, IT_SET, __VA_ARGS__ }
+#define Object_Method(name, impl, id, ...) Object_StaticMethod(Prototype.##name, impl, id, __VA_ARGS__)
+#define Object_Get(name, impl, id, ...) Object_StaticGet(Prototype.##name, impl, id, __VA_ARGS__)
+#define Object_Set(name, impl, id, ...) Object_StaticSet(Prototype.##name, impl, id, __VA_ARGS__)
 };
 
 //
@@ -762,24 +877,62 @@ public:
 // constexpr int size_BuiltInFunc = sizeof(BuiltInMethod);		//104	64
 // constexpr int size_ResultToken = sizeof(ResultToken);		//56	32
 
-template<class T> void NewObject(ResultToken& aResultToken, ExprTokenType* aParam[], int aParamCount) {
-	Object* proto = nullptr;
-	if (aParam[0]->symbol == SYM_VAR) {
-		auto var = aParam[0]->var->ResolveAlias();
-		if (var->mAttrib & VAR_ATTRIB_IS_OBJECT)
-			proto = dynamic_cast<Object*>(var->mObject);
+
+struct ObjectMember
+{
+	LPTSTR name;
+	ObjectMethod method;
+	UCHAR id, invokeType, minParams, maxParams;
+};
+struct ExportSymbol
+{
+	LPTSTR name;
+	BuiltInFunctionType call;
+	UCHAR min_params, max_params;
+	USHORT id;
+	UINT member_count;
+	union {
+		UCHAR outputvars[7];
+		ObjectMember* members;
+	};
+	ExportSymbol(LPTSTR name, BuiltInFunctionType call, UINT member_count, ObjectMember* members, UINT max_params = 255, UCHAR id = 0)
+		: name(name), call(call), member_count(member_count), members(members), id(id), min_params(1), max_params(max_params) {}
+	ExportSymbol(LPTSTR name, BuiltInFunctionType call, UCHAR min, UCHAR max, UCHAR id = 0, char* outputs = nullptr)
+		: name(name), call(call), member_count(0), id(id), min_params(min), max_params(max), members(0)
+	{
+		if (outputs)
+			for (int i = 0; i < 7 && outputs[i]; ++i)
+				outputvars[i] = (UCHAR)outputs[i];
 	}
-	else if (aParam[0]->symbol == SYM_OBJECT)
-		proto = dynamic_cast<Object*>(aParam[0]->object);
-	Object::index_t index;
-	Object::FieldType* field;
-	T* obj = nullptr;
-	aResultToken.InitResult(_T(""));
-	if (!proto || !(field = proto->FindField(_T("Prototype"), index)) || field->symbol != SYM_OBJECT || !(proto = dynamic_cast<Object*>(field->object))) {
+};
+// name, max_params, id
+#define EXPORT_CLASS(name, ...) {_T(#name),NewObject<name>, (UINT)_countof(name::sMembers), name::sMembers, __VA_ARGS__},
+// name, min_params, max_params, id, outputvars
+#define EXPORT_FUNC(name, min_params, max_params, ...) {_T(#name), name, (UCHAR)min_params, (UCHAR)max_params, __VA_ARGS__},
+
+template<class T>
+BIF_DECL(NewObject)
+{
+	T* obj = new T;
+	if (obj) {
+		obj->ReWriteVTB();
+		obj->New(aResultToken, aParam, aParamCount);
+	}
+	else
 		aResultToken.result = FAIL;
-		return;
-	}
-	obj = new T(proto);
-	aResultToken.symbol = SYM_OBJECT;
-	aResultToken.object = obj;
 }
+
+#define EXPORT_AHKMODULE(symbols) \
+extern "C" __declspec(dllexport) void* ahk2_module_load(Object* loader, Object* ahkProvider) {\
+	ResultToken result;\
+	ExprTokenType param[2], * params[2] = { param,param + 1 };\
+	ObjectBase::ahkProvider = ahkProvider;\
+	memcpy(&ObjectBase::ahkVT, *(void***)loader - 1, sizeof(ObjectVTABLE));\
+	result.InitResult(_T(""));\
+	param->SetValue((__int64)_countof(symbols)), param[1].SetValue((__int64)symbols);\
+	loader->Invoke(result, IT_CALL, nullptr, ExprTokenType(loader), params, 2);\
+	if (result.symbol == SYM_OBJECT) return result.object;\
+	if (result.mem_to_free)free(result.mem_to_free);\
+	return nullptr;\
+}
+#endif // !AHK2_TYPES_H
