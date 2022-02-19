@@ -2,8 +2,8 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2022/02/16
- * @version 1.1.2
+ * @date 2022/02/18
+ * @version 1.1.3
  ***********************************************************************/
 
 class Native extends Func {
@@ -79,7 +79,7 @@ class Native extends Func {
 	 * Generate a method with native code, is same with `Native.Func`
 	 * @param base The base of instance
 	 */
-	static Method(base, BIM, MIT, MinParams := 0, ParamCount := 0, OutputVars := 0, MID := 0) {
+	static Method(base, BIM, MIT, MinParams := 0, ParamCount := 0, MID := 0) {
 		static pOwnProps := ObjPtr({}.OwnProps), size := 9 * A_PtrSize + 16, nameoffset := 3 * A_PtrSize + 8
 		if BIM is String
 			BIM := this.MCode(BIM)
@@ -93,11 +93,6 @@ class Native extends Func {
 		NumPut('uint', 1, 'uint', 0, 'ptr', ObjPtrAddRef(Native.Prototype), sbim, A_PtrSize)
 		NumPut('int', Max(MinParams, ParamCount), 'int', MinParams, 'int', IsVariadic, sbim, 4 * A_PtrSize + 8)
 		NumPut('ptr', BIM, 'ptr', base, 'uchar', MID, 'uchar', MIT, sbim, 6 * A_PtrSize + 16)
-		if OutputVars {
-			NumPut('ptr', s := sbim.Ptr + size, sbim, 5 * A_PtrSize + 16)
-			loop Min(OutputVars.Length, 7)
-				s := NumPut('uchar', OutputVars[A_Index], s)
-		}
 		NumPut('ptr', 0, 'ptr', 0, ObjPtr(sbim), 3 * A_PtrSize + 8)
 		return obim
 	}
