@@ -2,8 +2,8 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2022/02/18
- * @version 1.1.3
+ * @date 2022/02/20
+ * @version 1.1.5
  ***********************************************************************/
 
 class Native extends Func {
@@ -83,7 +83,7 @@ class Native extends Func {
 		static pOwnProps := ObjPtr({}.OwnProps), size := 9 * A_PtrSize + 16, nameoffset := 3 * A_PtrSize + 8
 		if BIM is String
 			BIM := this.MCode(BIM)
-		sbim := Buffer(OutputVars ? size + 7 : size, 0), DllCall('RtlMoveMemory', 'ptr', sbim, 'ptr', pOwnProps, 'uint', size)
+		sbim := Buffer(size, 0), DllCall('RtlMoveMemory', 'ptr', sbim, 'ptr', pOwnProps, 'uint', size)
 		obim := ObjFromPtr(sbim.Ptr), IsVariadic := ParamCount == 255
 		switch MIT, false {
 			case 'call', 2: ++MinParams, ParamCount := IsVariadic ? MinParams : Max(MinParams, ParamCount + 1), NumPut('ptr', StrPtr('User-BIM'), sbim, nameoffset), MIT := 2
@@ -111,11 +111,11 @@ class Native extends Func {
 		descobj := {}, baseobj := ObjPtr(obj.Base)
 		for MIT in ['call', 'set', 'get']
 			if desc.HasOwnProp(MIT) {
-				t := desc.%MIT%, MinParams := ParamCount := OutputVars := MID := 0, BIM := t.BIM
-				for k in ['MinParams', 'ParamCount', 'OutputVars', 'MID']
+				t := desc.%MIT%, MinParams := ParamCount := MID := 0, BIM := t.BIM
+				for k in ['MinParams', 'ParamCount', 'MID']
 					if t.HasOwnProp(k)
 						%k% := t.%k%
-				descobj.%MIT% := this.Method(baseobj, BIM, MIT, MinParams, ParamCount, OutputVars, MID)
+				descobj.%MIT% := this.Method(baseobj, BIM, MIT, MinParams, ParamCount, MID)
 			}
 		obj.DefineProp(name, descobj)
 	}
@@ -136,23 +136,23 @@ class Native extends Func {
 	/**
 	 * Load a dll file with the specified format to create native functions and classes
 	 * @param path ahk module path
-	 * @param load_symbols Load symbols that specific names
+	 * @param load_symbols Load symbols that specific names, will overwrite existing global classes
 	 * @param loader Create native functions and classes based on the information provided by the module, or do it in the module
 	 * @param provider Used to provide the ahk objects required by the module
 	 */
 	static LoadModule(path, load_symbols := 0, loader := 0, provider := 0) {
 		if !(module := DllCall('LoadLibrary', 'str', path, 'ptr'))
 			throw OSError(A_LastError)
-		module_load_addr := DllCall('GetProcAddress', 'ptr', module, 'astr', 'ahk2_module_load', 'cdecl ptr') || DllCall('GetProcAddress', 'ptr', module, 'ptr', 1, 'cdecl ptr')
+		module_load_addr := DllCall('GetProcAddress', 'ptr', module, 'astr', 'ahk2_module_load', 'ptr') || DllCall('GetProcAddress', 'ptr', module, 'ptr', 1, 'ptr')
 		if !module_load_addr
 			throw Error('Export function not found')
 		if load_symbols {
-			t := Map()
+			t := Map(), t.CaseSense := false
 			for k in load_symbols
 				t[k] := true
 			load_symbols := t
 		}
-		if !p := DllCall(module_load_addr, 'ptr', ObjPtr(loader || default_loader), 'ptr', ObjPtr(provider || Native), 'ptr')
+		if !p := DllCall(module_load_addr, 'ptr', ObjPtr(loader || default_loader), 'ptr', ObjPtr(provider || Native), 'cdecl ptr')
 			throw Error('Load module fail', -1, OSError(A_LastError).Message)
 		return ObjFromPtr(p)
 
@@ -171,7 +171,7 @@ class Native extends Func {
 				id := NumGet(addr += 1, 'ushort')
 				if member_count := NumGet(addr += 2, 'uint') {
 					try {
-						if !IsObject(symbol := %name%)
+						if !load_symbols || !IsObject(symbol := %name%)
 							throw
 						symbols[name] := symbol
 						if !symbol.HasOwnProp('Prototype')
@@ -202,7 +202,7 @@ class Native extends Func {
 					if !mems.HasOwnProp(name)
 						t := mems.%name% := {}
 					else t := mems.%name%
-					t.%sub% := me := this.Method(pbase, method, mit, minparams, maxparams, 0, id)
+					t.%sub% := me := this.Method(pbase, method, mit, minparams, maxparams, id)
 					NumPut('ptr', pname, ObjPtr(me), 3 * A_PtrSize + 8)
 					pmem += A_PtrSize - 3
 				} else {
