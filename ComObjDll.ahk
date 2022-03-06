@@ -2,13 +2,13 @@
  * @description Create a COM object from an unregistered DLL
  * @file ComObjDll.ahk
  * @author thqby
- * @date 2021/10/04
- * @version 0.0.1
+ * @date 2022/03/06
+ * @version 0.0.6
  ***********************************************************************/
 
 
 ComObjDll(dllpath := '', CLSID := '') {
-	static clsids := Map(), dlls := Map(), __delete := {}, _ := (__delete.DefineProp('__Delete', {value: _exit_}), clsids.CaseSense := false)
+	static clsids := Map(), dlls := Map(), _ := (OnExit(_exit_), clsids.CaseSense := false)
 	if (CLSID = '' && SubStr(dllpath, 1, 1) = '{')
 		CLSID := dllpath, dllpath := ''
 	if (dllpath) {
@@ -37,7 +37,6 @@ ComObjDll(dllpath := '', CLSID := '') {
 							oldvers[A_LoopRegName] := true
 						DllCall('oleaut32\RegisterTypeLibForUser', 'Ptr', ptlib, 'Str', dllpath, 'Ptr', 0)
 						libID := RegRead('HKEY_CLASSES_ROOT\Interface\' DispatchIID '\TypeLib')
-						loopreg:
 						Loop Reg, 'HKEY_CLASSES_ROOT\TypeLib\' libID, 'K' {
 							wMajorVer := A_LoopRegName
 							Loop Reg, A_LoopRegKey '\' A_LoopRegName, 'K'
@@ -46,14 +45,16 @@ ComObjDll(dllpath := '', CLSID := '') {
 										tt := [Integer(wMajorVer), Integer(A_LoopRegName)]
 									else {
 										ver := [Integer(wMajorVer), Integer(A_LoopRegName)]
-										break loopreg
+										break 2
 									}
 								}
 						}
 					}
 					ComCall(19, ptinfo, 'Ptr', ptatt), ObjRelease(ptinfo) ; ptinfo->ReleaseTypeAttr, ptinfo->Release
 				}
-				dlls[moduleHandle].TypeLib := {id: libID, ver: ver || tt}, dlls[moduleHandle].CLSID := CLSID, ObjRelease(ptlib) ; ptlib->Release
+				if libID
+					dlls[moduleHandle].TypeLib := {id: libID, ver: ver || tt}
+				dlls[moduleHandle].CLSID := CLSID, ObjRelease(ptlib) ; ptlib->Release
 			}
 		}
 	} else if !clsids.Has(CLSID)
@@ -65,18 +66,16 @@ ComObjDll(dllpath := '', CLSID := '') {
 		DllCall('ole32\CLSIDFromString', 'Str', '{00000001-0000-0000-C000-000000000046}', 'Ptr', IID_IClassFactory := Buffer(16))
 		if (DllCall(dlls[moduleHandle].pfn, 'Ptr', _CLSID, 'Ptr', IID_IClassFactory, 'Ptr*', &pFactory := 0, 'UInt'))
 			throw Error('无效的类字符串')
-		ObjRelease(pFactory)
 	}
 	DllCall('ole32\CLSIDFromString', 'Str', '{00000000-0000-0000-C000-000000000046}', 'Ptr', IID_IUnknown := Buffer(16))
 	if (!ComCall(3, pFactory, 'Ptr', 0, 'Ptr', IID_IUnknown, 'Ptr*', &pdisp := 0)) ; pFactory->CreateInstance
-		return (clsids[CLSID] := pFactory, ComObject(9, pdisp)) ; IDispatch comobj
+		return (clsids[CLSID] := pFactory, ComValue(9, pdisp)) ; IDispatch comobj
 	throw Error('创建 COM 对象失败')
-	_exit_(*) { ; unregister type library, free library where script exit
-		for _, dll in dlls {
+	_exit_(*) { ; unregister type library where script exit
+		for _, dll in dlls
 			if ((tinfo := dll.TypeLib) && !DllCall('ole32\CLSIDFromString', 'Str', tinfo.id, 'Ptr', _libID := Buffer(16)) && tinfo.ver)
 				ret:=DllCall('oleaut32\UnRegisterTypeLibForUser', 'Ptr', _libID, 'UInt', tinfo.ver[1], 'UInt', tinfo.ver[2], 'UInt', 0, 'UInt', 1)
-			if dll.free
-				DllCall('FreeLibrary', 'Ptr', _)
-		}
+		for _, p in clsids
+			ObjRelease(p)
 	}
 }

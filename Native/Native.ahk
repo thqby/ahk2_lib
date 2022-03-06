@@ -2,8 +2,8 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2022/02/20
- * @version 1.1.5
+ * @date 2022/02/27
+ * @version 1.1.6
  ***********************************************************************/
 
 class Native extends Func {
@@ -212,6 +212,8 @@ class Native extends Func {
 						NumPut('ptr', addr, ObjPtr(symbol), 5 * A_PtrSize + 16)
 				}
 				if member_count {
+					if symbol == Map	; Break circular references if Map has define native funcs
+						OnExit(onexitapp.Bind(Map(Map, [staticmembers*], Map.Prototype, [members*])))
 					for name, desc in staticmembers.OwnProps()
 						symbol.DefineProp(name, desc)
 					symbol := symbol.Prototype
@@ -221,6 +223,12 @@ class Native extends Func {
 				addr += 8
 			}
 			return symbols
+
+			onexitapp(todels, *) {
+				for o, arr in todels
+					for n in arr
+						try o.DeleteProp(n)
+			}
 		}
 	}
 }

@@ -59,7 +59,7 @@ QPC() {
 
 ; dll module, download from https://www.autohotkey.com/boards/viewtopic.php?f=83&t=100197&p=445069#p445069
 MsgBox "test load dll, this dll depends on VCRUNTIME140.dll"
-ahkmodule := Native.LoadModule(A_ScriptDir '\ahk2.dll')
+ahkmodule := Native.LoadModule(A_ScriptDir '\ahk2.dll', ['Map', 'MyFunc', 'MyClass'])
 m := Map('msg', MsgBox, 'rep', StrReplace)
 ; call Map.Prototype.__Call native code
 m.msg('hello' m.rep(' this a str', 'str', 'string'))
@@ -72,7 +72,6 @@ catch as e
 MsgBox a.Value() ' ' a.int()
 ahkmodule.myfunc()
 ahkmodule.myfunc('qqqq')
-Map.Prototype.DeleteProp('__Call') ; memory leaks if the property is not deleted
 ahkmodule['myclass'](1)
 ; myclass only accepts 0-1 param
 ahkmodule['myclass'](1, 2)
