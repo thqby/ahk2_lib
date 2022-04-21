@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2021/10/04
- * @version 0.0.21
+ * @date 2022/04/21
+ * @version 0.0.22
  ***********************************************************************/
 
 class Chrome {
@@ -14,9 +14,9 @@ class Chrome {
 	}
 
 	static FindInstances(exename := 'Chrome.exe') {
-		for Item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine FROM Win32_Process WHERE Name = '" exename "'")
+		for Item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "'")
 			if RegExMatch(Item.CommandLine, '--remote-debugging-port=(\d+)', &Match)
-				return {DebugPort: Match[1], CommandLine: Item.CommandLine}
+				return {Base: this.Prototype, DebugPort: Match[1], CommandLine: Item.CommandLine, http: ComObject('WinHttp.WinHttpRequest.5.1'), PID: Item.ProcessID}
 	}
 
 	/*

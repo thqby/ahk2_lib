@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2021/10/04
- * @version 1.0.1
+ * @date 2022/04/18
+ * @version 1.0.3
  ***********************************************************************/
 
 class YAML {
@@ -65,7 +65,7 @@ class YAML {
 							throw Error("Indentation problem.", 0, LF)
 						else L := I[LL]
 				}
-				if Trim(_.Value(), " `t") = "-"	; empty sequence not cached by previous line
+				if Trim(_[], " `t") = "-"	; empty sequence not cached by previous line
 					V := undefined, Q := "-"
 				else if V = "" && _.VAL = ""
 					V := undefined
