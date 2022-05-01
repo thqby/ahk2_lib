@@ -2,8 +2,8 @@
  * @description SQLite class
  * @file CSQLite.ahk
  * @author thqby
- * @date 2022/02/09
- * @version 0.0.3
+ * @date 2022/04/23
+ * @version 0.0.4
  ***********************************************************************/
 
 class CSQLite
@@ -55,7 +55,7 @@ class CSQLite
 	; ===================================================================================================================
 	; PRIVATE _StrToUTF8
 	; ===================================================================================================================
-	_StrToUTF8(Str, &UTF8) => (VarSetStrCapacity(UTF8, size:=StrPut(Str, "UTF-8")), StrPut(Str, StrPtr(UTF8), "UTF-8"), size)
+	_StrToUTF8(Str, &UTF8) => (VarSetStrCapacity(&UTF8, size:=StrPut(Str, "UTF-8")), StrPut(Str, StrPtr(UTF8), "UTF-8"), size)
 
 	; ===================================================================================================================
 	; PRIVATE _ErrMsg

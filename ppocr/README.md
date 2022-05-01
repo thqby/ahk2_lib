@@ -4,19 +4,37 @@
 ppocr导出函数
 ```cpp
 // 释放加载的模型
-void destroy();
+void ocr_destroy(void* ocr);
 
 // 读取配置字符串，根据配置文件加载模型，配置文件ansi编码
-int load_config(const char* config);
+void* ocr_create(const char* config);
 
-// 读取配置文件，根据配置文件加载模型，配置文件ansi编码
-int load_config_file(const char* path);
+// ocr opencv Mat对象
+void ocr_from_mat(void* ocr, cv::Mat* mat, void (callback)(const wchar_t*, cv::Point[4], float, void*), void* userdata = nullptr);
 
-// ocr本地文件，allinfo 为 TRUE 时，返回JSON格式，包含识别结果、置信度、位置信息
-const wchar_t* ocr_from_file(const char* path, BOOL allinfo = FALSE);
+// ocr识别本地文件
+void ocr_from_file(void* ocr, const char* path, void (callback)(const wchar_t*, cv::Point[4], float, void*), void* userdata = nullptr);
 
-// ocr图片的二进制
-const wchar_t* ocr_from_binary(const char* data, UINT size, BOOL allinfo = FALSE);
+// ocr识别图像二进制数据
+void ocr_from_binary(void* ocr, const char* data, UINT size, void (callback)(const wchar_t*, cv::Point[4], float, void*), void* userdata = nullptr);
+```
+
+```autohotkey2
+pp := ppocr(), pic := '1.png'
+pp.ocr_from_file(pic, &text)
+pp.ocr_from_file(pic, arr := [])
+arr2 := [], arr2.words := ''
+pp.ocr_from_file(pic, arr2)
+pcb := CallbackCreate(callback)
+pp.ocr_from_file(pic, ObjPtr(arr3 := []), pcb)
+
+callback(pstr, plocation, score, userdata) {
+	arr := ObjFromPtrAddRef(userdata)
+	t := [], p := plocation
+	loop 4
+		t.Push([NumGet(p, 'int'), NumGet(p, 4, 'int')]), p += 8
+	arr.Push([StrGet(pstr), t, score])
+}
 ```
 
 更多参数如下：
@@ -57,9 +75,9 @@ const wchar_t* ocr_from_binary(const char* data, UINT size, BOOL allinfo = FALSE
 
 **注意**
 - 需要以下dll文件: 
-    [paddle预测库](https://paddle-wheel.bj.bcebos.com/2.1.1/win-infer/mkl/cpu/paddle_inference.zip)
-    [opencv_world452](https://sourceforge.net/projects/opencvlibrary/files/4.5.2/opencv-4.5.2-vc14_vc15.exe/download)
+    [paddle预测库](https://paddle-inference-lib.bj.bcebos.com/2.2.1/cxx_c/Windows/CPU/x86-64_vs2017_avx_mkl/paddle_inference.zip)
+    [opencv_world455](https://sourceforge.net/projects/opencvlibrary/files/4.5.5/opencv-4.5.5-vc14_vc15.exe/download)
 - 需要识别模型:
     [OCR模型列表](https://gitee.com/paddlepaddle/PaddleOCR/blob/release/2.1/doc/doc_ch/models_list.md)
 
-    推荐模型 [检测模型](https://paddleocr.bj.bcebos.com/PP-OCRv2/chinese/ch_PP-OCRv2_det_infer.tar) [识别模型](https://paddleocr.bj.bcebos.com/PP-OCRv2/chinese/ch_PP-OCRv2_rec_infer.tar)
+    推荐模型 [检测模型](https://paddleocr.bj.bcebos.com/PP-OCRv2/chinese/ch_PP-OCRv2_det_infer.tar) [识别模型](https://paddleocr.bj.bcebos.com/PP-OCRv2/chinese/ch_PP-OCRv2_rec_infer.tar) [字典](https://github.com/PaddlePaddle/PaddleOCR/blob/release/2.1/ppocr/utils/ppocr_keys_v1.txt)

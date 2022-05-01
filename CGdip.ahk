@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2022/01/14
- * @version 1.0.6
+ * @date 2022/04/24
+ * @version 1.0.7
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -443,7 +443,7 @@ class CGdip
 				x := y := 0
 				hhdc := GetDCEx(Screen, 3)
 			} else if (Screen & 1 != "") {
-				MonitorGet(Screen, x, y, w, h)
+				MonitorGet(Screen, &x, &y, &w, &h)
 				w -= x, h -= y
 			} else {
 				S := StrSplit(Screen, "|")
