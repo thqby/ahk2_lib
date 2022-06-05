@@ -271,7 +271,7 @@ class BitmapBuffer {
 		height := NumGet(bitmap, 8, "int")
 		pitch := NumGet(bitmap, 12, "int")
 		bits := NumGet(bitmap, 18, "ushort")
-		if (bits != 32) {
+		if (bits != 32 || !ptr) {
 			if SubStr(pic, 1, 8) = "HBITMAP:" {
 				hModule := DllCall("LoadLibrary", "str", "gdiplus")
 				NumPut("uint", 1, si := Buffer(24, 0))
@@ -285,7 +285,10 @@ class BitmapBuffer {
 				DllCall("DeleteObject", "ptr", hbm), hbm := LoadPicture(pic, "GDI+")
 			DllCall("GetObject", "ptr", hbm, "int", 32, "ptr", bitmap)
 			ptr := NumGet(bitmap, bmBitsoffset, "ptr")
+			width := NumGet(bitmap, 4, "int")
+			height := NumGet(bitmap, 8, "int")
 			pitch := NumGet(bitmap, 12, "int")
+			bits := NumGet(bitmap, 18, "ushort")
 		}
 		bb := BitmapBuffer.create(width, height)
 		NumPut("ptr", ptr + (height - 1) * pitch, "int", -pitch, "uint", width, "uint", height, "uint", 4, info := Buffer(40, 0))
