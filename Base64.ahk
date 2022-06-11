@@ -7,8 +7,11 @@ Class Base64 {
 	 * @returns Base64 String if success, otherwise blank.
 	 */
 	static Encode(Buf, Codec := 0x40000001) {
-		if (DllCall("crypt32\CryptBinaryToString", "Ptr", Buf, "UInt", Buf.Size, "UInt", Codec, "Ptr", 0, "Uint*", &nSize := 0) &&
-			(VarSetStrCapacity(&VarOut, nSize << 1), DllCall("crypt32\CryptBinaryToString", "Ptr", Buf, "UInt", Buf.Size, "UInt", Codec, "Str", VarOut, "Uint*", &nSize)))
+		if Buf is String
+			p := StrPtr(Buf), s := StrLen(Buf) * 2
+		else p := Buf, s := Buf.Size
+		if (DllCall("crypt32\CryptBinaryToString", "Ptr", p, "UInt", s, "UInt", Codec, "Ptr", 0, "Uint*", &nSize := 0) &&
+			(VarSetStrCapacity(&VarOut, nSize << 1), DllCall("crypt32\CryptBinaryToString", "Ptr", p, "UInt", s, "UInt", Codec, "Str", VarOut, "Uint*", &nSize)))
 			return (VarSetStrCapacity(&VarOut, -1), VarOut)
 	}
 
