@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description Windows capture library, including `DXGI`, `DWM`, `WGC`. And some bitmap functions.
  * @author thqby
- * @date 2022/01/18
- * @version 1.2.5
+ * @date 2022/06/15
+ * @version 1.2.6
  ***********************************************************************/
 
 class wincapture {
@@ -565,7 +565,7 @@ class BitmapBuffer {
 		if (bytespixel == this.bytespixel)
 			this.copyTo(bmp.Ptr + 54, line)
 		else
-			this.cvtBytes(3, BitmapBuffer(bmp.Ptr + 54, line, sw, sh, 3))
+			this.cvtBytes(bytespixel, BitmapBuffer(bmp.Ptr + 54, line, sw, sh, bytespixel))
 		return bmp
 	}
 	HBITMAP(bpp24 := false) {
