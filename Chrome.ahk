@@ -33,7 +33,7 @@ class Chrome {
 
 		; Verify ChromePath
 		if (ChromePath == '')
-			try FileGetShortcut A_StartMenuCommon '\Programs\Chrome.lnk', ChromePath
+			try FileGetShortcut A_StartMenuCommon '\Programs\Chrome.lnk', &ChromePath
 		if (ChromePath == '')
 			try ChromePath := RegRead('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Chrome.exe')
 		if !FileExist(ChromePath) && !FileExist(ChromePath := 'C:\Program Files (x86)\Google\Chrome\Application\Chrome.exe')

@@ -43,7 +43,7 @@ SetupDiGetDeviceProperty(DeviceInfoSet, DeviceInfoData, PropertyKey) {
 				return NumGet(PropertyBuffer, "Int64")
 			case 0x10:	; DEVPROP_TYPE_FILETIME
 			case 0x0d:	; DEVPROP_TYPE_GUID
-				return (VarSetStrCapacity(Property, 80), DllCall("ole32\StringFromGUID2", "Ptr", PropertyBuffer, "Str", Property, "Int", 80), Property)
+				return (VarSetStrCapacity(&Property, 80), DllCall("ole32\StringFromGUID2", "Ptr", PropertyBuffer, "Str", Property, "Int", 80), Property)
 			case 0x13:	; DEVPROP_TYPE_SECURITY_DESCRIPTOR
 			case 0x14:	; DEVPROP_TYPE_SECURITY_DESCRIPTOR_STRING
 			case 0x18:	; DEVPROP_TYPE_NTSTATUS
