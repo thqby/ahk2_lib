@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2022/04/21
- * @version 0.0.22
+ * @date 2022/07/28
+ * @version 0.0.23
  ***********************************************************************/
 
 class Chrome {
@@ -178,16 +178,18 @@ class Chrome {
 		ID := 0, responses := Map(), callback := 0
 		__New(url, events := 0) {
 			super.__New(url)
-			pthis := ObjPtr(this)
-			this.KeepAlive := keepalive, this.callback := events
-			SetTimer(keepalive, 25000)
-			keepalive() {
+			this.callback := events
+			SetTimer(this.KeepAlive := keepalive.Bind(ObjPtr(this)), 25000)
+			keepalive(pthis) {
 				self := ObjFromPtrAddRef(pthis)
-				self.Call('Browser.getVersion', , false)
+				self('Browser.getVersion', , false)
 			}
 		}
 		__Delete() {
-			super.close()
+			if !this.KeepAlive
+				return
+			SetTimer(this.KeepAlive, 0), this.KeepAlive := 0
+			super.__Delete()
 		}
 
 		Call(DomainAndMethod, Params := '', WaitForResponse := true) {
@@ -232,8 +234,9 @@ class Chrome {
 		}
 
 		Close() {
-			RegExMatch(this.url, 'ws://[\d\.]+:(\d+)/devtools/page/(.+)$', &m), super.close()
+			RegExMatch(this.url, 'ws://[\d\.]+:(\d+)/devtools/page/(.+)$', &m)
 			http := this.http, http.open('GET', 'http://127.0.0.1:' m[1] '/json/close/' m[2]), http.send()
+			this.__Delete()
 		}
 
 		Activate() {
@@ -257,5 +260,5 @@ class Chrome {
 	}
 }
 
-#Include 'JSON.ahk'
+; #Include 'JSON.ahk'
 #Include 'WebSocket.ahk'
