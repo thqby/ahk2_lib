@@ -16,7 +16,7 @@ import_v1lib(pathsorcode, ahkv1runtime := "C:\Program Files\AutoHotkey\AutoHotke
 	; free com marshal on fail
 	autofree := { ptr: lresult, __Delete: (s) => DllCall("oleacc\ObjectFromLresult", "ptr", s, "ptr", IDispatch, "ptr", 0, "ptr*", ComValue(9, 0)) }
 	if !FileExist(ahkv1runtime)
-		throw Error("AutoHotkey v1 runtime isn't exist")
+		throw Error("Could not find AutoHotkey v1 runtime")
 	if pathsorcode is Array {
 		t := pathsorcode, pathsorcode := ""
 		for p in t
@@ -53,7 +53,7 @@ import_v1lib(pathsorcode, ahkv1runtime := "C:\Program Files\AutoHotkey\AutoHotke
 	)", lresult, FileExist(pathsorcode) ? "#include " pathsorcode : pathsorcode)
 	if ahkv1runtime ~= "i)\.dll$" {
 		if !DllCall("GetModuleHandle", "str", ahkv1runtime) && !DllCall("LoadLibrary", "str", ahkv1runtime)
-			throw Error("load AutoHotkey.dll fail")
+			throw Error("Failed to load AutoHotkey.dll")
 		if !hThread := DllCall(ahkv1runtime "\ahktextdll", "str", v1script, "str", "", "str", "", "cdecl ptr")
 			throw Error("Failed to load script")
 		while !client.proxy
