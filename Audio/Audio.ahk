@@ -81,7 +81,7 @@ class IMMDeviceCollection extends IAudioBase {
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdeviceenumerator
 class IMMDeviceEnumerator extends IAudioBase {
 	static IID := "{A95664D2-9614-4F35-A746-DE8DB63617E6}"
-	__New() => (this.obj := ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}"), this.Ptr := ComObjValue(this.obj))
+	__New() => (this.Ptr := ComObjValue(ComObject("{BCDE0395-E52F-467C-8E3D-C4579291692E}", "{A95664D2-9614-4F35-A746-DE8DB63617E6}")), this.AddRef())
 
 	/*
 	 * EDataFlow: eRender 0, eCapture 1, eAll 2, EDataFlow_enum_count 3
