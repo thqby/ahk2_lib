@@ -2,8 +2,8 @@
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2022/9/21
- * @version 1.0.2
+ * @date 2022/11/16
+ * @version 1.0.3
  ***********************************************************************/
 
 class JSON {
@@ -65,7 +65,7 @@ class JSON {
 		}
 		return J
 		UC(S, e := 1) {
-			static m := Map(Ord('"'), '"', Ord("a"), "`a", Ord("b"), "`b", Ord("t"), "`t", Ord("n"), "`n", Ord("v"), "`v", Ord("f"), "`f", Ord("r"), "`r", Ord("e"), Chr(0x1B), Ord("N"), Chr(0x85), Ord("P"), Chr(0x2029), 0, "", Ord("L"), Chr(0x2028), Ord("_"), Chr(0xA0))
+			static m := Map(Ord('"'), '"', Ord("a"), "`a", Ord("b"), "`b", Ord("t"), "`t", Ord("n"), "`n", Ord("v"), "`v", Ord("f"), "`f", Ord("r"), "`r")
 			v := ""
 			Loop Parse S, "\"
 				if !((e := !e) && A_LoopField = "" ? v .= "\" : !e ? (v .= A_LoopField, 1) : 0)
@@ -81,9 +81,9 @@ class JSON {
 	 * @param space Adds indentation, white space, and line break characters to the return-value JSON text to make it easier to read.
 	 * @param unicode_escaped Convert non-ascii characters to \uxxxx where unicode_escaped = true
 	 */
-	static stringify(obj, expandlevel := unset, space := "  ", unicode_escaped := false) {
+	static stringify(S, expandlevel := unset, space := "  ", unicode_escaped := false) {
 		expandlevel := IsSet(expandlevel) ? Abs(expandlevel) : 10000000
-		return Trim(CO(obj, expandlevel))
+		return Trim(CO(S, expandlevel))
 		CO(O, J := 0, R := 0, Q := 0) {
 			static M1 := "{", M2 := "}", S1 := "[", S2 := "]", N := "`n", C := ",", S := "- ", E := "", K := ":"
 			if (OT := Type(O)) = "Array" {
@@ -110,7 +110,6 @@ class JSON {
 			return D
 		}
 		ES(S, J := 1, U := false) {
-			static ascii := Map("\", "\", "`a", "a", "`b", "b", "`t", "t", "`n", "n", "`v", "v", "`f", "f", "`r", "r", Chr(0x1B), "e", "`"", "`"", Chr(0x85), "N", Chr(0x2029), "P", Chr(0x2028), "L", "", "0", Chr(0xA0), "_")
 			switch Type(S) {
 				case "Float":
 					if (v := '', d := InStr(S, 'e'))
@@ -121,22 +120,21 @@ class JSON {
 				case "Integer":
 					return S
 				case "String":
-					v := ""
-					if (U && RegExMatch(S, "m)[\x{7F}-\x{7FFF}]")) {
-						Loop Parse S
-							v .= ascii.Has(A_LoopField) ? "\" ascii[A_LoopField] : Ord(A_LoopField) < 128 ? A_LoopField : "\u" format("{1:.4X}", Ord(A_LoopField))
-						return '"' v '"'
-					} else {
-						Loop Parse S
-							v .= ascii.Has(A_LoopField) ? "\" ascii[A_LoopField] : A_LoopField
-						return '"' v '"'
-					}
+					S := StrReplace(S, "\", "\\")
+					S := StrReplace(S, "`t", "\t")
+					S := StrReplace(S, "`r", "\r")
+					S := StrReplace(S, "`n", "\n")
+					S := StrReplace(S, "`b", "\b")
+					S := StrReplace(S, "`f", "\f")
+					S := StrReplace(S, "/", "\/")
+					S := StrReplace(S, '"', '\"')
+						return '"' S '"'
 				default:
 					return S == JSON.true ? "true" : S == JSON.false ? "false" : "null"
 			}
 		}
 		CL(i) {
-			Loop (s := "", i - 1)
+			Loop (s := "", space ? i - 1 : 0)
 				s .= space
 			return s
 		}

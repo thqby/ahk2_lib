@@ -342,7 +342,7 @@ class Monitor {
       if (hMonitor := this.GetMonitorHandle(Display)) {
         PHYSICAL_MONITOR := ""
         PhysicalMonitors := this.GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor)
-        hPhysicalMonitor := this.GetPhysicalMonitorsFromHMONITOR(hMonitor, PhysicalMonitors, PHYSICAL_MONITOR)
+        hPhysicalMonitor := this.GetPhysicalMonitorsFromHMONITOR(hMonitor, PhysicalMonitors, &PHYSICAL_MONITOR)
 
         if (SetMethodName = "SetMonitorVCPFeature" || SetMethodName = "SetMonitorColorTemperature") {
           Setting := this.%SetMethodName%(hPhysicalMonitor, Setting, params*)
@@ -368,7 +368,7 @@ class Monitor {
       if (hMonitor := this.GetMonitorHandle(Display)) {
         PHYSICAL_MONITOR := ""
         PhysicalMonitors := this.GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor)
-        hPhysicalMonitor := this.GetPhysicalMonitorsFromHMONITOR(hMonitor, PhysicalMonitors, PHYSICAL_MONITOR)
+        hPhysicalMonitor := this.GetPhysicalMonitorsFromHMONITOR(hMonitor, PhysicalMonitors, &PHYSICAL_MONITOR)
         bool := this.%VoidMethodName%(hPhysicalMonitor)
         this.DestroyPhysicalMonitors(PhysicalMonitors, PHYSICAL_MONITOR)
         return bool
