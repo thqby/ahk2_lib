@@ -2,8 +2,8 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2022/02/27
- * @version 1.1.6
+ * @date 2022/11/24
+ * @version 1.1.7
  ***********************************************************************/
 
 class Native extends Func {
@@ -230,5 +230,90 @@ class Native extends Func {
 						try o.DeleteProp(n)
 			}
 		}
+	}
+
+	/**
+	 * @param fn c/c++ funtion pointer
+	 * @param sig Signature of function `rettype(argtypes)`, [rettype, argtypes*]
+	 */
+	static MdFunc(fn, sig, prototype := 0) {
+		static p_mdfunc := ObjPtr(MsgBox), size := 10 * A_PtrSize + 16
+		static mdtypes := {
+			void: 0,
+			int8: 1,
+			uint8: 2,
+			int16: 3,
+			uint16: 4,
+			int32: 5,
+			uint32: 6,
+			int64: 7,
+			uint64: 8,
+			float64: 9,
+			float32: 10,
+			string: 11,
+			object: 12,
+			variant: 13,
+			bool32: 14,
+			resulttype: 15,
+			fresult: 16,
+			params: 17,
+			optional: 0x80,
+			retval: 0x81,
+			out: 0x82,
+			; thiscall,
+			uintptr: A_PtrSize = 8 ? 8 : 6,
+			intptr: A_PtrSize = 8 ? 7 : 5,
+		}
+		if fn is String
+			fn := this.MCode(fn)
+		; copy a func object memory
+		smdf := Buffer(size, 0), DllCall('RtlMoveMemory', 'ptr', smdf, 'ptr', p_mdfunc, 'uint', size)
+		p := NumPut('ptr', fn, smdf, 6 * A_PtrSize + 16), ac := pc := MinParams := 0
+		if prototype
+			NumPut('char', 1, NumPut('ptr', IsObject(prototype) ? ObjPtr(prototype) : prototype, p) + A_PtrSize + 3), ac := pc := MinParams := 1
+		IsVariadic := false, MaxResultTokens := 0
+		if sig is Array {
+			if sig.Length > 1
+				ret := sig.RemoveAt(1), smdf.Size += sig.Length, ret is String && ret := mdtypes.%ret%
+			else ret := 0
+			opt := false, retval := false, out := 0
+			loop sig.Length {
+				c := sig[A_Index]
+				if c is String
+					sig[A_Index] := c := mdtypes.%c%
+				NumPut('uchar', c, smdf, size + A_Index - 1)
+				if c >= 128 {
+					if c = 128
+						opt := true
+					else if c = 0x82
+						out := c
+					else if c = 0x81
+						retval := true
+					continue
+				}
+				if A_PtrSize = 4 && c >= 7 && c <= 9 && !out && !opt
+					ac++
+				ac++
+				if c = 17
+					IsVariadic := true
+				else if !retval {
+					++pc
+					if !opt && pc - 1 = MinParams
+						MinParams := pc
+					if c = 13 && out
+						++MaxResultTokens
+				}
+				opt := false, retval := false, out := 0
+			}
+			NumPut('ptr', smdf.Ptr + size, 'uchar', ret, 'uchar', MaxResultTokens, 'uchar', ac, smdf, 8 * A_PtrSize + 16)
+		} else throw TypeError()
+		ParamCount := pc
+		obif := ObjFromPtr(smdf.Ptr)
+		; init func refcount and base obj
+		NumPut('uint', 1, 'uint', 0, 'ptr', ObjPtrAddRef(Native.Prototype), smdf, A_PtrSize)
+		; init func infos
+		NumPut('ptr', StrPtr('User-MdFunc'), 'int', ParamCount, 'int', MinParams, 'int', IsVariadic, smdf, 3 * A_PtrSize + 8)
+		NumPut('ptr', 0, 'ptr', 0, ObjPtr(smdf), 3 * A_PtrSize + 8)	; Avoid the memory of func object be freed when buffer is released
+		return obif
 	}
 }
