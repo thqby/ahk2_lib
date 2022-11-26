@@ -98,7 +98,7 @@ class Chrome {
 		http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.send()
 		try PageData := JSON.parse(http.responseText)
 		if (PageData.Has('webSocketDebuggerUrl'))
-			return Chrome.Page.Call(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'))
+			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
 	}
 
 	ClosePage(opts, MatchMode := 'exact') {
@@ -143,7 +143,7 @@ class Chrome {
 					|| (MatchMode = 'startswith' && InStr(PageData[Key], Value) == 1)
 					|| (MatchMode = 'regex' && PageData[Key] ~= Value))
 				&& ++Count == Index)
-				return Chrome.Page.Call(PageData['webSocketDebuggerUrl'], fnCallback)
+				return Chrome.Page(PageData['webSocketDebuggerUrl'], http, fnCallback)
 		}
 	}
 
@@ -176,9 +176,10 @@ class Chrome {
 	 */
 	class Page extends WebSocket {
 		ID := 0, responses := Map(), callback := 0
-		__New(url, events := 0) {
+		__New(url, http, events := 0) {
 			super.__New(url)
 			this.callback := events
+			this.http := http
 			SetTimer(this.KeepAlive := keepalive.Bind(ObjPtr(this)), 25000)
 			keepalive(pthis) {
 				self := ObjFromPtrAddRef(pthis)
