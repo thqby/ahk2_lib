@@ -2,8 +2,8 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2022/01/16
- * @version 1.0.26
+ * @date 2022/11/26
+ * @version 1.0.27
  * @webview2version 1.0.1072.54
  ***********************************************************************/
 
@@ -16,9 +16,10 @@ class WebView2 extends WebView2.Base {
 	 * @param createdEnvironment Create WebView2 controls from the created environment.
 	 * @param datadir User data folder.
 	 * @param edgeruntime The path of Edge Runtime or Edge(dev..) Bin.
+	 * @param options The environment options of Edge. `{TargetCompatibleBrowserVersion?: string, AdditionalBrowserArguments?: string, AllowSingleSignOnUsingOSPrimaryAccount?: bool, Language?: string, ExclusiveUserDataFolderAccess?: bool}`
 	 * @param dllPath The path of `WebView2Loader.dll`.
 	 */
-	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := '', edgeruntime := '', dllPath := 'WebView2Loader.dll') {
+	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := '', edgeruntime := '', options := 0, dllPath := 'WebView2Loader.dll') {
 		Controller := WebView2.Controller()
 		ControllerCompletedHandler := WebView2.Handler(ControllerCompleted_Invoke)
 		if (createdEnvironment)
@@ -33,8 +34,13 @@ class WebView2 extends WebView2.Base {
 						edgeruntime := A_LoopFileFullPath, ver := m[1]
 			}
 			EnvironmentCompletedHandler := WebView2.Handler(EnvironmentCompleted_Invoke)
+			if options {
+				if !options.HasProp('TargetCompatibleBrowserVersion')
+					options.TargetCompatibleBrowserVersion := ver
+				options := WebView2.EnvironmentOptions(options)
+			}
 			if (R := DllCall(dllPath '\CreateCoreWebView2EnvironmentWithOptions', 'str', edgeruntime,
-				'str', datadir || RegExReplace(A_AppData, 'Roaming$', 'Local\Microsoft\Edge\User Data'), 'ptr', 0,
+				'str', datadir || RegExReplace(A_AppData, 'Roaming$', 'Local\Microsoft\Edge\User Data'), 'ptr', options,
 				'ptr', EnvironmentCompletedHandler, 'uint')) {
 				ControllerCompletedHandler := EnvironmentCompletedHandler := 0
 				throw OSError(R)
@@ -488,23 +494,86 @@ class WebView2 extends WebView2.Base {
 		static IID_7 := '{43C22296-3BBD-43A4-9C00-5C0DF6DD29A2}'
 		UserDataFolder => (ComCall(15, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
-	class EnvironmentOptions extends WebView2.Base {
-		static IID := '{2fde08a8-1e9a-4766-8c05-95a9ceb9d1c5}'
-		AdditionalBrowserArguments {
-			get => (ComCall(3, this, 'ptr*', &value := 0), CoTaskMem_String(value))
-			set => ComCall(4, this, 'wstr', Value)
+	class EnvironmentOptions extends Buffer {
+		__New(opts) {
+			super.__New(15 * A_PtrSize, 0)
+			p := NumPut('ptr', this.Ptr + 2 * A_PtrSize, 'ptr', p := ObjPtr(this), this)
+			for cb in [
+				QueryInterface, AddRef, Release,
+				get_AdditionalBrowserArguments, set_AdditionalBrowserArguments,
+				get_Language, set_Language,
+				get_TargetCompatibleBrowserVersion, set_TargetCompatibleBrowserVersion,
+				get_AllowSingleSignOnUsingOSPrimaryAccount, set_AllowSingleSignOnUsingOSPrimaryAccount,
+				get_ExclusiveUserDataFolderAccess, set_ExclusiveUserDataFolderAccess
+			]
+				p := NumPut('ptr', CallbackCreate(cb), p)
+			for n in opts.OwnProps()
+				this.%n% := opts.%n%
+			QueryInterface(this, riid, ppvObject) {
+				static IID_ICoreWebView2EnvironmentOptions := '{2FDE08A8-1E9A-4766-8C05-95A9CEB9D1C5}'
+				static IID_ICoreWebView2EnvironmentOptions2 := '{1821A568-A141-4D77-B3D8-2878E383D8DD}'
+				DllCall("ole32.dll\StringFromGUID2", "ptr", riid, "ptr", buf := Buffer(78), "int", 39)
+				iid := StrGet(buf)
+				if iid = IID_ICoreWebView2EnvironmentOptions || iid = IID_ICoreWebView2EnvironmentOptions2 {
+					ObjAddRef(this)
+					NumPut('ptr', this, ppvObject)
+					return 0
+				}
+				NumPut('ptr', 0, ppvObject)
+				return 0x80004002
+			}
+			AddRef(this) => ObjAddRef(NumGet(this, A_PtrSize, 'ptr'))
+			Release(this) => ObjRelease(NumGet(this, A_PtrSize, 'ptr'))
+			set_AdditionalBrowserArguments(*) => 0
+			set_AllowSingleSignOnUsingOSPrimaryAccount(*) => 0
+			set_Language(*) => 0
+			set_TargetCompatibleBrowserVersion(*) => 0
+			set_ExclusiveUserDataFolderAccess(*) => 0
+			get_AdditionalBrowserArguments(this, pvalue) {
+				this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+				if this.HasOwnProp('AdditionalBrowserArguments') {
+					p := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := this.AdditionalBrowserArguments) * 2 + 2, 'ptr')
+					DllCall('RtlMoveMemory', 'ptr', p, 'ptr', StrPtr(v), 'uptr', s)
+					NumPut('ptr', p, pvalue)
+				} else NumPut('ptr', 0, pvalue)
+				return 0
+			}
+			get_AllowSingleSignOnUsingOSPrimaryAccount(this, pvalue) {
+				this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+				if this.HasOwnProp('AllowSingleSignOnUsingOSPrimaryAccount')
+					NumPut('int', !!this.AllowSingleSignOnUsingOSPrimaryAccount, pvalue)
+				else NumPut('int', 0, pvalue)
+				return 0
+			}
+			get_ExclusiveUserDataFolderAccess(this, pvalue) {
+				this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+				if this.HasOwnProp('ExclusiveUserDataFolderAccess')
+					NumPut('int', !!this.ExclusiveUserDataFolderAccess, pvalue)
+				else NumPut('int', 0, pvalue)
+				return 0
+			}
+			get_Language(this, pvalue) {
+				this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+				if this.HasOwnProp('Language') {
+					p := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := this.Language) * 2 + 2, 'ptr')
+					DllCall('RtlMoveMemory', 'ptr', p, 'ptr', StrPtr(v), 'uptr', s)
+					NumPut('ptr', p, pvalue)
+				} else NumPut('ptr', 0, pvalue)
+				return 0
+			}
+			get_TargetCompatibleBrowserVersion(this, pvalue) {
+				this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
+				if this.HasOwnProp('TargetCompatibleBrowserVersion') {
+					p := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := this.TargetCompatibleBrowserVersion) * 2 + 2, 'ptr')
+					DllCall('RtlMoveMemory', 'ptr', p, 'ptr', StrPtr(v), 'uptr', s)
+					NumPut('ptr', p, pvalue)
+				} else NumPut('ptr', 0, pvalue)
+				return 0
+			}
 		}
-		Language {
-			get => (ComCall(5, this, 'ptr*', &value := 0), CoTaskMem_String(value))
-			set => ComCall(6, this, 'wstr', Value)
-		}
-		TargetCompatibleBrowserVersion {
-			get => (ComCall(7, this, 'ptr*', &value := 0), CoTaskMem_String(value))
-			set => ComCall(8, this, 'wstr', Value)
-		}
-		AllowSingleSignOnUsingOSPrimaryAccount {
-			get => (ComCall(9, this, 'int*', &allow := 0), allow)
-			set => ComCall(10, this, 'int', Value)
+		__Delete() {
+			loop 13
+				CallbackFree(NumGet(this, (A_Index + 1) * A_PtrSize, 'ptr'))
 		}
 	}
 	class Frame extends WebView2.Base {
