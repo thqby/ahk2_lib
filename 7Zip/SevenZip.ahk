@@ -127,16 +127,16 @@ Class SevenZip {
 		else return SevenZip.SevenZipError[Err]
 	}
 	Open(archive, mode) {
-		return this._Open(this.hwnd, StrBuf(archive, "UTF-8"), mode)
+		return (this._Open)(this.hwnd, StrBuf(archive, "UTF-8"), mode)
 	}
 	Check(archive, mode := 0) {
-		return this._Check(StrBuf(archive, "UTF-8"), mode)
+		return (this._Check)(StrBuf(archive, "UTF-8"), mode)
 	}
 	GetFileCount(archive) {
 		return (this._GetFileCount)(StrBuf(archive, "UTF-8"))
 	}
 	GetType(archive) {
-		return this._GetType(StrBuf(archive, "UTF-8"))
+		return (this._GetType)(StrBuf(archive, "UTF-8"))
 	}
 	Cmd(commandline) {
 		if Err := (this.Zip)(this.hwnd, StrBuf(commandline, "UTF-8"), buf := Buffer(10240), 10240)
