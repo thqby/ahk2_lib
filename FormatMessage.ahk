@@ -7,4 +7,3 @@ FormatMessage(err, module := 0) {
 		return msg
 	}
 }
-MsgBox(FormatMessage(12030, DllCall('LoadLibrary', 'str', 'winhttp', 'ptr')))

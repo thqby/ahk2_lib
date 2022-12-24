@@ -1,7 +1,7 @@
 ﻿/************************************************************************
  * @author thqby
- * @date 2022/03/06
- * @version 1.0.1
+ * @date 2022/12/24
+ * @version 1.0.2
  ***********************************************************************/
 
 class child_process {
@@ -123,12 +123,13 @@ class child_process {
 			if DllCall('PeekNamedPipe', 'ptr', f, 'ptr', 0, 'int', 0, 'ptr', 0, 'ptr', 0, 'ptr', 0) && (t := '', ++peek) {
 				while f {
 					if t := t f.Read() {
-						arr := StrSplit(t, '`n'), t := f.AtEOF ? '' : arr.Pop()
+						arr := StrSplit(t, '`n', '`r'), t := f.AtEOF ? '' : arr.Pop()
 						for line in arr
-							try if (out.Push(line), line) && this.onData(k, line) && (--peek, !f := this.%k% := 0) {
+							try if (out.Push(line), 1) && this.onData(k, line) && (--peek, !f := this.%k% := 0) {
 								try this.onClose(k)
 								break 2
-							}
+							} catch MethodError
+								continue
 					} else if f.AtEOF
 						break
 					else Sleep(5)

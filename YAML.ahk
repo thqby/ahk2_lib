@@ -113,7 +113,8 @@ class YAML {
 					A[_A := SubStr(_.ASET, 2)] := V
 				if _.AGET
 					V := A[SubStr(_.AGET, 2)]
-				else if !VQ && SubStr(LTrim(V, " `t"), 1, 1) = "{"	; create json map object
+				else if V == undefined {
+				} else if !VQ && SubStr(LTrim(V, " `t"), 1, 1) = "{"	; create json map object
 					O := Map(), _A ? A[_A] := O : "", P := (YO(O, LP + InStr(LF, V) * 2, L))
 				else if !VQ && SubStr(LTrim(V, " `t"), 1, 1) = "["	; create json sequence object
 					O := [], _A ? A[_A] := O : "", P := (YA(O, LP + InStr(LF, V) * 2, L))
