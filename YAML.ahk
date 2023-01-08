@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2022/09/21
- * @version 1.0.4
+ * @date 2023/01/08
+ * @version 1.0.5
  ***********************************************************************/
 
 class YAML {
@@ -27,6 +27,7 @@ class YAML {
 		CY(&txt, Y := 0) {	; convert yaml to object
 			NewDoc := 0, _C := "", _CE := "", _S := "", _K := "", V := undefined, N := false, _L := "", K := O := "", VQ := "", h := "", VC := ""
 			txt .= Chr(0) Chr(0) Chr(0) Chr(0), P := StrPtr(txt), A := Map(), D := [0], I := [0], D.Length := I.Length := 1000
+			D.Default := I.Default := 0
 			; LS := RegExMatch(txt, "m)^[^\s].*:(\s+\#.*)?\R(\s+)", &LS) ? LS.Len(2) * (Ord(LS.2) = 9 ? 2 : 1) : 2	; indentation length (A_Tab = 2 Spaces, 2 Tabs = 4 Spaces)
 			LS := 2
 			;~ while P:=G(LP:=P,LF){
@@ -41,10 +42,10 @@ class YAML {
 					if _Q && !_K {	; Sequence
 						if D[L].Length && IsObject(VC := D[L].Pop())
 							throw Error("Malformed inline YAML string")	; Error if previous value is an object
-						else D[L].Push(VC (VC ? (_S = ">" ? " " : "`n") : "") _CE := LTrim(LF, "`t "))	; append value to previous item
+						else D[L].Push(VC (VC ? (InStr(_S, '|') == 1 ? '`n' : ' ') : "") _CE := LTrim(LF, "`t "))	; append value to previous item	; append value to previous item
 					} else if IsObject(VC := D[L][K])
 						throw Error("Malformed inline YAML string")	; Error if previous value is an object
-					else D[L][K] := VC (VC ? (_S = ">" ? " " : "`n") : "") _CE := LTrim(LF, "`t ")	; append value to previous item
+					else D[L][K] := VC (VC ? (InStr(_S, '|') == 1 ? '`n' : ' ') : "") _CE := LTrim(LF, "`t ")	; append value to previous item
 					continue
 				} else if _C && (SubStr(_CE, -1) != _C)
 					throw Error("Unexpected character", 0, (_Q ? D[L][D[L].Length] : D[L][K]))	; else check if quoted value was ended with a quote
@@ -54,7 +55,9 @@ class YAML {
 				; Split line into yaml elements
 				if SubStr(LTrim(LF, " `t"), 1, 1) = ":"
 					throw Error("Unexpected character.", 0, ':')
-				RegExMatch(LF, "S)^(?<LVL>\s+)?(?<SEQ>-\s)?(?<KEY>`".*`"\s*:(\s|$)|'.*'\s*:(\s|$)|[^:`"'\{\[]+\s*:(\s|$))?\s*(?<SCA>[\|\>][+-]?)?\s*(?<TYP>!!\w+)?\s*(?<AGET>\*[^\s\t]+)?\s*(?<ASET>&[^\s\t]+)?\s*(?<VAL>`".+`"|'.+'|.+)?\s*$", &_), L := LL := CS(_.LVL, LS), Q := _.SEQ, K := _.KEY, S := _.SCA, T := SubStr(_.TYP, 3), V := UQ(_.VAL, T != ""), VQ := InStr(".''.`"`".", "." SubStr(LTrim(_.VAL, " `t"), 1, 1) SubStr(RTrim(_.VAL, " `t"), -1) ".")
+				RegExMatch(LF, "S)^(?<LVL>\s+)?(?<SEQ>-\s)?(?<KEY>`".*`"\s*:(\s|$)|'.*'\s*:(\s|$)|[^:`"'\{\[]+\s*:(\s|$))?\s*(?<SCA>[\|\>][+-]?)?\s*(?<TYP>!!\w+)?\s*(?<AGET>\*[^\s\t]+)?\s*(?<ASET>&[^\s\t]+)?\s*(?<VAL>`".+`"|'.+'|.+)?\s*$", &_)
+				L := LL := CS(_.LVL, LS), Q := _.SEQ, K := _.KEY, S := _.SCA, T := SubStr(_.TYP, 3), V := UQ(_.VAL, T != "")
+				VQ := InStr(".''.`"`".", "." SubStr(LTrim(_.VAL, " `t"), 1, 1) SubStr(RTrim(_.VAL, " `t"), -1) ".")
 				if L > 1 {
 					if LL = _LL
 						L := _L
@@ -63,7 +66,7 @@ class YAML {
 					else if LL < _LL
 						if !I[LL]
 							throw Error("Indentation problem.", 0, LF)
-						else L := I[LL]
+						else L := I[LL] + (D[LL] is Map)
 				}
 				if Trim(_[], " `t") = "-"	; empty sequence not cached by previous line
 					V := undefined, Q := "-"
@@ -113,19 +116,29 @@ class YAML {
 					A[_A := SubStr(_.ASET, 2)] := V
 				if _.AGET
 					V := A[SubStr(_.AGET, 2)]
-				else if V == undefined {
+				else if V is ComValue {
 				} else if !VQ && SubStr(LTrim(V, " `t"), 1, 1) = "{"	; create json map object
 					O := Map(), _A ? A[_A] := O : "", P := (YO(O, LP + InStr(LF, V) * 2, L))
 				else if !VQ && SubStr(LTrim(V, " `t"), 1, 1) = "["	; create json sequence object
 					O := [], _A ? A[_A] := O : "", P := (YA(O, LP + InStr(LF, V) * 2, L))
 				N := false
+				if _S ~= '^[>|]\+?$' {
+					if D[L] is Map
+						D[L][_K] .= '`n'
+					else D[L][D[L].Length] .= '`n'
+				}
 				if Q	; push sequence value into an object
 					; (V !== undefined ? D[L].Push(O ? O : S ? "" : V) : 0)
 					(V !== undefined ? D[L].Push(O ? O : S ? "" : V) : (N := true, D[L].Push(_null)))
-				else D[L][K] := O ? O : D[L].HasOwnProp(K) ? D[L][K] : S ? "" : V = undefined ? (N := true, _null) : V	; add key: value into object
+				else D[L][K] := O ? O : D[L].Has(K) ? D[L][K] : S ? "" : V = undefined ? (N := true, _null) : V	; add key: value into object
 				if !Q && V !== undefined	; backup yaml elements
 					_L := L, _LL := LL, O := _Q := _K := _S := _T := _V := ""	;_L:=
 				else _L := L, _LL := LL, _Q := Q, _K := K, _S := S, _T := T, _V := V, O := ""
+			}
+			if _S ~= '^[>|]\+?$' {
+				if D[L] is Map
+					D[L][K] .= '`n'
+				else D[L][D[L].Length] .= '`n'
 			}
 			if Y && Type(Y[Y.Length]) = "String"
 				Y.Pop()
@@ -295,7 +308,7 @@ class YAML {
 					if J <= R
 						D .= (J + R < 0 ? "`n" CL(R + 2) : "") (F ? (%F%1 (Z ? "" : CO(value, J, R + 1, F)) %F%2) : ES(value, J, unicode_escaped, 0)) (OT = "Array" && O.Length = A_Index ? E : C)
 					else if ((D := D N CL(R + 1) S) || 1) && F
-						D .= Z ? Z : (J <= (R + 1) ? %F%1 : E) (F = "M" ? LTrim(CO(value, J, R + 1, F), " `t`n") : CO(value, J, R + 1, F)) (J <= (R + 1) ? %F%2 : E)
+						D .= Z ? Z : (J <= (R + 1) ? %F%1 : E) (F = "M" ? LTrim(CO(value, J, R, F), " `t`n") : CO(value, J, R + 1, F)) (J <= (R + 1) ? %F%2 : E)
 					else D .= ES(value, J, unicode_escaped, 2)
 				}
 			} else {
@@ -320,11 +333,11 @@ class YAML {
 			if J < 0 && J + R < 0
 				D .= "`n" CL(R + 1)
 			if R = 0
-				D := RegExReplace(D, "^\R+") (J < 1 ? (OT = "Array" ? S2 : M2) : "")
+				D := LTrim(D, "`n") (J < 1 ? (OT = "Array" ? S2 : M2) : "")
 			return D
 		}
 		ES(S, J := 1, U := false, K := -1) {	; EscIfNeed: check if escaping needed and convert to unicode notation
-			static ascii := Map("\", "\", "`a", "a", "`b", "b", "`t", "t", "`n", "n", "`v", "v", "`f", "f", "`r", "r", Chr(0x1B), "e", "`"", "`"", Chr(0x85), "N", Chr(0x2029), "P", Chr(0x2028), "L", "", "0", Chr(0xA0), "_")
+			static ascii := Map("\", "\", "`a", "a", "`b", "b", "`t", "t", "`n", "n", "`v", "v", "`f", "f", "`r", "r", "`"", "`"")
 			switch Type(S) {
 				case "Float":
 					if (v := '', d := InStr(S, 'e'))
@@ -350,7 +363,7 @@ class YAML {
 								v .= ascii.Has(A_LoopField) ? "\" ascii[A_LoopField] : A_LoopField
 							return '"' v '"'
 						}
-					} else if (RegExMatch(S, "m)[\{\[`"'\r\n]|:\s|,\s|\s#|^[\s#\\\-:>]|\s$")) {
+					} else if (RegExMatch(S, "m)[\{\[`"'\r\n]|:\s|,\s|\s#|^[\s#\-:>]|\s$")) {
 						Loop Parse S
 							v .= ascii.Has(A_LoopField) ? "\" ascii[A_LoopField] : A_LoopField
 						return '"' v '"'

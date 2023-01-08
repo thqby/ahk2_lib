@@ -2,8 +2,8 @@
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2022/11/16
- * @version 1.0.3
+ * @date 2023/01/08
+ * @version 1.0.4
  ***********************************************************************/
 
 class JSON {
@@ -13,11 +13,13 @@ class JSON {
 	 * Converts a AutoHotkey Object Notation JSON string into an object.
 	 * @param text A valid JSON string.
 	 * @param keepbooltype convert true/false/null to JSON.true / JSON.false / JSON.null where it's true, otherwise 1 / 0 / ''
+	 * @param as_map object literals are converted to map, otherwise to object
 	 */
-	static parse(text, keepbooltype := false) {
+	static parse(text, keepbooltype := false, as_map := true) {
 		keepbooltype ? (_true := JSON.true, _false := JSON.false, _null := JSON.null) : (_true := true, _false := false, _null := "")
+		as_map ? (map_set := (maptype := Map).Prototype.Set) : (map_set := (obj, key, val) => obj.%key% := val, maptype := Object)
 		NQ := "", LF := "", LP := 0, P := "", R := ""
-		D := [C := (A := InStr(text := LTrim(text, " `t`r`n"), "[") = 1) ? [] : Map()], text := LTrim(SubStr(text, 2), " `t`r`n"), L := 1, N := 0, V := K := "", J := C, !(Q := InStr(text, '"') != 1) ? text := LTrim(text, '"') : ""
+		D := [C := (A := InStr(text := LTrim(text, " `t`r`n"), "[") = 1) ? [] : maptype()], text := LTrim(SubStr(text, 2), " `t`r`n"), L := 1, N := 0, V := K := "", J := C, !(Q := InStr(text, '"') != 1) ? text := LTrim(text, '"') : ""
 		Loop Parse text, '"' {
 			Q := NQ ? 1 : !Q
 			NQ := Q && (SubStr(A_LoopField, -3) = "\\\" || (SubStr(A_LoopField, -1) = "\" && SubStr(A_LoopField, -2) != "\\"))
@@ -33,7 +35,7 @@ class JSON {
 						else if InStr("{[", A_LoopField) {
 							if !A && !V
 								throw Error("Malformed JSON - missing key.", 0, t)
-							C := A_LoopField = "[" ? [] : Map(), A ? D[L].Push(C) : D[L][K] := C, D.Has(++L) ? D[L] := C : D.Push(C), V := "", A := Type(C) = "Array"
+							C := A_LoopField = "[" ? [] : maptype(), A ? D[L].Push(C) : D[L][K] := C, D.Has(++L) ? D[L] := C : D.Push(C), V := "", A := Type(C) = "Array"
 							continue
 						} else if InStr("]}", A_LoopField) {
 							if !A && V
@@ -46,10 +48,24 @@ class JSON {
 								if A
 									C.Push(R = "null" ? _null : R = "true" ? _true : R = "false" ? _false : IsNumber(R) ? R + 0 : R)
 								else if V
-									C[K] := R = "null" ? _null : R = "true" ? _true : R = "false" ? _false : IsNumber(R) ? R + 0 : R, K := V := ""
+									map_set(C, K, R = "null" ? _null : R = "true" ? _true : R = "false" ? _false : IsNumber(R) ? R + 0 : R), K := V := ""
 								else throw Error("Malformed JSON - missing key.", 0, t)
-							} else
+							} else {
+								; Added support for comments without '"'
+								if A_LoopField == '/' {
+									nt := SubStr(t, A_Index + 1, 1), N := 0
+									if nt == '/' {
+										if nt := InStr(t, '`n', , A_Index + 2)
+											N := nt - A_Index - 1
+									} else if nt == '*' {
+										if nt := InStr(t, '*/', , A_Index + 2)
+											N := nt + 1 - A_Index
+									} else nt := 0
+									if N
+										continue
+								}
 								throw Error("Malformed JSON - unrecognized character-", 0, A_LoopField " in " t)
+							}
 						}
 					}
 				} else if InStr(t, ':') > 1
@@ -79,9 +95,8 @@ class JSON {
 	 * @param obj A AutoHotkey value, usually an object or array or map, to be converted.
 	 * @param expandlevel The level of JSON string need to expand, by default expand all.
 	 * @param space Adds indentation, white space, and line break characters to the return-value JSON text to make it easier to read.
-	 * @param unicode_escaped Convert non-ascii characters to \uxxxx where unicode_escaped = true
 	 */
-	static stringify(S, expandlevel := unset, space := "  ", unicode_escaped := false) {
+	static stringify(S, expandlevel := unset, space := "  ") {
 		expandlevel := IsSet(expandlevel) ? Abs(expandlevel) : 10000000
 		return Trim(CO(S, expandlevel))
 		CO(O, J := 0, R := 0, Q := 0) {
@@ -91,14 +106,14 @@ class JSON {
 				for key, value in O {
 					F := (VT := Type(value)) = "Array" ? "S" : InStr("Map,Object", VT) ? "M" : E
 					Z := VT = "Array" && value.Length = 0 ? "[]" : ((VT = "Map" && value.count = 0) || (VT = "Object" && ObjOwnPropCount(value) = 0)) ? "{}" : ""
-					D .= (J > R ? "`n" CL(R + 2) : "") (F ? (%F%1 (Z ? "" : CO(value, J, R + 1, F)) %F%2) : ES(value, J, unicode_escaped)) (OT = "Array" && O.Length = A_Index ? E : C)
+					D .= (J > R ? "`n" CL(R + 2) : "") (F ? (%F%1 (Z ? "" : CO(value, J, R + 1, F)) %F%2) : ES(value)) (OT = "Array" && O.Length = A_Index ? E : C)
 				}
 			} else {
 				D := !R ? M1 : ""
 				for key, value in (OT := Type(O)) = "Map" ? (Y := 1, O) : (Y := 0, O.OwnProps()) {
 					F := (VT := Type(value)) = "Array" ? "S" : InStr("Map,Object", VT) ? "M" : E
 					Z := VT = "Array" && value.Length = 0 ? "[]" : ((VT = "Map" && value.count = 0) || (VT = "Object" && ObjOwnPropCount(value) = 0)) ? "{}" : ""
-					D .= (J > R ? "`n" CL(R + 2) : "") (Q = "S" && A_Index = 1 ? M1 : E) ES(key, J, unicode_escaped) K (F ? (%F%1 (Z ? "" : CO(value, J, R + 1, F)) %F%2) : ES(value, J, unicode_escaped)) (Q = "S" && A_Index = (Y ? O.count : ObjOwnPropCount(O)) ? M2 : E) (J != 0 || R ? (A_Index = (Y ? O.count : ObjOwnPropCount(O)) ? E : C) : E)
+					D .= (J > R ? "`n" CL(R + 2) : "") (Q = "S" && A_Index = 1 ? M1 : E) ES(key) K (F ? (%F%1 (Z ? "" : CO(value, J, R + 1, F)) %F%2) : ES(value)) (Q = "S" && A_Index = (Y ? O.count : ObjOwnPropCount(O)) ? M2 : E) (J != 0 || R ? (A_Index = (Y ? O.count : ObjOwnPropCount(O)) ? E : C) : E)
 					if J = 0 && !R
 						D .= (A_Index < (Y ? O.count : ObjOwnPropCount(O)) ? C : E)
 				}
@@ -109,7 +124,7 @@ class JSON {
 				D := RegExReplace(D, "^\R+") (OT = "Array" ? S2 : M2)
 			return D
 		}
-		ES(S, J := 1, U := false) {
+		ES(S) {
 			switch Type(S) {
 				case "Float":
 					if (v := '', d := InStr(S, 'e'))
@@ -126,9 +141,9 @@ class JSON {
 					S := StrReplace(S, "`n", "\n")
 					S := StrReplace(S, "`b", "\b")
 					S := StrReplace(S, "`f", "\f")
-					S := StrReplace(S, "/", "\/")
+					S := StrReplace(S, "`v", "\v")
 					S := StrReplace(S, '"', '\"')
-						return '"' S '"'
+					return '"' S '"'
 				default:
 					return S == JSON.true ? "true" : S == JSON.false ? "false" : "null"
 			}
