@@ -143,7 +143,7 @@ class Chrome {
 					|| (MatchMode = 'startswith' && InStr(PageData[Key], Value) == 1)
 					|| (MatchMode = 'regex' && PageData[Key] ~= Value))
 				&& ++Count == Index)
-				return Chrome.Page(PageData['webSocketDebuggerUrl'], http, fnCallback)
+				return Chrome.Page(PageData['webSocketDebuggerUrl'], this.http, fnCallback)
 		}
 	}
 
