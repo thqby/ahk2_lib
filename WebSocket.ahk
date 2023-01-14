@@ -1,9 +1,10 @@
 /************************************************************************
  * @author thqby
  * @date 2023/01/14
- * @version 1.0.0
+ * @version 1.0.1
  ***********************************************************************/
 
+#DllLoad winhttp.dll
 class WebSocket {
 	Ptr := 0, async := 0, readyState := 0, url := '', waiting := false
 	HINTERNETs := [], cache := Buffer(0), recdata := Buffer(0)
@@ -19,12 +20,12 @@ class WebSocket {
 	__New(Url, Events := 0, Async := true, Headers := '') {
 		this.HINTERNETs := [], this.async := !!Async, this.cache.Size := 8192, this.url := Url
 		if (!RegExMatch(Url, 'i)^((?<SCHEME>wss?)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
-			throw Error('Invalid websocket url')
+			throw WebSocket.Error('Invalid websocket url')
 		if !hSession := DllCall('Winhttp\WinHttpOpen', 'ptr', 0, 'uint', 0, 'ptr', 0, 'ptr', 0, 'uint', Async ? 0x10000000 : 0, 'ptr')
-			throw OSError()
+			throw WebSocket.Error()
 		this.HINTERNETs.Push(hSession), port := m.PORT ? Integer(m.PORT) : m.SCHEME = 'ws' ? 80 : 443, dwFlags := m.SCHEME = 'wss' ? 0x800000 : 0
 		if !hConnect := DllCall('Winhttp\WinHttpConnect', 'ptr', hSession, 'wstr', m.HOST, 'ushort', port, 'uint', 0, 'ptr')
-			throw OSError()
+			throw WebSocket.Error()
 		this.HINTERNETs.Push(hConnect)
 		switch Type(Headers) {
 			case 'Object', 'Map':
@@ -47,10 +48,13 @@ class WebSocket {
 		connect(self) {
 			static StatusCallback, msg_gui, wm_ahkmsg := DllCall('RegisterWindowMessage', 'str', 'AHK_WEBSOCKET_STATUSCHANGE', 'uint')
 			static pSendMessageW := DllCall('GetProcAddress', 'ptr', DllCall('GetModuleHandle', 'str', 'user32', 'ptr'), 'astr', 'SendMessageW', 'ptr')
+			if !self.HINTERNETs.Length
+				throw WebSocket.Error('The connection is closed')
+			self.shutdown()
 			while (self.HINTERNETs.Length > 2)
 				DllCall('Winhttp\WinHttpCloseHandle', 'ptr', self.HINTERNETs.Pop())
 			if !hRequest := DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', 'GET', 'wstr', m.PATH, 'ptr', 0, 'ptr', 0, 'ptr', 0, 'uint', dwFlags, 'ptr')
-				throw OSError()
+				throw WebSocket.Error()
 			self.HINTERNETs.Push(hRequest)
 			if (Headers)
 				DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', hRequest, 'wstr', Headers, 'uint', -1, 'uint', 0x20000000, 'int')
@@ -59,14 +63,15 @@ class WebSocket {
 				|| !DllCall('Winhttp\WinHttpReceiveResponse', 'ptr', hRequest, 'ptr', 0)
 				|| !DllCall('Winhttp\WinHttpQueryHeaders', 'ptr', hRequest, 'uint', 19, 'ptr', 0, 'wstr', status := '00000', 'uint*', 10, 'ptr', 0, 'int')
 				|| status != '101')
-				throw OSError()
+				throw IsSet(status) ? WebSocket.Error('Invalid status: ' status) : WebSocket.Error()
 			if !self.Ptr := DllCall('Winhttp\WinHttpWebSocketCompleteUpgrade', 'ptr', hRequest, 'ptr', 0)
-				throw OSError()
+				throw WebSocket.Error()
 			DllCall('Winhttp\WinHttpCloseHandle', 'ptr', self.HINTERNETs.Pop()), self.HINTERNETs.Push(self.Ptr), self.readyState := 1
 			if (Async) {
 				if !IsSet(StatusCallback) {
 					StatusCallback := get_sync_StatusCallback()
-					msg_gui := Gui(), OnMessage(wm_ahkmsg, WEBSOCKET_STATUSCHANGE)
+					DllCall('SetParent', 'ptr', (msg_gui := Gui()).Hwnd, 'ptr', -3)
+					OnMessage(wm_ahkmsg, WEBSOCKET_STATUSCHANGE)
 				}
 				NumPut('ptr', ObjPtr(self), 'ptr', msg_gui.Hwnd, 'ptr', pSendMessageW, 'uint', wm_ahkmsg, self.__context := Buffer(4 * A_PtrSize))
 				DllCall('Winhttp\WinHttpSetOption', 'ptr', self, 'uint', 45, 'ptr*', self.__context.Ptr, 'uint', A_PtrSize)
@@ -78,9 +83,9 @@ class WebSocket {
 			get_sync_StatusCallback() {
 				mcodes := ['i1QkDIPsDIH6AAAIAHQIgfoAAAAEdTWLTCQUiwGJBCSLRCQQiUQkBItEJByJRCQIM8CB+gAACAAPlMBQjUQkBFD/cQyLQQj/cQT/0IPEDMIUAA==',
 					'SIPsSEyL0kGB+AAACAB0CUGB+AAAAAR1MEiLAotSGEyJTCQwRTPJQYH4AAAIAEiJTCQoSYtKCEyNRCQgQQ+UwUiJRCQgQf9SEEiDxEjD']
-				DllCall("crypt32\CryptStringToBinary", "str", hex := mcodes[A_PtrSize >> 2], "uint", 0, "uint", 1, "ptr", 0, "uint*", &s := 0, "ptr", 0, "ptr", 0) &&
-					DllCall("crypt32\CryptStringToBinary", "str", hex, "uint", 0, "uint", 1, "ptr", code := Buffer(s), "uint*", &s, "ptr", 0, "ptr", 0) &&
-					DllCall("VirtualProtect", "ptr", code, "uint", s, "uint", 0x40, "uint*", 0)
+				DllCall('crypt32\CryptStringToBinary', 'str', hex := mcodes[A_PtrSize >> 2], 'uint', 0, 'uint', 1, 'ptr', 0, 'uint*', &s := 0, 'ptr', 0, 'ptr', 0) &&
+					DllCall('crypt32\CryptStringToBinary', 'str', hex, 'uint', 0, 'uint', 1, 'ptr', code := Buffer(s), 'uint*', &s, 'ptr', 0, 'ptr', 0) &&
+					DllCall('VirtualProtect', 'ptr', code, 'uint', s, 'uint', 0x40, 'uint*', 0)
 				return code
 				/*
 				struct __CONTEXT {
@@ -137,8 +142,8 @@ class WebSocket {
 					receive() {
 						ws.waiting := true
 						ret := DllCall('Winhttp\WinHttpWebSocketReceive', 'ptr', hInternet, 'ptr', ws.cache, 'uint', ws.cache.Size, 'uint*', 0, 'uint*', 0)
-						if (ret = 12030)
-							ws.readyState := 3, ws.onClose && SetTimer(() => ws.onClose(1006, ''), -1, 2147483647)
+						if (ret && ret != 12030)
+							throw WebSocket.Error(ret)
 					}
 				}
 			}
@@ -151,6 +156,17 @@ class WebSocket {
 			DllCall('Winhttp\WinHttpCloseHandle', 'ptr', this.HINTERNETs.Pop())
 	}
 
+	class Error extends Error {
+		__New(err := A_LastError) {
+			static module := DllCall('GetModuleHandle', 'str', 'winhttp', 'ptr')
+			if err is Integer
+				if (DllCall("FormatMessage", "uint", 0x900, "ptr", module, "uint", err, "uint", 0, "ptr*", &pstr := 0, "uint", 0, "ptr", 0), pstr)
+					err := (msg := StrGet(pstr), DllCall('LocalFree', 'ptr', pstr), msg)
+				else err := 'Error Code: ' err
+			super.__New(err)
+		}
+	}
+
 	queryCloseStatus() {
 		if (!DllCall('Winhttp\WinHttpWebSocketQueryCloseStatus', 'ptr', this, 'ushort*', &usStatus := 0, 'ptr', vReason := Buffer(123), 'uint', 123, 'uint*', &len := 0))
 			return { status: usStatus, reason: StrGet(vReason, len, 'utf-8') }
@@ -160,12 +176,12 @@ class WebSocket {
 
 	send(eBufferType, pvBuffer, dwBufferLength) {
 		if (this.readyState != 1)
-			throw Error('websocket is disconnected')
+			throw WebSocket.Error('websocket is disconnected')
 		ret := DllCall('Winhttp\WinHttpWebSocketSend', 'ptr', this, 'uint', eBufferType, 'ptr', pvBuffer, 'uint', dwBufferLength, 'uint')
 		if (ret) {
 			if (ret != 12030)
-				throw OSError()
-			this.readyState := 3
+				throw WebSocket.Error(ret)
+			this.shutdown()
 			try this.onClose(1006, '')
 		}
 	}
@@ -180,7 +196,9 @@ class WebSocket {
 
 	receive() {
 		if (this.async)
-			throw Error('Used only in synchronous mode')
+			throw WebSocket.Error('Used only in synchronous mode')
+		if (this.readyState != 1)
+			throw WebSocket.Error('websocket is disconnected')
 		cache := this.cache, size := this.cache.Size, rec := Buffer(0), offset := 0
 		while (!ret := DllCall('Winhttp\WinHttpWebSocketReceive', 'ptr', this, 'ptr', cache, 'uint', size, 'uint*', &dwBytesRead := 0, 'uint*', &eBufferType := 0)) {
 			switch eBufferType {
@@ -207,7 +225,7 @@ class WebSocket {
 		}
 		if (ret) {
 			if (ret != 12030)
-				throw Error(ret)
+				throw WebSocket.Error(ret)
 			this.readyState := 3
 			try this.onClose(1006, '')
 		}
