@@ -1,22 +1,22 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2022/07/28
- * @version 0.0.23
+ * @date 2023/01/14
+ * @version 1.0.0
  ***********************************************************************/
 
 class Chrome {
-	/*
-	 * Escape a string in a manner suitable for command line parameters
-	 */
-	static CliEscape(Param) {
-		return '"' RegExReplace(Param, '(\\*)"', '$1$1\"') '"'
-	}
-
-	static FindInstances(exename := 'Chrome.exe') {
-		for Item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "'")
-			if RegExMatch(Item.CommandLine, '--remote-debugging-port=(\d+)', &Match)
-				return {Base: this.Prototype, DebugPort: Match[1], CommandLine: Item.CommandLine, http: ComObject('WinHttp.WinHttpRequest.5.1'), PID: Item.ProcessID}
+	static _http := ComObject('WinHttp.WinHttpRequest.5.1')
+	static FindInstance(exename := 'Chrome.exe', debugport := 0) {
+		items := Map(), filter_items := Map()
+		for item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "' AND CommandLine LIKE '% --remote-debugging-port=%'")
+			(!items.Has(parentPID := ProcessGetParent(item.ProcessID)) && items[item.ProcessID] := [parentPID, item.CommandLine])
+		for pid, item in items
+			if !items.Has(item[1]) && (!debugport || InStr(item[2], ' --remote-debugging-port=' debugport))
+				filter_items[pid] := item[2]
+		for pid, cmd in filter_items
+			if RegExMatch(cmd, 'i) --remote-debugging-port=(\d+)', &m)
+				return { Base: this.Prototype, DebugPort: m[1], PID: pid }
 	}
 
 	/*
@@ -25,39 +25,51 @@ class Chrome {
 	 * @param Flags       - Additional flags for Chrome when launching
 	 * @param ChromePath  - Path to Chrome.exe, will detect from start menu when left blank
 	 * @param DebugPort   - What port should Chrome's remote debugging server run on
-	 */
+	*/
 	__New(URLs := 'about:blank', Flags := '', ChromePath := '', DebugPort := 9222, ProfilePath := '') {
-		; Verify ProfilePath
-		if (ProfilePath != '' && !FileExist(ProfilePath))
-			DirCreate(ProfilePath)
-
 		; Verify ChromePath
-		if (ChromePath == '')
+		if !ChromePath
 			try FileGetShortcut A_StartMenuCommon '\Programs\Chrome.lnk', &ChromePath
-		if (ChromePath == '')
+		if !ChromePath
 			try ChromePath := RegRead('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Chrome.exe')
 		if !FileExist(ChromePath) && !FileExist(ChromePath := 'C:\Program Files (x86)\Google\Chrome\Application\Chrome.exe')
 			throw Error('Chrome could not be found')
-		this.ChromePath := ChromePath
-
 		; Verify DebugPort
 		if !IsInteger(DebugPort) || (DebugPort <= 0)
 			throw Error('DebugPort must be a positive integer')
-		this.DebugPort := DebugPort
+		this.DebugPort := DebugPort, URLString := ''
+
+		SplitPath(ChromePath, &exename)
+		URLs := URLs is Array ? URLs : URLs && URLs is String ? [URLs] : []
+		if instance := Chrome.FindInstance(exename, DebugPort) {
+			this.PID := instance.PID, http := Chrome._http
+			for url in URLs
+				http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+			return
+		}
+
+		; Verify ProfilePath
+		if (ProfilePath && !FileExist(ProfilePath))
+			DirCreate(ProfilePath)
 
 		; Escape the URL(s)
-		for url in (URLString := '', (t := Type(URLs)) = 'Array' ? URLs : t = 'String' ? [URLs] : ['about:blank'])
-			URLString .= ' ' Chrome.CliEscape(URL)
+		for url in URLs
+			URLString .= ' ' CliEscape(url)
 
-		Run(Chrome.CliEscape(ChromePath) ' --remote-debugging-port=' this.DebugPort
-			(ProfilePath ? ' --user-data-dir=' Chrome.CliEscape(ProfilePath) : '')
+		hasother := ProcessExist(exename)
+		Run(CliEscape(ChromePath) ' --remote-debugging-port=' this.DebugPort
+			(ProfilePath ? ' --user-data-dir=' CliEscape(ProfilePath) : '')
 			(Flags ? ' ' Flags : '') URLString, , , &PID)
-		this.PID := PID, this.http := ComObject('WinHttp.WinHttpRequest.5.1')
+		if (hasother && Sleep(600) || !instance := Chrome.FindInstance(exename, this.DebugPort))
+			throw Error('Chrome is not running in debug mode. Try closing all chrome processes and try again')
+		this.PID := PID, Chrome._http := ComObject('WinHttp.WinHttpRequest.5.1')
+
+		CliEscape(Param) => '"' RegExReplace(Param, '(\\*)"', '$1$1\"') '"'
 	}
 
 	/*
 	 * End Chrome by terminating the process.
-	 */
+	*/
 	Kill() {
 		ProcessClose(this.PID)
 	}
@@ -66,12 +78,12 @@ class Chrome {
 	 * Queries Chrome for a list of pages that expose a debug interface.
 	 * In addition to standard tabs, these include pages such as extension
 	 * configuration pages.
-	 */
+	*/
 	GetPageList() {
-		http := this.http
+		http := Chrome._http
 		try {
-			http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json')
-			http.send()
+			http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json')
+			http.Send()
 			return JSON.parse(http.responseText)
 		} catch
 			return []
@@ -81,7 +93,7 @@ class Chrome {
 		Pages := []
 		for PageData in this.GetPageList() {
 			fg := true
-			for k, v in (Type(opts) = 'Map' ? opts : opts.OwnProps())
+			for k, v in (opts is Map ? opts : opts.OwnProps())
 				if !((MatchMode = 'exact' && PageData[k] = v) || (MatchMode = 'contains' && InStr(PageData[k], v))
 					|| (MatchMode = 'startswith' && InStr(PageData[k], v) == 1) || (MatchMode = 'regex' && PageData[k] ~= v)) {
 					fg := false
@@ -94,76 +106,69 @@ class Chrome {
 	}
 
 	NewTab(url := 'about:blank') {
-		http := this.http, PageData := Map()
-		http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.send()
-		try PageData := JSON.parse(http.responseText)
-		if (PageData.Has('webSocketDebuggerUrl'))
+		http := Chrome._http
+		http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+		try if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
 			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
 	}
 
 	ClosePage(opts, MatchMode := 'exact') {
-		http := this.http
-		switch Type(opts)
-		{
+		http := Chrome._http
+		switch Type(opts) {
 			case 'String':
-				return (http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts), http.send())
+				return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts), http.Send())
 			case 'Map':
 				if opts.Has('id')
-					return (http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts['id']), http.send())
+					return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts['id']), http.Send())
 			case 'Object':
 				if opts.Has('id')
-					return (http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts.id), http.send())
+					return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts.id), http.Send())
 		}
 		for page in this.FindPages(opts, MatchMode)
-			http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' page['id']), http.send()
+			http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' page['id']), http.Send()
 	}
 
 	ActivatePage(opts, MatchMode := 'exact') {
-		http := this.http
+		http := Chrome._http
 		for page in this.FindPages(opts, MatchMode)
-			return (http.open('GET', 'http://127.0.0.1:' this.DebugPort '/json/activate/' page['id']), http.send())
+			return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/activate/' page['id']), http.Send())
 	}
 	/*
 	 * Returns a connection to the debug interface of a page that matches the
 	 * provided criteria. When multiple pages match the criteria, they appear
 	 * ordered by how recently the pages were opened.
-	 * 
+	 *
 	 * Key        - The key from the page list to search for, such as 'url' or 'title'
 	 * Value      - The value to search for in the provided key
 	 * MatchMode  - What kind of search to use, such as 'exact', 'contains', 'startswith', or 'regex'
 	 * Index      - If multiple pages match the given criteria, which one of them to return
-	 * fnCallback - A function to be called whenever message is received from the page
-	 */
+	 * fnCallback - A function to be called whenever message is received from the page, `msg => void`
+	*/
 	GetPageBy(Key, Value, MatchMode := 'exact', Index := 1, fnCallback := '') {
 		Count := 0
-		for PageData in this.GetPageList()
-		{
+		for PageData in this.GetPageList() {
 			if (((MatchMode = 'exact' && PageData[Key] = Value)	; Case insensitive
-					|| (MatchMode = 'contains' && InStr(PageData[Key], Value))
-					|| (MatchMode = 'startswith' && InStr(PageData[Key], Value) == 1)
-					|| (MatchMode = 'regex' && PageData[Key] ~= Value))
+				|| (MatchMode = 'contains' && InStr(PageData[Key], Value))
+				|| (MatchMode = 'startswith' && InStr(PageData[Key], Value) == 1)
+				|| (MatchMode = 'regex' && PageData[Key] ~= Value))
 				&& ++Count == Index)
-				return Chrome.Page(PageData['webSocketDebuggerUrl'], this.http, fnCallback)
+				return Chrome.Page(PageData['webSocketDebuggerUrl'], fnCallback)
 		}
 	}
 
-	/*
-	 * Shorthand for GetPageBy('url', Value, 'startswith')
-	 */
+	; Shorthand for GetPageBy('url', Value, 'startswith')
 	GetPageByURL(Value, MatchMode := 'startswith', Index := 1, fnCallback := '') {
 		return this.GetPageBy('url', Value, MatchMode, Index, fnCallback)
 	}
 
-	/*
-	 * Shorthand for GetPageBy('title', Value, 'startswith')
-	 */
+	; Shorthand for GetPageBy('title', Value, 'startswith')
 	GetPageByTitle(Value, MatchMode := 'startswith', Index := 1, fnCallback := '') {
 		return this.GetPageBy('title', Value, MatchMode, Index, fnCallback)
 	}
 
-	/*
+	/**
 	 * Shorthand for GetPageBy('type', Type, 'exact')
-	 * 
+	 *
 	 * The default type to search for is 'page', which is the visible area of
 	 * a normal Chrome tab.
 	 */
@@ -171,20 +176,18 @@ class Chrome {
 		return this.GetPageBy('type', Type, 'exact', Index, fnCallback)
 	}
 
-	/*
-	 * Connects to the debug interface of a page given its WebSocket URL.
-	 */
+	; Connects to the debug interface of a page given its WebSocket URL.
 	class Page extends WebSocket {
 		ID := 0, responses := Map(), callback := 0
-		__New(url, http, events := 0) {
+		/**
+		 * @param url the url of webscoket
+		 * @param events callback function, `(msg) => void`
+		 */
+		__New(url, events := 0) {
 			super.__New(url)
 			this.callback := events
-			this.http := http
-			SetTimer(this.KeepAlive := keepalive.Bind(ObjPtr(this)), 25000)
-			keepalive(pthis) {
-				self := ObjFromPtrAddRef(pthis)
-				self('Browser.getVersion', , false)
-			}
+			pthis := ObjPtr(this)
+			SetTimer(this.KeepAlive := () => ObjFromPtrAddRef(pthis)('Browser.getVersion', , false), 25000)
 		}
 		__Delete() {
 			if !this.KeepAlive
@@ -193,16 +196,18 @@ class Chrome {
 			super.__Delete()
 		}
 
-		Call(DomainAndMethod, Params := '', WaitForResponse := true) {
+		Call(DomainAndMethod, Params?, WaitForResponse := true) {
 			if (this.readyState != 1)
 				throw Error('Not connected to tab')
 
 			; Use a temporary variable for ID in case more calls are made
 			; before we receive a response.
-			this.sendText(JSON.stringify(Map('id', ID := this.ID += 1, 'params', Params ? Params : {}, 'method', DomainAndMethod), 0))
+			if !ID := this.ID += 1
+				ID := this.ID += 1
+			this.sendText(JSON.stringify(Map('id', ID, 'params', Params ?? {}, 'method', DomainAndMethod), 0))
 			if (!WaitForResponse)
 				return
-			
+
 			; Wait for the response
 			this.responses[ID] := false
 			while (this.readyState = 1 && !this.responses[ID])
@@ -210,15 +215,14 @@ class Chrome {
 
 			; Get the response, check if it's an error
 			response := this.responses.Delete(ID)
-			if (Type(response) != 'Map')
+			if !(response is Map)
 				return
 			if (response.Has('error'))
 				throw Error('Chrome indicated error in response', , JSON.stringify(response['error']))
-			if response.Has('result')
-				return response['result']
+			try return response['result']
 		}
 		Evaluate(JS) {
-			response := this.Call('Runtime.evaluate', {
+			response := this('Runtime.evaluate', {
 				expression: JS,
 				objectGroup: 'console',
 				includeCommandLineAPI: JSON.true,
@@ -227,7 +231,7 @@ class Chrome {
 				userGesture: JSON.true,
 				awaitPromise: JSON.false
 			})
-			if (Type(response) = 'Map') {
+			if (response is Map) {
 				if (response.Has('ErrorDetails'))
 					throw Error(response['result']['description'], , JSON.stringify(response['ErrorDetails']))
 				return response['result']
@@ -236,27 +240,25 @@ class Chrome {
 
 		Close() {
 			RegExMatch(this.url, 'ws://[\d\.]+:(\d+)/devtools/page/(.+)$', &m)
-			http := this.http, http.open('GET', 'http://127.0.0.1:' m[1] '/json/close/' m[2]), http.send()
+			http := Chrome._http, http.Open('GET', 'http://127.0.0.1:' m[1] '/json/close/' m[2]), http.Send()
 			this.__Delete()
 		}
 
 		Activate() {
-			http := this.http, RegExMatch(this.url, 'ws://[\d\.]+:(\d+)/devtools/page/(.+)$', &m)
-			http.open('GET', 'http://127.0.0.1:' m[1] '/json/activate/' m[2]), http.send()
+			http := Chrome._http, RegExMatch(this.url, 'ws://[\d\.]+:(\d+)/devtools/page/(.+)$', &m)
+			http.Open('GET', 'http://127.0.0.1:' m[1] '/json/activate/' m[2]), http.Send()
 		}
 
 		WaitForLoad(DesiredState := 'complete', Interval := 100) {
 			while this.Evaluate('document.readyState')['value'] != DesiredState
 				Sleep Interval
 		}
-		onClose() {
-			this.reconnect()
-		}
+		onClose(*) => this.reconnect()
 		onMessage(msg) {
 			data := JSON.parse(msg)
-			if data.Has('id') && this.responses.Has(data['id'])
-				this.responses[data['id']] := data
-			try (this.callback)(msg)
+			if this.responses.Has(id := data.Get('id', 0))
+				this.responses[id] := data
+			try (this.callback)(data)
 		}
 	}
 }
