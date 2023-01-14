@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2023/01/14
- * @version 1.0.0
+ * @date 2023/01/15
+ * @version 1.0.1
  ***********************************************************************/
 
 class Chrome {
@@ -62,7 +62,7 @@ class Chrome {
 			(Flags ? ' ' Flags : '') URLString, , , &PID)
 		if (hasother && Sleep(600) || !instance := Chrome.FindInstance(exename, this.DebugPort))
 			throw Error('Chrome is not running in debug mode. Try closing all chrome processes and try again')
-		this.PID := PID, Chrome._http := ComObject('WinHttp.WinHttpRequest.5.1')
+		this.PID := PID
 
 		CliEscape(Param) => '"' RegExReplace(Param, '(\\*)"', '$1$1\"') '"'
 	}
@@ -109,7 +109,7 @@ class Chrome {
 		http := Chrome._http
 		http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
 		try if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
-			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
+				return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
 	}
 
 	ClosePage(opts, MatchMode := 'exact') {
@@ -168,7 +168,7 @@ class Chrome {
 
 	/**
 	 * Shorthand for GetPageBy('type', Type, 'exact')
-	 *
+	 * 
 	 * The default type to search for is 'page', which is the visible area of
 	 * a normal Chrome tab.
 	 */
@@ -214,9 +214,10 @@ class Chrome {
 				Sleep(20)
 
 			; Get the response, check if it's an error
-			response := this.responses.Delete(ID)
+			if !response := this.responses.Delete(ID)
+				throw Error('Not connected to tab')
 			if !(response is Map)
-				return
+				return response
 			if (response.Has('error'))
 				throw Error('Chrome indicated error in response', , JSON.stringify(response['error']))
 			try return response['result']
@@ -253,7 +254,11 @@ class Chrome {
 			while this.Evaluate('document.readyState')['value'] != DesiredState
 				Sleep Interval
 		}
-		onClose(*) => this.reconnect()
+		onClose(*) {
+			try this.reconnect()
+			catch WebSocket.Error
+				this.__Delete()
+		}
 		onMessage(msg) {
 			data := JSON.parse(msg)
 			if this.responses.Has(id := data.Get('id', 0))
