@@ -185,7 +185,7 @@ class YAML {
 					if (q || !v || SubStr(Ltrim(StrGet(p + (c = "`n" ? 2 : 4)), " `t`r`n"), 1, 1) = "]") && P += c = "`n" ? 2 : 4
 						continue
 					else throw Error("Malformed inline YAML string.", 0, s "`n" StrGet(p - 6))
-				} else if !q && (c = " " || c = A_Tab) && (lf .= c, P += 2)
+				} else if !q && (c = " " || c = A_Tab) && (lf != '' && lf .= c, P += 2)
 					continue
 				else if !v && (c = '"' || c = "'") && (q := c, v := 1, P += 2)
 					continue

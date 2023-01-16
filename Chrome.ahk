@@ -178,14 +178,14 @@ class Chrome {
 
 	; Connects to the debug interface of a page given its WebSocket URL.
 	class Page extends WebSocket {
-		ID := 0, responses := Map(), callback := 0
+		_index := 0, _responses := Map(), _callback := 0
 		/**
 		 * @param url the url of webscoket
 		 * @param events callback function, `(msg) => void`
 		 */
 		__New(url, events := 0) {
 			super.__New(url)
-			this.callback := events
+			this._callback := events
 			pthis := ObjPtr(this)
 			SetTimer(this.KeepAlive := () => ObjFromPtrAddRef(pthis)('Browser.getVersion', , false), 25000)
 		}
@@ -202,19 +202,19 @@ class Chrome {
 
 			; Use a temporary variable for ID in case more calls are made
 			; before we receive a response.
-			if !ID := this.ID += 1
-				ID := this.ID += 1
+			if !ID := this._index += 1
+				ID := this._index += 1
 			this.sendText(JSON.stringify(Map('id', ID, 'params', Params ?? {}, 'method', DomainAndMethod), 0))
 			if (!WaitForResponse)
 				return
 
 			; Wait for the response
-			this.responses[ID] := false
-			while (this.readyState = 1 && !this.responses[ID])
+			this._responses[ID] := false
+			while (this.readyState = 1 && !this._responses[ID])
 				Sleep(20)
 
 			; Get the response, check if it's an error
-			if !response := this.responses.Delete(ID)
+			if !response := this._responses.Delete(ID)
 				throw Error('Not connected to tab')
 			if !(response is Map)
 				return response
@@ -261,9 +261,9 @@ class Chrome {
 		}
 		onMessage(msg) {
 			data := JSON.parse(msg)
-			if this.responses.Has(id := data.Get('id', 0))
-				this.responses[id] := data
-			try (this.callback)(data)
+			if this._responses.Has(id := data.Get('id', 0))
+				this._responses[id] := data
+			try (this._callback)(data)
 		}
 	}
 }
