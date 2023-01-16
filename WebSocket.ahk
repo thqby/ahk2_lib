@@ -9,13 +9,19 @@ class WebSocket {
 	Ptr := 0, async := 0, readyState := 0, url := ''
 	HINTERNETs := [], cache := Buffer(0), recdata := Buffer(0)
 
+	; when server sent a close frame
 	onClose(status, reason) => 0
-	onData(eBufferType, ptr, size) => 0
+	; when server sent binary message
+	onData(buf) => 0
+	; when server sent UTF-8 message
 	onMessage(msg) => 0
+	reconnect() => 0
 
 	/**
-	 * @param Url the url of websocket
-	 * @param Events an object of `{data:(this, eBufferType, ptr, size)=>void,message:(this, msg)=>void,close:(this, status, reason)=>void}`
+	 * @param {String} Url the url of websocket
+	 * @param {Object} Events an object of `{data:(this, buf)=>void,message:(this, msg)=>void,close:(this, status, reason)=>void}`
+	 * @param {Integer} Async Use asynchronous mode
+	 * @param {Object|Map|String} Headers Request header
 	 */
 	__New(Url, Events := 0, Async := true, Headers := '') {
 		this.HINTERNETs := [], this.async := !!Async, this.cache.Size := 8192, this.url := Url
@@ -42,8 +48,7 @@ class WebSocket {
 				if (k ~= 'i)^(data|message|close)$')
 					this.DefineProp('on' k, { call: v })
 		}
-		connect(this)
-		this.reconnect := connect
+		connect(this), this.DefineProp('reconnect', { call: connect })
 
 		connect(self) {
 			static StatusCallback, msg_gui, wm_ahkmsg := DllCall('RegisterWindowMessage', 'str', 'AHK_WEBSOCKET_STATUSCHANGE', 'uint')
@@ -87,7 +92,7 @@ class WebSocket {
 					DllCall('crypt32\CryptStringToBinary', 'str', hex, 'uint', 0, 'uint', 1, 'ptr', code := Buffer(s), 'uint*', &s, 'ptr', 0, 'ptr', 0) &&
 					DllCall('VirtualProtect', 'ptr', code, 'uint', s, 'uint', 0x40, 'uint*', 0)
 				return code
-				/*
+				/*c++ source
 				struct __CONTEXT {
 					void *obj;
 					HWND hwnd;
@@ -119,15 +124,19 @@ class WebSocket {
 					eBufferType := NumGet(lpvStatusInformation, 4, 'uint')
 					rec := ws.recdata, offset := rec.Size
 					switch eBufferType {
-						case 0, 1:	; BINARY, BINARY_FRAGMENT
-							try ws.onData(eBufferType, ws.cache.Ptr, dwBytesTransferred)
+						case 0:		; BINARY
+							if (offset) {
+								rec.Size += dwBytesTransferred, DllCall('RtlMoveMemory', 'ptr', rec.Ptr + offset, 'ptr', ws.cache, 'uint', dwBytesTransferred)
+								ws.recdata := Buffer(offset := 0)
+							} else DllCall('RtlMoveMemory', 'ptr', rec := Buffer(dwBytesTransferred), 'ptr', ws.cache, 'uint', dwBytesTransferred)
+							try ws.onData(rec)
 						case 2:		; UTF8
 							if (offset) {
 								rec.Size += dwBytesTransferred, DllCall('RtlMoveMemory', 'ptr', rec.Ptr + offset, 'ptr', ws.cache, 'uint', dwBytesTransferred)
 								msg := StrGet(rec, 'utf-8'), ws.recdata := Buffer(offset := 0)
 							} else msg := StrGet(ws.cache, dwBytesTransferred, 'utf-8')
 							try ws.onMessage(msg)
-						case 3:		; UTF8_FRAGMENT
+						case 1, 3:	; BINARY_FRAGMENT, UTF8_FRAGMENT
 							rec.Size += dwBytesTransferred, DllCall('RtlMoveMemory', 'ptr', rec.Ptr + offset, 'ptr', ws.cache, 'uint', dwBytesTransferred), offset += dwBytesTransferred
 						default:	; CLOSE
 							rea := ws.QueryCloseStatus(), ws.shutdown()
@@ -175,6 +184,7 @@ class WebSocket {
 			return { status: 1006, reason: '' }
 	}
 
+	/** @param eBufferType BINARY_MESSAGE = 0, BINARY_FRAGMENT = 1, UTF8_MESSAGE = 2, UTF8_FRAGMENT = 3 */
 	send(eBufferType, pvBuffer, dwBufferLength) {
 		if (this.readyState != 1)
 			throw WebSocket.Error('websocket is disconnected')
@@ -182,6 +192,7 @@ class WebSocket {
 		(ret && this.onError(ret))
 	}
 
+	; sends a utf-8 string to the server
 	sendText(str) {
 		if (size := StrPut(str, 'utf-8') - 1) {
 			StrPut(str, buf := Buffer(size), 'utf-8')
@@ -221,6 +232,7 @@ class WebSocket {
 		(ret != 4317 && this.onError(ret))
 	}
 
+	; sends a close frame to the server to close the send channel, but leaves the receive channel open.
 	shutdown() {
 		if (this.readyState = 1) {
 			this.readyState := 2
@@ -228,6 +240,11 @@ class WebSocket {
 			this.readyState := 3
 		}
 	}
-
-	close() => this.shutdown()
 }
+
+; ws := WebSocket(wss_or_ws_url, {
+; 	message: (self, data) => FileAppend(Data '`n', '*', 'utf-8'),
+; 	close: (self, status, reason) => FileAppend(status ' ' reason '`n', '*', 'utf-8')
+; })
+; ws.sendText('hello'), Sleep(100)
+; ws.send(0, Buffer(10), 10), Sleep(100)
