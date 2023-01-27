@@ -1,210 +1,212 @@
-﻿class Socket {
-	static WM_SOCKET := 0x9987, MSG_PEEK := 2, FD_READ := 1, FD_ACCEPT := 8, FD_CLOSE := 32
-	Bound := false, Blocking := true, BlockSleep := 50
-	__New(Socket := -1, ProtocolId := 6, SocketType := 1) {
-		static Init := 0
-		if (!Init) {
-			; DllCall("LoadLibrary", "Str", "ws2_32", "Ptr")
-			WSAData := Buffer(394 + A_PtrSize)
-			if (err := DllCall("ws2_32\WSAStartup", "UShort", 0x0202, "Ptr", WSAData))
-				throw Error("Error starting Winsock", , err)
-			if (NumGet(WSAData, 2, "UShort") != 0x0202)
-				throw Error("Winsock version 2.2 not available")
-			Init := true
-		}
-		this.Ptr := Socket, this.ProtocolId := ProtocolId, this.SocketType := SocketType
-	}
+﻿/************************************************************************
+ * @description simple implementation of a socket Server and Client.
+ * @author thqby
+ * @date 2023/01/26
+ * @version 1.0.0
+ ***********************************************************************/
 
-	__Delete() {
-		if (this.Ptr != -1)
-			this.Disconnect()
-	}
-
-	Connect(Address) {
-		if (this.Ptr != -1)
-			throw Error("Socket already connected")
-		Next := pAddrInfo := this.GetAddrInfo(Address)
-		while Next {
-			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
-			ai_addr := NumGet(Next + 0, 16 + (2 * A_PtrSize), "Ptr")
-			if ((this.Ptr := DllCall("ws2_32\socket", "Int", NumGet(Next + 0, 4, "Int")
-				, "Int", this.SocketType, "Int", this.ProtocolId, "Ptr")) != -1) {
-				if (DllCall("ws2_32\WSAConnect", "Ptr", this.Ptr, "Ptr", ai_addr
-					, "UInt", ai_addrlen, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Ptr", 0, "Int") = 0) {
-					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: Error Handling
-					return this.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
-				}
-				this.Disconnect()
-			}
-			Next := NumGet(Next + 0, 16 + (3 * A_PtrSize), "Ptr")
-		}
-		throw Error("Error connecting")
-	}
-
-	Bind(Address) {
-		if (this.Ptr != -1)
-			throw Error("Socket already connected")
-		Next := pAddrInfo := this.GetAddrInfo(Address)
-		while Next {
-			ai_addrlen := NumGet(Next + 0, 16, "UPtr")
-			ai_addr := NumGet(Next + 0, 16 + (2 * A_PtrSize), "Ptr")
-			if ((this.Ptr := DllCall("ws2_32\socket", "Int", NumGet(Next + 0, 4, "Int")
-				, "Int", this.SocketType, "Int", this.ProtocolId, "Ptr")) != -1) {
-				if (DllCall("ws2_32\bind", "Ptr", this.Ptr, "Ptr", ai_addr
-					, "UInt", ai_addrlen, "Int") == 0) {
-					DllCall("ws2_32\FreeAddrInfoW", "Ptr", pAddrInfo)	; TODO: ERROR HANDLING
-					return this.EventProcRegister(Socket.FD_READ | Socket.FD_ACCEPT | Socket.FD_CLOSE)
-				}
-				this.Disconnect()
-			}
-			Next := NumGet(Next + 0, 16 + (3 * A_PtrSize), "Ptr")
-		}
-		throw Error("Error binding")
-	}
-
-	Listen(backlog := 32) {
-		return DllCall("ws2_32\listen", "Ptr", this.Ptr, "Int", backlog) == 0
-	}
-
-	Accept() {
-		if ((s := DllCall("ws2_32\accept", "Ptr", this.Ptr, "Ptr", 0, "Ptr", 0, "Ptr")) == -1)
-			throw Error("Error calling accept", , this.GetLastError())
-		Sock := Socket(s, this.ProtocolId, this.SocketType)
-		Sock.EventProcRegister(Socket.FD_READ | Socket.FD_CLOSE)
-		return Sock
-	}
-
-	Disconnect() {
-		; Return 0 if not connected
-		if (this.Ptr == -1)
-			return 0
-
-		; Unregister the socket event handler and close the socket
-		this.EventProcUnregister()
-		if (DllCall("ws2_32\closesocket", "Ptr", this.Ptr, "Int") == -1)
-			throw Error("Error closing socket", , this.GetLastError())
-		this.Ptr := -1
-		return 1
-	}
-
-	MsgSize() {
-		static FIONREAD := 0x4004667F
-		if (DllCall("ws2_32\ioctlsocket", "Ptr", this.Ptr, "UInt", FIONREAD, "UInt*", &argp := 0) == -1)
-			throw Error("Error calling ioctlsocket", , this.GetLastError())
-		return argp
-	}
-
-	Send(pBuffer, BufSize, Flags := 0) {
-		if ((r := DllCall("ws2_32\send", "Ptr", this.Ptr, "Ptr", pBuffer, "Int", BufSize, "Int", Flags)) == -1)
-			throw Error("Error calling send", , this.GetLastError())
-		return r
-	}
-
-	SendText(Text, Flags := 0, Encoding := "UTF-8") {
-		buf := Buffer(Length := StrPut(Text, Encoding) - ((Encoding = "UTF-16" || Encoding = "cp1200") ? 2 : 1))
-		Length := StrPut(Text, buf, Encoding)
-		return this.Send(buf, Length, Flags)
-	}
-
-	Recv(&Buf, BufSize := 0, Flags := 0, Timeout := 0) {
-		t := 0
-		while (!(Length := this.MsgSize()) && this.Blocking && (!Timeout || t < Timeout))
-			Sleep(this.BlockSleep), t += this.BlockSleep
-		if !Length
-			return 0
-		if !BufSize
-			BufSize := Length
-		else
-			BufSize := Min(BufSize, Length)
-		Buf := Buffer(BufSize)
-		if ((r := DllCall("ws2_32\recv", "Ptr", this.Ptr, "Ptr", Buf, "Int", BufSize, "Int", Flags)) == -1)
-			throw Error("Error calling recv", , this.GetLastError())
-		return r
-	}
-
-	RecvText(BufSize := 0, Flags := 0, Encoding := "UTF-8") {
-		if (Length := this.Recv(&Buf := 0, BufSize, flags))
-			return StrGet(Buf, Length, Encoding)
-		return ""
-	}
-
-	RecvLine(BufSize := 0, Flags := 0, Encoding := "UTF-8", KeepEnd := false) {
-		while !(i := InStr(this.RecvText(BufSize, Flags | Socket.MSG_PEEK, Encoding), "`n")) {
-			if (!this.Blocking)
-				return ""
-			Sleep(this.BlockSleep)
-		}
-		if KeepEnd
-			return this.RecvText(i, Flags, Encoding)
-		else
-			return RTrim(this.RecvText(i, Flags, Encoding), "`r`n")
-	}
-
-	GetAddrInfo(Address) {
-		Host := Address[1], Port := Address[2]
-		Hints := Buffer(16 + (4 * A_PtrSize), 0)
-		NumPut("Int", this.SocketType, "Int", this.ProtocolId, Hints, 8)
-		if (err := DllCall("ws2_32\GetAddrInfoW", "Str", Host, "Str", Port, "Ptr", Hints, "Ptr*", &Result := 0))
-			throw Error("Error calling GetAddrInfo", , err)
-		return Result
-	}
-
-	OnMessage(wParam, lParam, Msg, hWnd) {
-		if (Msg != Socket.WM_SOCKET || wParam != this.Ptr)
+/**
+ * Contains two base classes, `Socket.Server` and `Socket.Client`,
+ * and handles asynchronous messages by implementing the `on%EventName%(err)` method of the class.
+ * If these methods are not implemented, it will be synchronous mode.
+ */
+class Socket {
+	; sock type
+	static TYPE := { STREAM: 1, DGRAM: 2, RAW: 3, RDM: 4, SEQPACKET: 5 }
+	; address family
+	static AF := { UNSPEC: 0, INET: 2, IPX: 6, APPLETALK: 16, NETBIOS: 17, INET6: 23, IRDA: 26, BTH: 32 }
+	; sock protocol
+	static IPPROTO := { ICMP: 1, IGMP: 2, RFCOMM: 3, TCP: 6, UDP: 17, ICMPV6: 58, RM: 113 }
+	static EVENT := { READ: 1, WRITE: 2, OOB: 4, ACCEPT: 8, CONNECT: 16, CLOSE: 32, QOS: 64, GROUP_QOS: 128, ROUTING_INTERFACE_CHANGE: 256, ADDRESS_LIST_CHANGE: 512 }
+	; flags of send/recv
+	static MSG := { OOB: 1, PEEK: 2, DONTROUTE: 4, WAITALL: 8, INTERRUPT: 0x10, PUSH_IMMEDIATE: 0x20, PARTIAL: 0x8000 }
+	static __sockets_table := Map()
+	static __New() {
+		static id_to_event := Map()
+		#DllLoad ws2_32.dll
+		if this != Socket
 			return
-		if (lParam & Socket.FD_READ)
-			this.HasOwnProp('onRecv') ? this.onRecv() : 0
-		else if (lParam & Socket.FD_ACCEPT)
-			this.HasOwnProp('onAccept') ? this.onAccept() : 0
-		else if (lParam & Socket.FD_CLOSE)
-			this.EventProcUnregister(), this.HasOwnProp('OnDisconnect') ? this.OnDisconnect() : 0
+		this.DeleteProp('__New')
+		if err := DllCall('ws2_32\WSAStartup', 'ushort', 0x0202, 'ptr', WSAData := Buffer(394 + A_PtrSize))
+			throw OSError(err)
+		if NumGet(WSAData, 2, 'ushort') != 0x0202
+			throw Error('Winsock version 2.2 not available')
+		this.DefineProp('__Delete', { call: ((pSocket, self) => ObjPtr(self) == pSocket && DllCall('ws2_32\WSACleanup')).Bind(ObjPtr(Socket)) })
+		proto := this.base.Prototype
+		for k, v in { addr: '', async: 0, Ptr: -1 }.OwnProps()
+			proto.DefineProp(k, { value: v })
+		for k in this.EVENT.OwnProps()
+			proto.DefineProp('on' k, { set: get_setter('on' k) })
+		get_setter(name) {
+			return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
+		}
+	}
+	static GetLastError() => DllCall('ws2_32\WSAGetLastError')
+
+	class AddrInfo {
+		static Prototype.size := 48
+		static Call(host, port) {
+			if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', 0, 'ptr*', &addr := 0)
+				throw OSError(err, -1)
+			return { base: this.Prototype, ptr: addr, __Delete: this => DllCall('ws2_32\FreeAddrInfoW', 'ptr', this) }
+		}
+		flags => NumGet(this, 'int')
+		family => NumGet(this, 4, 'int')
+		socktype => NumGet(this, 8, 'int')
+		protocol => NumGet(this, 12, 'int')
+		addrlen => NumGet(this, 16, 'uptr')
+		canonname => StrGet(NumGet(this, 16 + A_PtrSize, 'ptr') || StrPtr(''))
+		addr => NumGet(this, 16 + 2 * A_PtrSize, 'ptr')
+		next => (p := NumGet(this, 16 + 3 * A_PtrSize, 'ptr')) && ({ base: this.Base, ptr: p })
+		addrstr => (!DllCall('ws2_32\WSAAddressToStringW', 'ptr', this.addr, 'uint', this.addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s) && StrGet(b))
 	}
 
-	EventProcRegister(lEvent) {
-		this.AsyncSelect(lEvent)
-		if !this.Bound {
-			this.Bound := ObjBindMethod(this, "OnMessage")
-			OnMessage(Socket.WM_SOCKET, this.Bound)
+	class base {
+		addr := '', async := false, Ptr := -1
+		__Delete() {
+			if this.Ptr == -1
+				return
+			DllCall('ws2_32\closesocket', 'ptr', this)
+			this.UpdateMonitoring(false)
+			this.Ptr := -1
+		}
+
+		; Gets the current message size of the receive buffer.
+		MsgSize() {
+			static FIONREAD := 0x4004667F
+			if DllCall('ws2_32\ioctlsocket', 'ptr', this, 'uint', FIONREAD, 'uint*', &argp := 0)
+				throw OSError(Socket.GetLastError())
+			return argp
+		}
+
+		; Choose to receive the corresponding event according to the implemented method. `CONNECT` event is unimplemented
+		UpdateMonitoring(start := true) {
+			static FIONBIO := 0x8004667E, id_to_event := init_table()
+			static WM_SOCKET := DllCall('RegisterWindowMessage', 'str', 'WM_AHK_SOCKET', 'uint')
+			flags := 0
+			if start
+				for k, v in Socket.EVENT.OwnProps()
+					if this.HasMethod('on' k)
+						flags |= v
+			if flags {
+				Socket.__sockets_table[this.Ptr] := ObjPtr(this), this.async := 1
+				OnMessage(WM_SOCKET, On_WM_SOCKET, 0x7fffffff)
+			} else {
+				try {
+					Socket.__sockets_table.Delete(this.Ptr)
+					if !Socket.__sockets_table.Count
+						OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
+				}
+			}
+			if flags || this.async
+				DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
+			if !flags && start && this.async && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
+				this.async := 0
+			return flags
+			static On_WM_SOCKET(wp, lp, *) {
+				if !sk := Socket.__sockets_table.Get(wp, 0)
+					return
+				event := id_to_event[lp & 0xffff]
+				ObjFromPtrAddRef(sk).on%event%((lp >> 16) & 0xffff)
+			}
+			init_table() {
+				m := Map()
+				for k, v in Socket.EVENT.OwnProps()
+					m[v] := k
+				return m
+			}
 		}
 	}
 
-	EventProcUnregister() {
-		this.AsyncSelect(0)
-		if this.Bound {
-			OnMessage(Socket.WM_SOCKET, this.Bound, 0)
-			this.Bound := false
+	class Client extends Socket.base {
+		__New(host, port, protocol := Socket.IPPROTO.TCP, socktype := Socket.TYPE.STREAM) {
+			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
+			loop {
+				if last_family != ai.family {
+					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
+					if -1 == (ptr := DllCall('ws2_32\socket', 'int', last_family := ai.family, 'int', socktype, 'int', protocol, 'ptr'))
+						continue
+				}
+				if !DllCall('ws2_32\connect', 'ptr', this.Ptr := ptr, 'ptr', ai.addr, 'uint', ai.addrlen)
+					return (this.addr := ai.addrstr, this.UpdateMonitoring())
+			} until !ai := ai.next
+			throw OSError(Socket.GetLastError(), -1)
+		}
+
+		Send(buf, size, flags := 0) {
+			if (size := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size, 'int', flags)) == -1
+				throw OSError(Socket.GetLastError())
+			return size
+		}
+
+		SendText(text, flags := 0, encoding := 'utf-8') {
+			buf := Buffer(StrPut(text, encoding) - ((encoding = 'utf-16' || encoding = 'cp1200') ? 2 : 1))
+			size := StrPut(text, buf, encoding)
+			return this.Send(buf, size, flags)
+		}
+
+		_recv(buf, size, flags := 0) => DllCall('ws2_32\recv', 'ptr', this, 'ptr', buf, 'int', size, 'int', flags)
+
+		Recv(&buf, maxsize := 0x7fffffff, flags := 0, timeout := 0) {
+			endtime := A_TickCount + timeout
+			while !(size := this.MsgSize()) && (!timeout && !this.async || A_TickCount < endtime)
+				Sleep(10)
+			if !size
+				return 0
+			buf := Buffer(size := Min(maxsize, size))
+			if (size := this._recv(buf, size, flags)) == -1
+				throw OSError(Socket.GetLastError())
+			return size
+		}
+
+		RecvText(flags := 0, timeout := 0, encoding := 'utf-8') {
+			if size := this.Recv(&buf, , flags, timeout)
+				return StrGet(buf, size, encoding)
+			return ''
+		}
+
+		RecvLine(flags := 0, timeout := 0, encoding := 'utf-8') {
+			static MSG_PEEK := Socket.MSG.PEEK
+			endtime := A_TickCount + timeout, buf := Buffer(1, 0), t := flags | MSG_PEEK
+			while !(pos := InStr(s := (sz := this.Recv(&buf, , t, timeout && (endtime - A_TickCount)), StrGet(buf, sz, encoding)), '`n')) {
+				if this.async || timeout && A_TickCount > endtime
+					return ''
+				Sleep(10)
+			}
+			sz := this.Recv(&buf, pos * (encoding = 'utf-16' || encoding = 'cp1200' ? 2 : 1), flags)
+			return StrGet(buf, sz, encoding)
 		}
 	}
 
-	AsyncSelect(lEvent) {
-		if (DllCall("ws2_32\WSAAsyncSelect"
-			, "Ptr", this.Ptr	; s
-			, "Ptr", A_ScriptHwnd	; hWnd
-			, "UInt", Socket.WM_SOCKET	; wMsg
-			, "UInt", lEvent) == -1)	; lEvent
-			throw Error("Error calling WSAAsyncSelect", , this.GetLastError())
-	}
+	class Server extends Socket.base {
+		__New(port, host := '127.0.0.1', backlog := 4, protocol := Socket.IPPROTO.TCP, socktype := Socket.TYPE.STREAM) {
+			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
+			loop {
+				if last_family != ai.family {
+					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
+					if -1 == (ptr := DllCall('ws2_32\socket', 'int', last_family := ai.family, 'int', socktype, 'int', protocol, 'ptr'))
+						continue
+				}
+				if !DllCall('ws2_32\bind', 'ptr', this.Ptr := ptr, 'ptr', ai.addr, 'uint', ai.addrlen, 'int')
+					&& !DllCall('ws2_32\listen', 'ptr', ptr, 'int', backlog)
+					return (this.addr := ai.addrstr, this.UpdateMonitoring())
+			} until !ai := ai.next
+			throw OSError(Socket.GetLastError(), -1)
+		}
 
-	GetLastError() {
-		return DllCall("ws2_32\WSAGetLastError")
-	}
-}
+		_accept(&addr?) {
+			if -1 == (ptr := DllCall('ws2_32\accept', 'ptr', this, 'ptr', addr := Buffer(addrlen := 80, 0), 'int*', &addrlen, 'ptr'))
+				throw OSError(Socket.GetLastError())
+			DllCall('ws2_32\WSAAddressToStringW', 'ptr', addr, 'uint', addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s)
+			addr := StrGet(b)
+			return ptr
+		}
 
-class SocketUDP extends Socket {
-	__New(socket := -1) {
-		; ProtocolId := 17	; IPPROTO_UDP
-		; SocketType := 2	; SOCK_DGRAM
-		super.__New(socket, 17, 2)
-	}
-
-	SetBroadcast(Enable) {
-		static SOL_SOCKET := 0xFFFF, SO_BROADCAST := 0x20
-		if (DllCall("ws2_32\setsockopt"
-			, "Ptr", this.Ptr	; SOCKET s
-			, "Int", SOL_SOCKET	; int    level
-			, "Int", SO_BROADCAST	; int    optname
-			, "UInt*", &Enable := !!Enable	; *char  optval
-			, "Int", 4) == -1)	; int    optlen
-			throw Error("Error calling setsockopt", , this.GetLastError())
+		AcceptAsClient(clientType := Socket.Client) {
+			ptr := this._accept(&addr)
+			sock := { base: clientType.Prototype, ptr: ptr, async: this.async, addr: addr }
+			sock.UpdateMonitoring()
+			return sock
+		}
 	}
 }
