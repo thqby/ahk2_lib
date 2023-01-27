@@ -2,7 +2,7 @@
  * @description simple implementation of a socket Server and Client.
  * @author thqby
  * @date 2023/01/26
- * @version 1.0.0
+ * @version 1.0.1
  ***********************************************************************/
 
 /**
@@ -14,7 +14,7 @@ class Socket {
 	; sock type
 	static TYPE := { STREAM: 1, DGRAM: 2, RAW: 3, RDM: 4, SEQPACKET: 5 }
 	; address family
-	static AF := { UNSPEC: 0, INET: 2, IPX: 6, APPLETALK: 16, NETBIOS: 17, INET6: 23, IRDA: 26, BTH: 32 }
+	static AF := { UNSPEC: 0, UNIX: 1, INET: 2, IPX: 6, APPLETALK: 16, NETBIOS: 17, INET6: 23, IRDA: 26, BTH: 32 }
 	; sock protocol
 	static IPPROTO := { ICMP: 1, IGMP: 2, RFCOMM: 3, TCP: 6, UDP: 17, ICMPV6: 58, RM: 113 }
 	static EVENT := { READ: 1, WRITE: 2, OOB: 4, ACCEPT: 8, CONNECT: 16, CLOSE: 32, QOS: 64, GROUP_QOS: 128, ROUTING_INTERFACE_CHANGE: 256, ADDRESS_LIST_CHANGE: 512 }
@@ -45,10 +45,16 @@ class Socket {
 
 	class AddrInfo {
 		static Prototype.size := 48
-		static Call(host, port) {
-			if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', 0, 'ptr*', &addr := 0)
-				throw OSError(err, -1)
-			return { base: this.Prototype, ptr: addr, __Delete: this => DllCall('ws2_32\FreeAddrInfoW', 'ptr', this) }
+		static Call(host, port?) {
+			if IsSet(port) {
+				if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', 0, 'ptr*', &addr := 0)
+					throw OSError(err, -1)
+				return { base: this.Prototype, ptr: addr, __Delete: this => DllCall('ws2_32\FreeAddrInfoW', 'ptr', this) }
+			}
+			; struct sockaddr_un used to connect to AF_UNIX socket
+			NumPut('ushort', 1, buf := Buffer(158, 0), 48), StrPut(host, buf.Ptr + 50, 'cp0')
+			NumPut('int', 0, 'int', 1, 'int', 0, 'int', 0, 'uptr', 110, 'ptr', 0, 'ptr', buf.Ptr + 48, buf)
+			return { base: this.Prototype, buf: buf, ptr: buf.ptr }
 		}
 		flags => NumGet(this, 'int')
 		family => NumGet(this, 4, 'int')
@@ -58,7 +64,7 @@ class Socket {
 		canonname => StrGet(NumGet(this, 16 + A_PtrSize, 'ptr') || StrPtr(''))
 		addr => NumGet(this, 16 + 2 * A_PtrSize, 'ptr')
 		next => (p := NumGet(this, 16 + 3 * A_PtrSize, 'ptr')) && ({ base: this.Base, ptr: p })
-		addrstr => (!DllCall('ws2_32\WSAAddressToStringW', 'ptr', this.addr, 'uint', this.addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s) && StrGet(b))
+		addrstr => (this.family = 1 ? StrGet(this.addr + 2, 'cp0') : !DllCall('ws2_32\WSAAddressToStringW', 'ptr', this.addr, 'uint', this.addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s) && StrGet(b))
 	}
 
 	class base {
@@ -119,8 +125,8 @@ class Socket {
 	}
 
 	class Client extends Socket.base {
-		__New(host, port, protocol := Socket.IPPROTO.TCP, socktype := Socket.TYPE.STREAM) {
-			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
+		__New(host, port?, socktype := Socket.TYPE.STREAM, protocol := 0) {
+			_ := ai := Socket.AddrInfo(host, port?), ptr := last_family := -1
 			loop {
 				if last_family != ai.family {
 					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
@@ -179,8 +185,10 @@ class Socket {
 	}
 
 	class Server extends Socket.base {
-		__New(port, host := '127.0.0.1', backlog := 4, protocol := Socket.IPPROTO.TCP, socktype := Socket.TYPE.STREAM) {
-			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
+		__New(port?, host := '127.0.0.1', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
+			_ := ai := Socket.AddrInfo(host, port?), ptr := last_family := -1
+			if ai.family == 1
+				(this.file := make_del_token(ai.addrstr)).__Delete()
 			loop {
 				if last_family != ai.family {
 					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
@@ -192,13 +200,15 @@ class Socket {
 					return (this.addr := ai.addrstr, this.UpdateMonitoring())
 			} until !ai := ai.next
 			throw OSError(Socket.GetLastError(), -1)
+			make_del_token(file) => { file: file, __Delete: this => FileExist(this.file) && FileDelete(this.File) }
 		}
 
 		_accept(&addr?) {
-			if -1 == (ptr := DllCall('ws2_32\accept', 'ptr', this, 'ptr', addr := Buffer(addrlen := 80, 0), 'int*', &addrlen, 'ptr'))
+			if -1 == (ptr := DllCall('ws2_32\accept', 'ptr', this, 'ptr', addr := Buffer(addrlen := 128, 0), 'int*', &addrlen, 'ptr'))
 				throw OSError(Socket.GetLastError())
-			DllCall('ws2_32\WSAAddressToStringW', 'ptr', addr, 'uint', addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s)
-			addr := StrGet(b)
+			if NumGet(addr, 'ushort') != 1
+				DllCall('ws2_32\WSAAddressToStringW', 'ptr', addr, 'uint', addrlen, 'ptr', 0, 'ptr', b := Buffer(s := 2048), 'uint*', &s), addr := StrGet(b)
+			else addr := this.addr
 			return ptr
 		}
 
