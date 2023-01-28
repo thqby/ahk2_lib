@@ -1,14 +1,14 @@
 ﻿/************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2023/01/26
- * @version 1.0.1
+ * @date 2023/01/28
+ * @version 1.0.2
  ***********************************************************************/
 
 /**
  * Contains two base classes, `Socket.Server` and `Socket.Client`,
  * and handles asynchronous messages by implementing the `on%EventName%(err)` method of the class.
- * If these methods are not implemented, it will be synchronous mode.
+ * If none of these methods are implemented, it will be synchronous mode.
  */
 class Socket {
 	; sock type
@@ -22,7 +22,6 @@ class Socket {
 	static MSG := { OOB: 1, PEEK: 2, DONTROUTE: 4, WAITALL: 8, INTERRUPT: 0x10, PUSH_IMMEDIATE: 0x20, PARTIAL: 0x8000 }
 	static __sockets_table := Map()
 	static __New() {
-		static id_to_event := Map()
 		#DllLoad ws2_32.dll
 		if this != Socket
 			return
@@ -36,7 +35,7 @@ class Socket {
 		for k, v in { addr: '', async: 0, Ptr: -1 }.OwnProps()
 			proto.DefineProp(k, { value: v })
 		for k in this.EVENT.OwnProps()
-			proto.DefineProp('on' k, { set: get_setter('on' k) })
+			proto.DefineProp('On' k, { set: get_setter('On' k) })
 		get_setter(name) {
 			return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
 		}
@@ -54,7 +53,7 @@ class Socket {
 			; struct sockaddr_un used to connect to AF_UNIX socket
 			NumPut('ushort', 1, buf := Buffer(158, 0), 48), StrPut(host, buf.Ptr + 50, 'cp0')
 			NumPut('int', 0, 'int', 1, 'int', 0, 'int', 0, 'uptr', 110, 'ptr', 0, 'ptr', buf.Ptr + 48, buf)
-			return { base: this.Prototype, buf: buf, ptr: buf.ptr }
+			return { base: this.Prototype, buf: buf, ptr: buf.Ptr }
 		}
 		flags => NumGet(this, 'int')
 		family => NumGet(this, 4, 'int')
@@ -72,8 +71,8 @@ class Socket {
 		__Delete() {
 			if this.Ptr == -1
 				return
-			DllCall('ws2_32\closesocket', 'ptr', this)
 			this.UpdateMonitoring(false)
+			DllCall('ws2_32\closesocket', 'ptr', this)
 			this.Ptr := -1
 		}
 
@@ -104,7 +103,7 @@ class Socket {
 						OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
 				}
 			}
-			if flags || this.async
+			if this.async
 				DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
 			if !flags && start && this.async && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
 				this.async := 0
@@ -113,7 +112,7 @@ class Socket {
 				if !sk := Socket.__sockets_table.Get(wp, 0)
 					return
 				event := id_to_event[lp & 0xffff]
-				ObjFromPtrAddRef(sk).on%event%((lp >> 16) & 0xffff)
+				ObjFromPtrAddRef(sk).On%event%((lp >> 16) & 0xffff)
 			}
 			init_table() {
 				m := Map()
@@ -125,22 +124,45 @@ class Socket {
 	}
 
 	class Client extends Socket.base {
+		static Prototype.isConnected := 1
 		__New(host, port?, socktype := Socket.TYPE.STREAM, protocol := 0) {
-			_ := ai := Socket.AddrInfo(host, port?), ptr := last_family := -1
+			this.addrinfo := host is Socket.AddrInfo ? host : Socket.AddrInfo(host, port?)
+			last_family := -1, err := ai := 0
 			loop {
-				if last_family != ai.family {
-					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
-					if -1 == (ptr := DllCall('ws2_32\socket', 'int', last_family := ai.family, 'int', socktype, 'int', protocol, 'ptr'))
-						continue
+				if !connect(this, A_Index > 1) || err == 10035
+					return this.DefineProp('ReConnect', { call: connect })
+			} until !ai
+			throw OSError(err, -1)
+			connect(this, next := false) {
+				this.isConnected := 0
+				if !ai := !next ? (last_family := -1, this.addrinfo) : ai && ai.next
+					return 10061
+				if last_family != ai.family && this.Ptr != -1
+					this.__Delete()
+				while this.Ptr == -1 {
+					if -1 == this.Ptr := DllCall('ws2_32\socket', 'int', ai.family, 'int', socktype, 'int', protocol, 'ptr')
+						return (err := Socket.GetLastError(), connect(this, 1), err)
+					last_family := ai.family
 				}
-				if !DllCall('ws2_32\connect', 'ptr', this.Ptr := ptr, 'ptr', ai.addr, 'uint', ai.addrlen)
-					return (this.addr := ai.addrstr, this.UpdateMonitoring())
-			} until !ai := ai.next
-			throw OSError(Socket.GetLastError(), -1)
+				this.addr := ai.addrstr, this.HasMethod('onConnect') && this.UpdateMonitoring()
+				if !DllCall('ws2_32\connect', 'ptr', this, 'ptr', ai.addr, 'uint', ai.addrlen)
+					return (this.UpdateMonitoring(), this.isConnected := 1, err := 0)
+				return err := Socket.GetLastError()
+			}
 		}
 
-		Send(buf, size, flags := 0) {
-			if (size := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size, 'int', flags)) == -1
+		_OnConnect(err) {
+			if !err
+				this.isConnected := 1
+			else if err == 10061 && (err := this.ReConnect(true)) == 10035
+				return
+			else throw OSError(err)
+		}
+
+		ReConnect(next := false) => 10061
+
+		Send(buf, size?, flags := 0) {
+			if (size := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', flags)) == -1
 				throw OSError(Socket.GetLastError())
 			return size
 		}
@@ -174,13 +196,13 @@ class Socket {
 		RecvLine(flags := 0, timeout := 0, encoding := 'utf-8') {
 			static MSG_PEEK := Socket.MSG.PEEK
 			endtime := A_TickCount + timeout, buf := Buffer(1, 0), t := flags | MSG_PEEK
-			while !(pos := InStr(s := (sz := this.Recv(&buf, , t, timeout && (endtime - A_TickCount)), StrGet(buf, sz, encoding)), '`n')) {
+			while !(pos := InStr((size := this.Recv(&buf, , t, timeout && (endtime - A_TickCount)), StrGet(buf, size, encoding)), '`n')) {
 				if this.async || timeout && A_TickCount > endtime
 					return ''
 				Sleep(10)
 			}
-			sz := this.Recv(&buf, pos * (encoding = 'utf-16' || encoding = 'cp1200' ? 2 : 1), flags)
-			return StrGet(buf, sz, encoding)
+			size := this.Recv(&buf, pos * (encoding = 'utf-16' || encoding = 'cp1200' ? 2 : 1), flags)
+			return StrGet(buf, size, encoding)
 		}
 	}
 
@@ -192,12 +214,13 @@ class Socket {
 			loop {
 				if last_family != ai.family {
 					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
-					if -1 == (ptr := DllCall('ws2_32\socket', 'int', last_family := ai.family, 'int', socktype, 'int', protocol, 'ptr'))
+					if -1 == (ptr := DllCall('ws2_32\socket', 'int', ai.family, 'int', socktype, 'int', protocol, 'ptr'))
 						continue
+					last_family := ai.family, this.Ptr := ptr
 				}
-				if !DllCall('ws2_32\bind', 'ptr', this.Ptr := ptr, 'ptr', ai.addr, 'uint', ai.addrlen, 'int')
+				if !DllCall('ws2_32\bind', 'ptr', ptr, 'ptr', ai.addr, 'uint', ai.addrlen, 'int')
 					&& !DllCall('ws2_32\listen', 'ptr', ptr, 'int', backlog)
-					return (this.addr := ai.addrstr, this.UpdateMonitoring())
+					return (this.addr := ai.addrstr, this.UpdateMonitoring(), 0)
 			} until !ai := ai.next
 			throw OSError(Socket.GetLastError(), -1)
 			make_del_token(file) => { file: file, __Delete: this => FileExist(this.file) && FileDelete(this.File) }
