@@ -2,7 +2,7 @@
  * @description Implements a javascript-like Promise
  * @author thqby
  * @date 2023/01/29
- * @version 1.0.0
+ * @version 1.0.1
  ***********************************************************************/
 
 ; Represents the completion of an asynchronous operation
@@ -72,11 +72,11 @@ class Promise {
 		executor(resolve, reject) {
 			switch this.status {
 				case 'fulfilled':
-					SetTimer(task.Bind(promise2, resolve, reject, onfulfilled, this.value), -1)
+					task(promise2, resolve, reject, onfulfilled, this.value)
 				case 'rejected':
-					if _throw := this.DeleteProp('throw')
-						SetTimer(_throw, 0)
-					SetTimer(task.Bind(promise2, resolve, reject, onrejected, this.reason), -1)
+					if hasthrow := this.DeleteProp('throw')
+						SetTimer(hasthrow, 0)
+					task(promise2, resolve, reject, onrejected, this.reason)
 				default:
 					this.onResolvedCallbacks.Push(task.Bind(promise2, resolve, reject, onfulfilled))
 					this.onRejectedCallbacks.Push(task.Bind(promise2, resolve, reject, onrejected))
@@ -117,8 +117,8 @@ class Promise {
 	 */
 	_finally(onfinally) => this.then(
 		val => (onfinally(), val),
-			err => (onfinally(), (Promise.onRejected)(err)),
-		)
+		err => (onfinally(), (Promise.onRejected)(err)),
+	)
 	/**
 	 * Waits for a promise to be completed.
 	 */
@@ -155,11 +155,32 @@ class Promise {
 		return Promise(executor)
 		executor(resolve, reject) {
 			res := [], count := 0
-			res.Length := values.Length
+			if !(res.Length := values.Length)
+				return resolve(res)
 			resolveRes := (index, data) => (res[index] := data, ++count == res.Length && resolve(res))
 			for val in values
 				if HasMethod(val, 'then', 1)
 					val.then(resolveRes.Bind(A_Index), reject)
+				else resolveRes(A_Index, val)
+		}
+	}
+	/**
+	 * Creates a Promise that is resolved with an array of results when all
+	 * of the provided Promises resolve or reject.
+	 * @param values An array of Promises.
+	 * @returns A new Promise.
+	 */
+	static allSettled(values) {
+		return Promise(executor)
+		executor(resolve, reject) {
+			res := [], count := 0
+			if !(res.Length := values.Length)
+				return resolve(res)
+			resolveRes := (index, data) => (res[index] := { status: 'fulfilled', value: data }, ++count == res.Length && resolve(res))
+			rejectRes := (index, data) => (res[index] := { status: 'rejected', reason: data }, ++count == res.Length && resolve(res))
+			for val in values
+				if HasMethod(val, 'then', 1)
+					val.then(resolveRes.Bind(A_Index), rejectRes.Bind(A_Index))
 				else resolveRes(A_Index, val)
 		}
 	}

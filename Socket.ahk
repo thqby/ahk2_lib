@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2023/01/28
- * @version 1.0.2
+ * @date 2023/02/05
+ * @version 1.0.3
  ***********************************************************************/
 
 /**
@@ -137,6 +137,11 @@ class Socket {
 				this.isConnected := 0
 				if !ai := !next ? (last_family := -1, this.addrinfo) : ai && ai.next
 					return 10061
+				if ai.family == 1 && SubStr(ai.addrstr, 1, 9) = '\\.\pipe\'
+					token := {
+						ptr: DllCall('CreateNamedPipeW', 'str', ai.addrstr, 'uint', 1, 'uint', 4, 'uint', 1, 'uint', 0, 'uint', 0, 'uint', 0, 'ptr', 0, 'ptr'),
+						__Delete: this => DllCall('CloseHandle', 'ptr', this)
+					}
 				if last_family != ai.family && this.Ptr != -1
 					this.__Delete()
 				while this.Ptr == -1 {
@@ -210,7 +215,7 @@ class Socket {
 		__New(port?, host := '127.0.0.1', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
 			_ := ai := Socket.AddrInfo(host, port?), ptr := last_family := -1
 			if ai.family == 1
-				(this.file := make_del_token(ai.addrstr)).__Delete()
+				this.file := make_del_token(ai.addrstr)
 			loop {
 				if last_family != ai.family {
 					(ptr != -1) && (DllCall('ws2_32\closesocket', 'ptr', ptr), this.Ptr := -1)
@@ -223,7 +228,16 @@ class Socket {
 					return (this.addr := ai.addrstr, this.UpdateMonitoring(), 0)
 			} until !ai := ai.next
 			throw OSError(Socket.GetLastError(), -1)
-			make_del_token(file) => { file: file, __Delete: this => FileExist(this.file) && FileDelete(this.File) }
+			make_del_token(file) {
+				if SubStr(file, 1, 9) = '\\.\pipe\'
+					token := {
+						ptr: DllCall('CreateNamedPipeW', 'str', file, 'uint', 1, 'uint', 4, 'uint', backlog, 'uint', 0, 'uint', 0, 'uint', 0, 'ptr', 0, 'ptr'),
+						__Delete: this => DllCall('CloseHandle', 'ptr', this)
+					}
+				else
+					token := { file: file, __Delete: this => FileExist(this.file) && FileDelete(this.File) }, token.__Delete()
+				return token
+			}
 		}
 
 		_accept(&addr?) {
