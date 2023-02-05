@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2022/04/24
- * @version 1.0.7
+ * @date 2023/02/05
+ * @version 1.0.8
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -442,7 +442,7 @@ class CGdip
 				WinGetPos(, , &w, &h, "ahk_id" Screen)
 				x := y := 0
 				hhdc := GetDCEx(Screen, 3)
-			} else if (Screen & 1 != "") {
+			} else if (Screen is Integer) {
 				MonitorGet(Screen, &x, &y, &w, &h)
 				w -= x, h -= y
 			} else {
@@ -453,7 +453,7 @@ class CGdip
 			if (x = "") || (y = "") || (w = "") || (h = "")
 				return -1
 
-			chdc := CreateCompatibleDC(), hbm := CreateDIBSection(w, h, chdc), obm := SelectObject(chdc, hbm), hhdc := hhdc ? hhdc : GetDC()
+			chdc := CreateCompatibleDC(), hbm := CreateDIBSection(w, h, chdc), obm := SelectObject(chdc, hbm), hhdc := hhdc ?? GetDC()
 			BitBlt(chdc, 0, 0, w, h, hhdc, x, y, Raster)
 			ReleaseDC(hhdc)
 			DllCall("gdiplus\GdipCreateBitmapFromHBITMAP", "Ptr", hbm, "Ptr", 0, "Ptr*", &pBitmap := 0)
