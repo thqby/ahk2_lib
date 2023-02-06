@@ -2,8 +2,8 @@
  * @description Create a COM object from an unregistered DLL
  * @file ComObjDll.ahk
  * @author thqby
- * @date 2022/03/06
- * @version 0.0.6
+ * @date 2023/02/06
+ * @version 0.0.7
  ***********************************************************************/
 
 
@@ -30,9 +30,9 @@ ComObjDll(dllpath := '', CLSID := '') {
 					ComCall(4, ptlib, 'UInt', A_Index - 1, 'Ptr*', &ptinfo := 0) ; GetTypeInfo
 					ComCall(3, ptinfo, 'Ptr*', &ptatt := 0) ; GetTypeAttr
 					if (5 = typekind := NumGet(ptatt, 36 + A_PtrSize, 'UInt')) ; ptatt->typekind TKIND_COCLASS
-						CLSID := CLSID || (DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', &GUID := ''), GUID)
+						CLSID := CLSID || StringFromGUID2(ptatt)
 					else if (typekind = 4) { ; TKIND_DISPATCH
-						DllCall('ole32\StringFromCLSID', 'Ptr', ptatt, 'Str*', &DispatchIID := ''), oldvers := Map()
+						DispatchIID := StringFromGUID2(ptatt), oldvers := Map()
 						try Loop Reg, 'HKEY_CLASSES_ROOT\TypeLib\' RegRead('HKEY_CLASSES_ROOT\Interface\' DispatchIID '\TypeLib'), 'K'
 							oldvers[A_LoopRegName] := true
 						DllCall('oleaut32\RegisterTypeLibForUser', 'Ptr', ptlib, 'Str', dllpath, 'Ptr', 0)
@@ -77,5 +77,9 @@ ComObjDll(dllpath := '', CLSID := '') {
 				ret:=DllCall('oleaut32\UnRegisterTypeLibForUser', 'Ptr', _libID, 'UInt', tinfo.ver[1], 'UInt', tinfo.ver[2], 'UInt', 0, 'UInt', 1)
 		for _, p in clsids
 			ObjRelease(p)
+	}
+	StringFromGUID2(guid) {
+		DllCall('ole32\StringFromGUID2', 'Ptr', guid, 'Str', str := '                                        ', 'int', 40)
+		return str
 	}
 }
