@@ -96,9 +96,9 @@ class JSON {
 	 * @param expandlevel The level of JSON string need to expand, by default expand all.
 	 * @param space Adds indentation, white space, and line break characters to the return-value JSON text to make it easier to read.
 	 */
-	static stringify(S, expandlevel := unset, space := "  ") {
+	static stringify(obj, expandlevel := unset, space := "  ") {
 		expandlevel := IsSet(expandlevel) ? Abs(expandlevel) : 10000000
-		return Trim(CO(S, expandlevel))
+		return Trim(CO(obj, expandlevel))
 		CO(O, J := 0, R := 0, Q := 0) {
 			static M1 := "{", M2 := "}", S1 := "[", S2 := "]", N := "`n", C := ",", S := "- ", E := "", K := ":"
 			if (OT := Type(O)) = "Array" {
