@@ -66,7 +66,7 @@ class YAML {
 					else if LL < _LL
 						if !I[LL]
 							throw Error("Indentation problem.", 0, LF)
-						else L := I[LL] + (D[LL] is Map)
+						else L := I[LL] + (D[LL] is Map && D[LL + 1] is Array)
 				}
 				if Trim(_[], " `t") = "-"	; empty sequence not cached by previous line
 					V := undefined, Q := "-"

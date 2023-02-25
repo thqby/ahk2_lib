@@ -2,8 +2,8 @@
  * @file: XL.ahk
  * @description: High performance library for reading and writing Excel(xls,xlsx) files.
  * @author thqby
- * @date 2021/10/04
- * @version 1.1.1
+ * @date 2023/02/25
+ * @version 1.1.2
  * @documentation https://www.libxl.com/documentation.html
  * @enum var
  * Color {BLACK = 8, WHITE, RED, BRIGHTGREEN, BLUE, YELLOW, PINK, TURQUOISE, DARKRED, GREEN, DARKBLUE, DARKYELLOW, VIOLET, TEAL, GRAY25, GRAY50, PERIWINKLE_CF, PLUM_CF, IVORY_CF, LIGHTTURQUOISE_CF, DARKPURPLE_CF, CORAL_CF, OCEANBLUE_CF, ICEBLUE_CF, DARKBLUE_CL, PINK_CL, YELLOW_CL, TURQUOISE_CL, VIOLET_CL, DARKRED_CL, TEAL_CL, BLUE_CL, SKYBLUE, LIGHTTURQUOISE, LIGHTGREEN, LIGHTYELLOW, PALEBLUE, ROSE, LAVENDER, TAN, LIGHTBLUE, AQUA, LIME, GOLD, LIGHTORANGE, ORANGE, BLUEGRAY, GRAY40, DARKTEAL, SEAGREEN, DARKGREEN, OLIVEGREEN, BROWN, PLUM, INDIGO, GRAY80, DEFAULT_FOREGROUND = 0x40, DEFAULT_BACKGROUND = 0x41, TOOLTIP = 0x51, NONE = 0x7F, AUTO = 0x7FFF}
@@ -468,21 +468,22 @@ class XL {
 		}
 		class ICell {
 			__New(row, col, parent) {
-				if (parent.cellType(row, col) = 0)
-					throw Error('Cell does not exist', -1)
 				this.row := row, this.col := col, this.parent := parent
 			}
 			content {
 				get {
-					format := 0, ret := {value: '', type: '', format: 0}, row := this.row, col := this.col
-					switch this.parent.cellType(row, col) {
+					format := 0, ret := {value: '', type: '', format: 0}
+					switch this.parent.cellType(row := this.row, col := this.col) {
 					case 0:	; EMPTY
-						return ''
+						ret.type := 'EMPTY'
+						return ret
 					case 1:	; NUMBER, DATE
 						if (this.parent.isDate(row, col)) {
-							year := month := day := hour := min := sec := msec := 0, this.parent.dateUnpack(ret.value, &year, &month, &day, &hour, &min, &sec, &msec)
+							year := month := day := hour := min := sec := msec := 0
+							value := this.parent.readNum(row, col, &format)
+							this.parent.parent.dateUnpack(value, &year, &month, &day, &hour, &min, &sec, &msec)
 							ret := {year: year, month: month, day: day, hour: hour, min: min, sec: sec, msec: msec}
-							ret.value := this.parent.readNum(row, col, &format), ret.type := 'DATE'
+							ret.type := 'DATE', ret.value := value
 						} else if (this.parent.isFormula(row, col)) {
 							ret.formula := this.parent.readFormula(row, col, &format), ret.type := 'FORMULA'
 							try ret.value := this.parent.readNum(row, col)

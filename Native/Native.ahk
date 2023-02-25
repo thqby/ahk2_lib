@@ -127,7 +127,7 @@ class Native extends Func {
 	 * constructor function used to create an object
 	 */
 	static Class(name, ctor := 0, FID := 0) {
-		cls := Class(), cls.Prototype := { Base: Object.Prototype, __Class: name }
+		cls := Class(), NumPut('uint', 1, ObjPtr(cls.Prototype := { Base: Object.Prototype, __Class: name }), A_PtrSize + 4)
 		if ctor
 			cls.DefineProp('Call', {call: this.Func(ctor, 1, 255, 0, FID)})
 		return cls
