@@ -2,7 +2,7 @@
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
  * @date 2023/02/26
- * @version 1.0.0
+ * @version 1.0.1
  ***********************************************************************/
 
 class ctypes {
@@ -161,8 +161,11 @@ class ctypes {
 					for field in def {
 						if field is Array {
 							tp := field[1], field_name := field.Has(2) ? String(field[2]) : ''
-							if RegExMatch(field_name, '^(.+)(\[\d+\])$', &m)
-								tp .= m[2], field_name := m[1]
+							if RegExMatch(field_name, '^(\**)(\w+)(\[(\d+)\])?$', &m) && field_name != m[2] {
+								loop StrLen(m[1])
+									tp := ctypes.ptr(tp)
+								field_name := m[2], m[3] && tp := ctypes.array(tp, Integer(m[4]))
+							}
 						} else tp := field, field_name := ''
 						info := types.Get(tp, 0) || types[tp] := ctypes.__get_typeinfo(tp), i++
 						tp_size := info.align, to_align := tp_size = 16 ? 16 : Min(pack, tp_size)
@@ -178,7 +181,7 @@ class ctypes {
 							field_name := String(i)
 						if names.Has(field_name)
 							throw PropertyError('Field already exists', , field_name)
-						else if InStr(field_name, '__cache#') = 1
+						else if InStr(field_name, '__') = 1
 							throw PropertyError('Private field cannot be defined', , field_name)
 						max_tp_size := Max(max_tp_size, tp_size), tp_size := info.size, names[field_name] := 1
 						offset := (offset + --to_align) & ~to_align
@@ -236,8 +239,8 @@ class ctypes {
 
 		static align => 0
 		static name => this.Prototype.__Class
-		static __fields => this.Prototype.__fields
 
+		static __fields => this.Prototype.__fields
 		static __dispose() {
 			this.DefineProp('__dispose', { call: (*) => 0 })
 			if !proto := this.DeleteProp('Prototype')
@@ -266,9 +269,9 @@ class ctypes {
 		 */
 		static Call(type, length) {
 			info := ctypes.__get_typeinfo(type), name := info.name
-			if obj := ctypes.types.Get(name .= '[' length ']', 0)
+			if name && obj := ctypes.types.Get(name .= '[' length ']', 0)
 				return obj
-			ctypes.types[name] := obj := { base: array := ctypes.array, Prototype: { __Class: name } }
+			obj := { base: array := ctypes.array, Prototype: { __Class: name } }, name && ctypes.types[name] := obj
 			NumPut('uint', 1, 'ptr', ObjPtrAddRef(array.Prototype), ObjPtr(proto := obj.Prototype), A_PtrSize + 4)
 			proto.DefineProp('__Item', ctypes.__get_prop_desc(0, info.type, info.wrapper, ele_size := info.size))
 			ObjRelease(ObjPtr(Object.Prototype)), align := info.align, size := ele_size * length
@@ -312,19 +315,23 @@ class ctypes {
 		 * MsgBox p[0] ' ' p[1] ; ... p[19]
 		 */
 		static Call(type) {
-			info := ctypes.__get_typeinfo(type), name := info.name '*'
-			if obj := ctypes.types.Get(name, 0)
+			info := ctypes.__get_typeinfo(type), name := info.name
+			if name && obj := ctypes.types.Get(name .= '*', 0)
 				return obj
-			ctypes.types[name] := obj := { base: base := ctypes.ptr, Prototype: { __Class: name } }
+			obj := { base: base := ctypes.ptr, Prototype: { __Class: name } }, name && ctypes.types[name] := obj
 			NumPut('uint', 1, 'ptr', ObjPtrAddRef(base.Prototype), ObjPtr(proto := obj.Prototype), A_PtrSize + 4)
 			proto.DefineProp('__Item', ctypes.__get_prop_desc(0, info.type, info.wrapper, info.size))
 			ObjRelease(ObjPtr(Object.Prototype))
 			return obj
 		}
 		static assign(dst, val := 0) {
+			if val is Integer
+				return NumPut('ptr', val, dst)
+			if val is ctypes.struct
+				return (NumPut('ptr', val.ptr(), dst), val)
 			if HasProp(val, 'Ptr')
-				val := val.Ptr
-			NumPut('ptr', val, dst)
+				return (NumPut('ptr', val.Ptr, dst), val)
+			throw TypeError()
 		}
 		ptr() => this.Ptr
 		size() => A_PtrSize
@@ -365,9 +372,11 @@ class ctypes {
 		this.array.DefineProp('defval', struct.GetOwnPropDesc('defval'))
 		this.array.DefineProp('from_ptr', { call: struct.from_ptr })
 		desc := this.GetOwnPropDesc('ptr'), desc.call := this.ptr.Call, this.DefineProp('ptr', desc)
-		this.ptr.DefineProp('Call', { call: ctypes.struct.from_ptr.Bind(, , 1 << 32) })
+		this.ptr.DefineProp('Call', { call: struct.from_ptr.Bind(, , 1 << 32) })
 		desc := this.GetOwnPropDesc('str'), desc.call := this.str.Call, this.DefineProp('str', desc)
 		this.str.DefineProp('Call', { call: get_str })
+		for k in ['struct', 'array', 'ptr']
+			this.%k%.Prototype.DefineProp('__root', { get: (*) => 0 })
 
 		; add types 
 		(tps := this.types).Set('LPSTR', ctypes.str('cp0'), 'LPWSTR', ctypes.str())
@@ -391,7 +400,7 @@ class ctypes {
 		static generate(this, definition, name := '') {
 			definition := RegExReplace(definition, 'm)//.*')
 			definition := RegExReplace(definition, '(?<=\w)[ \t\r]+(?!\w)|(?<![\w \t])[ \t\r]+')
-			definition := RegExReplace(definition, '([\]>*])(?=\w)', '$1 ')
+			definition := RegExReplace(definition, '([\]>\w])(?=\*+\w)', '$1 ')
 			definition := RegExReplace(StrReplace(definition, ';', ';`n'), '[{}]', '`n$0`n')
 			definition := RegExReplace(Trim(definition, '`n'), '\n+', '`n')
 			definition := RegExReplace(definition, '\n?([,:])\n?', '$1')
@@ -414,14 +423,15 @@ class ctypes {
 					if --b < 0
 						throw Error('invalid struct', , line)
 					tt := create_struct(stack.Pop()), top := stack[stack.Length]
-					if RegExMatch(c := arr[i], '^((\w+(\[\d+\])?(,|;?(?=$)))+);?$', &m) {
+					if RegExMatch(c := arr[i], '^((\**\w+(\[\d+\])?(,|(?=;?$)))+);?$', &m) {
 						for c in StrSplit(m[1], ',')
 							top.Push([tt, c])
+						i++
 					} else top.Push([tt, '']), c == ';' && i++
-				} else if RegExMatch(line, '^((struct|union)\s)?(((un)?signed\s)?\S+)(\s((\w+(\[\d+\])?(,|;?(?=$)))+))?;?$', &m) {
-					if !m[7]
+				} else if RegExMatch(line, '^((struct|union)\s)?(((un)?signed\s)?(\w|::|\.|<[^>]+>)+)(\s((\**\w+(\[\d+\])?(,|(?=;?$)))+))?;?$', &m) {
+					if !m[8]
 						m[4] ? top.Push(StrSplit(m[3], [' ', '`t'])) : top.Push([m[3], ''])
-					else for c in StrSplit(m[7], ',')
+					else for c in StrSplit(m[8], ',')
 						top.Push([m[3], c])
 				} else throw Error('invalid struct', , line)
 			}
@@ -491,12 +501,16 @@ class ctypes {
 					setter := setters.Get(key, 0) || setters[key] := array_wrapper_assign
 			return { get: getter, set: setter }
 			array_wrap_num(this, index) => _ := wrapper(NumGet(this, ele_size * index, type))
-			array_wrap_ptr(this, index) => wrapper.from_ptr(get_buf_ptr(this) + ele_size * index)
+			array_wrap_ptr(this, index) {
+				obj := wrapper.from_ptr(get_buf_ptr(this) + ele_size * index)
+				this := this.__root || this, obj.DefineProp('__root', { get: (*) => this })
+				return obj
+			}
 			array_get_num(this, index) => NumGet(this, ele_size * index, type)
 			array_put_num(this, value, index) => NumPut(type, value, this, ele_size * index)
 			array_wrapper_assign(this, value?, index := 0) {
-				IsObject(value := wrapper.assign(get_buf_ptr(this) + ele_size * index, value?))
-					&& this.%'__cache#' index% := value
+				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + ele_size * index, value?))
+					&& (this := this.__root || this).%'__cache#' (ptr - this.ptr())% := value
 			}
 		}
 		static get_desc(offset, type, wrapper) {
@@ -513,11 +527,15 @@ class ctypes {
 					setter := setters.Get(key, 0) || setters[key] := wrapper_assign
 			return { get: getter, set: setter }
 			wrap_num(this) => _ := wrapper(NumGet(this, offset, type))
-			wrap_ptr(this) => wrapper.from_ptr(get_buf_ptr(this) + offset)
+			wrap_ptr(this) {
+				obj := wrapper.from_ptr(get_buf_ptr(this) + offset)
+				this := this.__root || this, obj.DefineProp('__root', { get: (*) => this })
+				return obj
+			}
 			put_num(this, value) => NumPut(type, value, this, offset)
 			wrapper_assign(this, value?) {
-				IsObject(value := wrapper.assign(get_buf_ptr(this) + offset, value?))
-					&& this.%'__cache#' offset% := value
+				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + offset, value?))
+					&& (this := this.__root || this).%'__cache#' (ptr - this.ptr())% := value
 			}
 		}
 	}
