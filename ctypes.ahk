@@ -71,17 +71,21 @@ class ctypes {
 		 * @return {this}
 		 */
 		static from_ptr(ptr, size := 0) {
-			static offset_ptr := 3 * A_PtrSize + 8, __del := { call: (this) => NumPut('ptr', 0, ObjPtr(this), offset_ptr) }
+			static offset_ptr := 3 * A_PtrSize + 8
 			if !ptr
 				return 0
 			NumPut('ptr', ptr, 'uptr', size || this.size, ObjPtr(obj := (Buffer.Call)(this)), offset_ptr)
-			obj.DefineProp('__Delete', __del)
+			obj.DefineProp('__Delete', { call: __del })
 			return obj
+			__del(this) {
+				try this.base.__Delete()
+				NumPut('ptr', 0, ObjPtr(this), offset_ptr)
+			}
 		}
 
 		/**
 		 * Get the offset of the field.
-		 * @param {Integer|String} field it can be 1-based index, or a field name with a dot join
+		 * @param {Integer|String} field it can be 1-based field index, or a field name with a dot join
 		 */
 		static offset(field) {
 			if field is Integer
@@ -209,17 +213,25 @@ class ctypes {
 
 		/**
 		 * Get the offset of the field.
-		 * @param {Integer|String} field it can be 1-based index, or a field name with a dot join
+		 * @param {Integer|String} field it can be 1-based field index, or a field name with a dot join
 		 */
 		offset(field) => (ctypes.struct.offset)(this, field)
 
 		/**
-		 * Get the address of the field.
+		 * Get the address of the struct or field.
 		 * @param {Integer|String} field it can be 1-based index, or a field name with a dot join
 		 */
 		ptr(field?) {
 			static get_buf_ptr := Buffer.Prototype.GetOwnPropDesc('Ptr').Get
 			return get_buf_ptr(this) + (IsSet(field) && this.offset(field))
+		}
+
+		/**
+		 * Get the size of the struct.
+		 */
+		size() {
+			static get_buf_size := Buffer.Prototype.GetOwnPropDesc('Size').Get
+			return get_buf_size(this)
 		}
 
 		static align => 0
@@ -249,6 +261,8 @@ class ctypes {
 		 * intarray := ctypes.array('int', 20)
 		 * arr := intarray()
 		 * MsgBox arr[0] ' ' arr[1] ; ... arr[19]
+		 * for v in arr
+		 *   MsgBox v
 		 */
 		static Call(type, length) {
 			info := ctypes.__get_typeinfo(type), name := info.name
@@ -280,6 +294,8 @@ class ctypes {
 		}
 
 		__Enum(n) => (i := 0, l := this.Length, (&v, *) => i++ < l ? (v := this[i], true) : false)
+		ptr() => this.Ptr
+		size() => this.Size
 	}
 
 	class ptr extends Buffer {
@@ -310,6 +326,8 @@ class ctypes {
 				val := val.Ptr
 			NumPut('ptr', val, dst)
 		}
+		ptr() => this.Ptr
+		size() => A_PtrSize
 	}
 
 	class str {
