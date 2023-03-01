@@ -2,7 +2,7 @@
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
  * @date 2023/02/26
- * @version 1.0.1
+ * @version 1.0.2
  ***********************************************************************/
 
 class ctypes {
@@ -53,7 +53,7 @@ class ctypes {
 			if val is Buffer
 				return DllCall('RtlMoveMemory', 'ptr', dst, 'ptr', val, 'uptr', Min(get_buf_size(val), this.size))
 			if dst is Integer
-				dst := this.from_ptr(dst)
+				dst := this.from_ptr(dst, , root.__root)
 			else if !(dst is this)
 				throw TypeError()
 			if val is Array {
@@ -70,12 +70,12 @@ class ctypes {
 		 * Converts the pointer to the corresponding struct
 		 * @return {this}
 		 */
-		static from_ptr(ptr, size := 0) {
+		static from_ptr(ptr, size := 0, root := 0) {
 			static offset_ptr := 3 * A_PtrSize + 8
 			if !ptr
 				return 0
 			NumPut('ptr', ptr, 'uptr', size || this.size, ObjPtr(obj := (Buffer.Call)(this)), offset_ptr)
-			obj.DefineProp('__Delete', { call: __del })
+			obj.DefineProp('__Delete', { call: __del }), root && obj.DefineProp('__root', { value: root })
 			return obj
 			__del(this) {
 				try this.base.__Delete()
@@ -203,7 +203,7 @@ class ctypes {
 			set {
 				if !this.fields
 					throw Error('struct is not initialized' )
-				val := Buffer(this.size), this.assign(val.Ptr, Value)
+				val := Buffer(this.size), this.assign(this.from_ptr(val.Ptr, , val), Value)
 				this.DefineProp('defval', { get: (*) => val })
 			}
 		}
@@ -286,7 +286,7 @@ class ctypes {
 			if val is Buffer
 				return DllCall('RtlMoveMemory', 'ptr', dst, 'ptr', val, 'uptr', Min(get_buf_size(val), this.size))
 			if dst is Integer
-				dst := this.from_ptr(dst)
+				dst := this.from_ptr(dst, , root.__root)
 			else if !(dst is this)
 				throw TypeError()
 			if val is Array {
@@ -324,7 +324,7 @@ class ctypes {
 			ObjRelease(ObjPtr(Object.Prototype))
 			return obj
 		}
-		static assign(dst, val := 0) {
+		static assign(dst, val := 0, *) {
 			if val is Integer
 				return NumPut('ptr', val, dst)
 			if val is ctypes.struct
@@ -350,7 +350,7 @@ class ctypes {
 				return obj
 			return ctypes.types[name] := { base: ctypes.str, encoding: encoding, name: name }
 		}
-		static assign(dst, val := 0) {
+		static assign(dst, val := 0, *) {
 			if val is Integer
 				return NumPut('ptr', val, dst)
 			StrPut(val, _ := Buffer(StrPut(val, encoding := this.encoding)), encoding)
@@ -376,7 +376,7 @@ class ctypes {
 		desc := this.GetOwnPropDesc('str'), desc.call := this.str.Call, this.DefineProp('str', desc)
 		this.str.DefineProp('Call', { call: get_str })
 		for k in ['struct', 'array', 'ptr']
-			this.%k%.Prototype.DefineProp('__root', { get: (*) => 0 })
+			this.%k%.Prototype.DefineProp('__root', { get: (this) => this })
 
 		; add types 
 		(tps := this.types).Set('LPSTR', ctypes.str('cp0'), 'LPWSTR', ctypes.str())
@@ -501,16 +501,12 @@ class ctypes {
 					setter := setters.Get(key, 0) || setters[key] := array_wrapper_assign
 			return { get: getter, set: setter }
 			array_wrap_num(this, index) => _ := wrapper(NumGet(this, ele_size * index, type))
-			array_wrap_ptr(this, index) {
-				obj := wrapper.from_ptr(get_buf_ptr(this) + ele_size * index)
-				this := this.__root || this, obj.DefineProp('__root', { get: (*) => this })
-				return obj
-			}
+			array_wrap_ptr(this, index) => wrapper.from_ptr(get_buf_ptr(this) + ele_size * index,, this)
 			array_get_num(this, index) => NumGet(this, ele_size * index, type)
 			array_put_num(this, value, index) => NumPut(type, value, this, ele_size * index)
 			array_wrapper_assign(this, value?, index := 0) {
-				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + ele_size * index, value?))
-					&& (this := this.__root || this).%'__cache#' (ptr - this.ptr())% := value
+				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + ele_size * index, value?, this))
+					&& (this := this.__root).%'__cache#' (ptr - this.ptr())% := value
 			}
 		}
 		static get_desc(offset, type, wrapper) {
@@ -527,15 +523,11 @@ class ctypes {
 					setter := setters.Get(key, 0) || setters[key] := wrapper_assign
 			return { get: getter, set: setter }
 			wrap_num(this) => _ := wrapper(NumGet(this, offset, type))
-			wrap_ptr(this) {
-				obj := wrapper.from_ptr(get_buf_ptr(this) + offset)
-				this := this.__root || this, obj.DefineProp('__root', { get: (*) => this })
-				return obj
-			}
+			wrap_ptr(this) => wrapper.from_ptr(get_buf_ptr(this) + offset, , this)
 			put_num(this, value) => NumPut(type, value, this, offset)
 			wrapper_assign(this, value?) {
-				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + offset, value?))
-					&& (this := this.__root || this).%'__cache#' (ptr - this.ptr())% := value
+				IsObject(value := wrapper.assign(ptr := get_buf_ptr(this) + offset, value?, this))
+					&& (this := this.__root).%'__cache#' (ptr - this.ptr())% := value
 			}
 		}
 	}
