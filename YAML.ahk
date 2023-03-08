@@ -193,12 +193,14 @@ class YAML {
 					continue
 				else if v && ((!q && c = ",") || (q && !b && c = q)) && (v := 0, O.Push(q ? (InStr(lf, "\") ? UC(lf) : lf) : IsNumber(lf) ? lf + 0 : lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : lf), q := 0, lf := "", P += 2)
 					continue
-				else if !q && c = "]" && (v ? (O.Push(lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : lf), 1) : 1) {
+				else if !q && c = "]" && (v ? (O.Push(lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : IsNumber(lf) ? lf + 0 : lf), 1) : 1) {
 					;~ if ((tp:=G(P+2,lf))&&(NumGet(P+2,"UShort")=10||NumGet(P+4,"UShort")=10||(nl:=RegExMatch(lf,"^\s+?$"))||RegExMatch(lf,"^\s*[,\}\]]")))
 					if ((tp := DllCall(NXTLN, "PTR", P + 2, "Int", false, "cdecl PTR"), lf := StrGet(P + 2), tp) && (NumGet(P + 2, "UShort") = 0 || (nl := RegExMatch(lf, "^\s+?$")) || RegExMatch(lf, "^\s*[,\}\]]")))
 						return nl ? DllCall(NXTLN, "PTR", P + 2, "Int", true, "cdecl PTR") : lf ? P + 2 : NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
 					else if !tp
-						return NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
+						return NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr	; in case `r`n we have 2 times NULL chr
+					else if (lf ~= "^\s*#") && P += 2 * StrLen(lf) + 2
+						continue
 					else throw Error("Malformed inline YAML string.", 0, StrGet(p))
 				} else if !v && (c = "," || c = " " || c = "`t") && P += 2	;InStr(", `t",c)
 					continue
