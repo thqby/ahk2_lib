@@ -1,8 +1,8 @@
 /************************************************************************
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
- * @date 2023/02/26
- * @version 1.0.2
+ * @date 2023/03/14
+ * @version 1.0.3
  ***********************************************************************/
 
 class ctypes {
@@ -42,18 +42,18 @@ class ctypes {
 		 * @return {this}
 		 */
 		static Call(init_vals?, *) {
-			obj := (Buffer.Call)(this, this.size, 0)
+			obj := super(this.size, 0)
 			if init_vals := init_vals ?? this.defval
 				this.assign(obj, init_vals)
 			return obj
 		}
 
-		static assign(dst, val) {
+		static assign(dst, val, root := 0) {
 			static get_buf_size := Buffer.Prototype.GetOwnPropDesc('Size').Get
 			if val is Buffer
 				return DllCall('RtlMoveMemory', 'ptr', dst, 'ptr', val, 'uptr', Min(get_buf_size(val), this.size))
 			if dst is Integer
-				dst := this.from_ptr(dst, , root.__root)
+				dst := this.from_ptr(dst, , root && root.__root)
 			else if !(dst is this)
 				throw TypeError()
 			if val is Array {
@@ -281,12 +281,12 @@ class ctypes {
 			return obj
 		}
 
-		static assign(dst, val) {
+		static assign(dst, val, root := 0) {
 			static get_buf_size := Buffer.Prototype.GetOwnPropDesc('Size').Get
 			if val is Buffer
 				return DllCall('RtlMoveMemory', 'ptr', dst, 'ptr', val, 'uptr', Min(get_buf_size(val), this.size))
 			if dst is Integer
-				dst := this.from_ptr(dst, , root.__root)
+				dst := this.from_ptr(dst, , root && root.__root)
 			else if !(dst is this)
 				throw TypeError()
 			if val is Array {
