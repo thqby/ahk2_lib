@@ -57,7 +57,7 @@ class Chrome {
 			URLString .= ' ' CliEscape(url)
 
 		hasother := ProcessExist(exename)
-		Run(CliEscape(ChromePath) ' --remote-debugging-port=' this.DebugPort
+		Run(CliEscape(ChromePath) ' --remote-debugging-port=' this.DebugPort ' --remote-allow-origins=*'
 			(ProfilePath ? ' --user-data-dir=' CliEscape(ProfilePath) : '')
 			(Flags ? ' ' Flags : '') URLString, , , &PID)
 		if (hasother && Sleep(600) || !instance := Chrome.FindInstance(exename, this.DebugPort))
