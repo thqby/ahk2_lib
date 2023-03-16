@@ -1,7 +1,7 @@
 /************************************************************************
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
- * @date 2023/03/14
+ * @date 2023/03/16
  * @version 1.0.3
  ***********************************************************************/
 
@@ -9,8 +9,11 @@ class ctypes {
 	class struct extends Buffer {
 		; The property is set to distinguish between `struct` and `union`
 		static is_union := false
+		; Same as msvc `__declspec(align(#))`
+		static align := 0
 		; By default, structs and unions are aligned the same way as the C compiler.
 		; You can override this behavior by specifying a `pack` class property in the subclass definition.
+		; Same as msvc instruction `#pragma pack(n)`
 		static pack := A_PtrSize << 1
 		; It is set to the size of the struct after initialization
 		static size => 0
@@ -143,21 +146,23 @@ class ctypes {
 						throw ValueError('union cannot be used as a base class')
 					else if this.Base != ctypes.struct
 						throw ValueError('union cannot have base classes')
+				if (align := this.align) && (1 << Integer(Log(align) / Log(2))) != align
+					throw ValueError('expected align to be 2 ** n')
 				names := Map(), types := Map(), names.CaseSense := types.CaseSense := false
 				offset := this.size, fields := offset ? this.__fields.Clone() : [], i := fields.Length
-				max_tp_size := this.align, size := 0, this.DefineProp('fields', { value: 0 })
+				this.DefineProp('fields', { value: 0 }), max_align := 0
 				if name := proto.__Class
 					ctypes.types[name] := this
 				for field in fields
 					names[field[2]] := 1
-				DefineProps(proto, Value)
-				to_align := max_tp_size = 16 ? 16 : Min(pack, max_tp_size), is_union && offset := size
+				to_align := DefineProps(proto, Value, this.__max_align)
+				this.DefineProp('__max_align', { value: to_align }), to_align := Max(to_align, this.align)
 				this.DefineProp('size', { value: (offset + --to_align) & ~to_align })
-				this.DefineProp('align', { value: max_tp_size })
 				this.DefineProp('fields', { get: this => this.Prototype.__fields, set: (*) => 0 })
-				proto.DefineProp('__fields', { value: fields })
+				proto.DefineProp('__fields', { value: fields }), max_align > this.align && this.DefineProp('align', { value: max_align })
 
-				DefineProps(proto, def) {
+				DefineProps(proto, def, max_to_align?) {
+					max_tp_size := 0, offset_origin := offset
 					for field in def {
 						if field is Array {
 							tp := field[1], field_name := field.Has(2) ? String(field[2]) : ''
@@ -166,15 +171,26 @@ class ctypes {
 									tp := ctypes.ptr(tp)
 								field_name := m[2], m[3] && tp := ctypes.array(tp, Integer(m[4]))
 							}
-						} else tp := field, field_name := ''
+						} else tp := field, field_name := '', field := unset
 						info := types.Get(tp, 0) || types[tp] := ctypes.__get_typeinfo(tp), i++
-						tp_size := info.align, to_align := tp_size = 16 ? 16 : Min(pack, tp_size)
-						wrapper := info.wrapper, basic_type := info.type
+						wrapper := info.wrapper, basic_type := info.type, tp_size := info.size
+						if max_to_align ?? 0 {
+							to_align := info.align || Min(pack, info.pack)
+							max_align := Max(max_align, info.align)
+							max_to_align := Max(max_to_align, to_align)
+							offset := (offset + --to_align) & ~to_align
+						} else
+							offset := offset_origin + field[3]
 						if !basic_type && HasBase(wrapper, ctypes.struct) {
-							if !wrapper.fields && ctypes.types.Delete(wrapper.name)
+							if !wrapper.fields {
+								try ctypes.types.Delete(wrapper.name)
 								throw Error(wrapper.name ' is not fully defined')
+							}
 							if field_name == '' {
-								offset := (offset + --to_align) & ~to_align, DefineProps(proto, wrapper.__fields)
+								DefineProps(proto, wrapper.__fields)
+								if is_union
+									max_tp_size := Max(max_tp_size, tp_size)
+								else offset += tp_size
 								continue
 							}
 						} else if field_name == ''
@@ -183,14 +199,15 @@ class ctypes {
 							throw PropertyError('Field already exists', , field_name)
 						else if InStr(field_name, '__') = 1
 							throw PropertyError('Private field cannot be defined', , field_name)
-						max_tp_size := Max(max_tp_size, tp_size), tp_size := info.size, names[field_name] := 1
-						offset := (offset + --to_align) & ~to_align
 						proto.DefineProp(field_name, ctypes.__get_prop_desc(offset, basic_type, wrapper))
-						fields.Push([wrapper || basic_type, field_name, offset])
+						names[field_name] := 1, fields.Push([wrapper || basic_type, field_name, offset])
 						if is_union
-							size := Max(size, tp_size)
+							max_tp_size := Max(max_tp_size, tp_size)
 						else offset += tp_size
 					}
+					if !IsSet(max_to_align)
+						return offset := offset_origin
+					return (is_union && offset += max_tp_size, max_to_align)
 				}
 			}
 		}
@@ -237,9 +254,9 @@ class ctypes {
 			return get_buf_size(this)
 		}
 
-		static align => 0
 		static name => this.Prototype.__Class
 
+		static __max_align => 1
 		static __fields => this.Prototype.__fields
 		static __dispose() {
 			this.DefineProp('__dispose', { call: (*) => 0 })
@@ -274,7 +291,7 @@ class ctypes {
 			obj := { base: array := ctypes.array, Prototype: { __Class: name } }, name && ctypes.types[name] := obj
 			NumPut('uint', 1, 'ptr', ObjPtrAddRef(array.Prototype), ObjPtr(proto := obj.Prototype), A_PtrSize + 4)
 			proto.DefineProp('__Item', ctypes.__get_prop_desc(0, info.type, info.wrapper, ele_size := info.size))
-			ObjRelease(ObjPtr(Object.Prototype)), align := info.align, size := ele_size * length
+			ObjRelease(ObjPtr(Object.Prototype)), align := info.pack, size := ele_size * length
 			proto.DefineProp('length', { value: length })
 			for prop in ['size', 'align', 'length']
 				obj.DefineProp(prop, { value: %prop% })
@@ -315,6 +332,8 @@ class ctypes {
 		 * MsgBox p[0] ' ' p[1] ; ... p[19]
 		 */
 		static Call(type) {
+			if type = 'void'
+				return 'ptr'
 			info := ctypes.__get_typeinfo(type), name := info.name
 			if name && obj := ctypes.types.Get(name .= '*', 0)
 				return obj
@@ -406,8 +425,8 @@ class ctypes {
 			definition := RegExReplace(definition, '\n?([,:])\n?', '$1')
 			arr := StrSplit(definition, '`n'), arr.Default := '', stack := [top := first := []]
 			b := 0, i := 1, l := arr.Length++, pack := '', names := [], name && names.Push(name)
-			if RegExMatch(arr.Get(1, ''), '^#paragm pack\((\d+)\)', &m)
-				pack := m[1]
+			if RegExMatch(arr.Get(1, ''), '^#pragma\s+pack\(\s*(\d+)\s*\)', &m)
+				pack := Integer(m[1]), i++
 			while i <= l {
 				if RegExMatch(line := arr[i++], '^(typedef\s)?(struct|union)(\s([\w.]+)(:([\w.]+))?)?$', &m) {
 					stack.Push(top := []), top.name := joinname(m[4]) || _ := unset, m[2] = 'union' && top.union := true, m[6] && top.extends := m[5]
@@ -422,7 +441,8 @@ class ctypes {
 				} else if line == '}' {
 					if --b < 0
 						throw Error('invalid struct', , line)
-					tt := create_struct(stack.Pop()), top := stack[stack.Length]
+					tt := stack.Pop(), pack && tt.pack := pack
+					tt := create_struct(tt), top := stack[stack.Length]
 					if RegExMatch(c := arr[i], '^((\**\w+(\[\d+\])?(,|(?=;?$)))+);?$', &m) {
 						for c in StrSplit(m[1], ',')
 							top.Push([tt, c])
@@ -438,7 +458,7 @@ class ctypes {
 			if b
 				throw Error('invalid struct')
 			if pack
-				top.pack := Integer(pack)
+				top.pack := pack
 			if top.Length == 1 && top[1][2] == '' && HasBase(top[1][1], ctypes.struct)
 				return top[1][1]
 			return create_struct(top, name)
@@ -536,8 +556,8 @@ class ctypes {
 		static basic_types := { char: 1, uchar: 1, short: 2, ushort: 2, int: 4, uint: 4, float: 4, double: 8, int64: 8, uint64: 8, ptr: A_PtrSize, uptr: A_PtrSize }
 		while tp is String {
 			if basic_types.HasOwnProp(tp == 'bool' ? tp := 'char' : tp) {
-				align := basic_types.%tp%
-				return { align: align, size: align, type: tp, name: tp, wrapper: 0 }
+				size := basic_types.%tp%
+				return { align: 0, size: size, pack: size, type: tp, name: tp, wrapper: 0 }
 			}
 			tp := ctypes.types.Get(tp, 0) ||
 				((tp := RegExReplace(tp, '\*$', , &n)) && n ? ctypes.ptr(tp) :
@@ -546,9 +566,14 @@ class ctypes {
 		if HasBase(tp, ctypes.struct) || HasBase(tp, ctypes.array)
 			|| HasProp(tp, 'type') && basic_types.HasOwnProp(type := tp.type) {
 			if IsSet(type)
-				align := size := basic_types.%type%, !tp.HasProp('name') && tp.name := type
-			else align := tp.align, size := tp.size
-			return { align: align, size: size, type: type ?? 0, name: tp.name, wrapper: tp }
+				align := 0, pack := size := basic_types.%type%, !tp.HasProp('name') && tp.name := type
+			else {
+				size := tp.size, type := 0
+				if HasBase(tp, ctypes.struct)
+					align := tp.align, pack := tp.__max_align
+				else align := 0, pack := tp.align
+			}
+			return { align: align, size: size, pack: pack, type: type, name: tp.name, wrapper: tp }
 		}
 		throw TypeError('unknown type')
 	}
