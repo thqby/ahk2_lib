@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2023/01/15
- * @version 1.0.1
+ * @date 2023/03/19
+ * @version 1.0.2
  ***********************************************************************/
 
 class Chrome {
@@ -19,13 +19,13 @@ class Chrome {
 				return { Base: this.Prototype, DebugPort: m[1], PID: pid }
 	}
 
-	/*
+	/**
 	 * @param ProfilePath - Path to the user profile directory to use. Will use the standard if left blank.
 	 * @param URLs        - The page or array of pages for Chrome to load when it opens
 	 * @param Flags       - Additional flags for Chrome when launching
 	 * @param ChromePath  - Path to Chrome.exe, will detect from start menu when left blank
 	 * @param DebugPort   - What port should Chrome's remote debugging server run on
-	*/
+	 */
 	__New(URLs := 'about:blank', Flags := '', ChromePath := '', DebugPort := 9222, ProfilePath := '') {
 		; Verify ChromePath
 		if !ChromePath
@@ -67,18 +67,18 @@ class Chrome {
 		CliEscape(Param) => '"' RegExReplace(Param, '(\\*)"', '$1$1\"') '"'
 	}
 
-	/*
+	/**
 	 * End Chrome by terminating the process.
-	*/
+	 */
 	Kill() {
 		ProcessClose(this.PID)
 	}
 
-	/*
+	/**
 	 * Queries Chrome for a list of pages that expose a debug interface.
 	 * In addition to standard tabs, these include pages such as extension
 	 * configuration pages.
-	*/
+	 */
 	GetPageList() {
 		http := Chrome._http
 		try {
@@ -107,9 +107,9 @@ class Chrome {
 
 	NewTab(url := 'about:blank') {
 		http := Chrome._http
-		http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
-		try if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
-				return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
+		http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+		if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
+			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
 	}
 
 	ClosePage(opts, MatchMode := 'exact') {
@@ -133,7 +133,7 @@ class Chrome {
 		for page in this.FindPages(opts, MatchMode)
 			return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/activate/' page['id']), http.Send())
 	}
-	/*
+	/**
 	 * Returns a connection to the debug interface of a page that matches the
 	 * provided criteria. When multiple pages match the criteria, they appear
 	 * ordered by how recently the pages were opened.
@@ -143,7 +143,7 @@ class Chrome {
 	 * MatchMode  - What kind of search to use, such as 'exact', 'contains', 'startswith', or 'regex'
 	 * Index      - If multiple pages match the given criteria, which one of them to return
 	 * fnCallback - A function to be called whenever message is received from the page, `msg => void`
-	*/
+	 */
 	GetPageBy(Key, Value, MatchMode := 'exact', Index := 1, fnCallback := '') {
 		Count := 0
 		for PageData in this.GetPageList() {
