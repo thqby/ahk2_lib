@@ -52,11 +52,15 @@ class WebView2 extends WebView2.Base {
 		return Controller
 
 		EnvironmentCompleted_Invoke(com_this, hresult, createdEnvironment) {
+			if !createdEnvironment
+				throw OSError(hresult)
 			ComCall(3, createdEnvironment, 'ptr', hwnd, 'ptr', ControllerCompletedHandler)
 			EnvironmentCompletedHandler := 0
 			return 0
 		}
 		ControllerCompleted_Invoke(com_this, hresult, createdController) {
+			if !createdController
+				throw OSError(hresult)
 			DllCall('user32\GetClientRect', 'ptr', hwnd, 'ptr', RECT := Buffer(16)), ObjAddRef(createdController)
 			Controller.ptr := createdController, Controller.Bounds := RECT
 			if (IsSet(callback))
