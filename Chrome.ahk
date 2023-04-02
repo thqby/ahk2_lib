@@ -1,12 +1,12 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2023/03/19
- * @version 1.0.2
+ * @date 2023/04/02
+ * @version 1.0.3
  ***********************************************************************/
 
 class Chrome {
-	static _http := ComObject('WinHttp.WinHttpRequest.5.1')
+	static _http := ComObject('WinHttp.WinHttpRequest.5.1'), Prototype.NewTab := this.Prototype.NewPage
 	static FindInstance(exename := 'Chrome.exe', debugport := 0) {
 		items := Map(), filter_items := Map()
 		for item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "' AND CommandLine LIKE '% --remote-debugging-port=%'")
@@ -23,17 +23,18 @@ class Chrome {
 	 * @param ProfilePath - Path to the user profile directory to use. Will use the standard if left blank.
 	 * @param URLs        - The page or array of pages for Chrome to load when it opens
 	 * @param Flags       - Additional flags for Chrome when launching
-	 * @param ChromePath  - Path to Chrome.exe, will detect from start menu when left blank
+	 * @param ChromePath  - Path to Chrome or Edge, will detect from start menu when left blank
 	 * @param DebugPort   - What port should Chrome's remote debugging server run on
 	 */
-	__New(URLs := 'about:blank', Flags := '', ChromePath := '', DebugPort := 9222, ProfilePath := '') {
+	__New(URLs := '', Flags := '', ChromePath := '', DebugPort := 9222, ProfilePath := '') {
 		; Verify ChromePath
 		if !ChromePath
 			try FileGetShortcut A_StartMenuCommon '\Programs\Chrome.lnk', &ChromePath
-		if !ChromePath
-			try ChromePath := RegRead('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Chrome.exe')
-		if !FileExist(ChromePath) && !FileExist(ChromePath := 'C:\Program Files (x86)\Google\Chrome\Application\Chrome.exe')
-			throw Error('Chrome could not be found')
+			catch
+				ChromePath := RegRead('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Chrome.exe',,
+					'C:\Program Files (x86)\Google\Chrome\Application\Chrome.exe')
+		if !FileExist(ChromePath) && !FileExist(ChromePath := 'C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe')
+			throw Error('Chrome/Edge could not be found')
 		; Verify DebugPort
 		if !IsInteger(DebugPort) || (DebugPort <= 0)
 			throw Error('DebugPort must be a positive integer')
@@ -44,7 +45,7 @@ class Chrome {
 		if instance := Chrome.FindInstance(exename, DebugPort) {
 			this.PID := instance.PID, http := Chrome._http
 			for url in URLs
-				http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+				http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
 			return
 		}
 
@@ -61,7 +62,7 @@ class Chrome {
 			(ProfilePath ? ' --user-data-dir=' CliEscape(ProfilePath) : '')
 			(Flags ? ' ' Flags : '') URLString, , , &PID)
 		if (hasother && Sleep(600) || !instance := Chrome.FindInstance(exename, this.DebugPort))
-			throw Error('Chrome is not running in debug mode. Try closing all chrome processes and try again')
+			throw Error(Format('{1:} is not running in debug mode. Try closing all {1:} processes and try again', exename))
 		this.PID := PID
 
 		CliEscape(Param) => '"' RegExReplace(Param, '(\\*)"', '$1$1\"') '"'
@@ -105,7 +106,7 @@ class Chrome {
 		return Pages
 	}
 
-	NewTab(url := 'about:blank') {
+	NewPage(url := 'about:blank') {
 		http := Chrome._http
 		http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
 		if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
@@ -121,7 +122,7 @@ class Chrome {
 				if opts.Has('id')
 					return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts['id']), http.Send())
 			case 'Object':
-				if opts.Has('id')
+				if opts.HasProp('id')
 					return (http.Open('GET', 'http://127.0.0.1:' this.DebugPort '/json/close/' opts.id), http.Send())
 		}
 		for page in this.FindPages(opts, MatchMode)
@@ -144,26 +145,27 @@ class Chrome {
 	 * Index      - If multiple pages match the given criteria, which one of them to return
 	 * fnCallback - A function to be called whenever message is received from the page, `msg => void`
 	 */
-	GetPageBy(Key, Value, MatchMode := 'exact', Index := 1, fnCallback := '') {
-		Count := 0
-		for PageData in this.GetPageList() {
-			if (((MatchMode = 'exact' && PageData[Key] = Value)	; Case insensitive
-				|| (MatchMode = 'contains' && InStr(PageData[Key], Value))
-				|| (MatchMode = 'startswith' && InStr(PageData[Key], Value) == 1)
-				|| (MatchMode = 'regex' && PageData[Key] ~= Value))
-				&& ++Count == Index)
-				return Chrome.Page(PageData['webSocketDebuggerUrl'], fnCallback)
+	GetPageBy(Key, Value, MatchMode := 'exact', Index := 1, fnCallback?) {
+		static match_fn := {
+			contains: InStr,
+			exact: (a, b) => a = b,
+			regex: (a, b) => a ~= b,
+			startswith: (a, b) => InStr(a, b) == 1
 		}
+		Count := 0, Fn := match_fn.%MatchMode%
+		for PageData in this.GetPageList()
+			if Fn(PageData[Key], Value) && ++Count == Index
+				return Chrome.Page(PageData['webSocketDebuggerUrl'], fnCallback?)
 	}
 
 	; Shorthand for GetPageBy('url', Value, 'startswith')
-	GetPageByURL(Value, MatchMode := 'startswith', Index := 1, fnCallback := '') {
-		return this.GetPageBy('url', Value, MatchMode, Index, fnCallback)
+	GetPageByURL(Value, MatchMode := 'startswith', Index := 1, fnCallback?) {
+		return this.GetPageBy('url', Value, MatchMode, Index, fnCallback?)
 	}
 
 	; Shorthand for GetPageBy('title', Value, 'startswith')
-	GetPageByTitle(Value, MatchMode := 'startswith', Index := 1, fnCallback := '') {
-		return this.GetPageBy('title', Value, MatchMode, Index, fnCallback)
+	GetPageByTitle(Value, MatchMode := 'startswith', Index := 1, fnCallback?) {
+		return this.GetPageBy('title', Value, MatchMode, Index, fnCallback?)
 	}
 
 	/**
@@ -172,8 +174,8 @@ class Chrome {
 	 * The default type to search for is 'page', which is the visible area of
 	 * a normal Chrome tab.
 	 */
-	GetPage(Index := 1, Type := 'page', fnCallback := '') {
-		return this.GetPageBy('type', Type, 'exact', Index, fnCallback)
+	GetPage(Index := 1, Type := 'page', fnCallback?) {
+		return this.GetPageBy('type', Type, 'exact', Index, fnCallback?)
 	}
 
 	; Connects to the debug interface of a page given its WebSocket URL.
