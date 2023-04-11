@@ -91,6 +91,7 @@ class child_process {
 		static mFlags_offset := 4 * A_PtrSize + 8, USEHANDLE := 0x10000000
 		if !DllCall('CreatePipe', "ptr*", &hPipeR := 0, "ptr*", &hPipeW := 0, 'ptr', 0, 'uint', 0)
 			throw OSError(A_LastError)
+		local file
 		if name = 'stdin' {
 			this.stdin := file := FileOpen(hPipeW, 'h', codepage), ptr := hPipeR
 			file.DefineProp('Flush', { call: (s) => s.Read(0) })
