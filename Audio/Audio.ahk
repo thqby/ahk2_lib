@@ -19,10 +19,10 @@ class IAudioBase {
 	Release() => (this.Ptr ? ObjRelease(this.Ptr) : 0)
 	QueryInterface(riid) => (HasBase(riid, IAudioBase) ? riid(ComObjQuery(this, riid.IID)) : ComObjQuery(this, riid))
 
-	static BSTR(ptr) {
-		static _ := DllCall("LoadLibrary", "str", "oleaut32.dll")
+	static STR(ptr) {
+		static _ := DllCall("LoadLibrary", "str", "ole32.dll")
 		if ptr {
-			s := StrGet(ptr), DllCall("oleaut32\SysFreeString", "ptr", ptr)
+			s := StrGet(ptr), DllCall("ole32\CoTaskMemFree", "ptr", ptr)
 			return s
 		}
 	}
@@ -69,7 +69,7 @@ class IMMDevice extends IAudioBase {
 		return HasBase(iidorclass, IAudioBase) ? iidorclass(pInterface) : ComValue(0xd, pInterface)
 	}
 	OpenPropertyStore(stgmAccess) => (ComCall(4, this, "UInt", stgmAccess, "Ptr*", &pProperties := 0), pProperties)
-	GetId() => (ComCall(5, this, "Ptr*", &strId := 0), IAudioBase.BSTR(strId))
+	GetId() => (ComCall(5, this, "Ptr*", &strId := 0), IAudioBase.STR(strId))
 	GetState() => (ComCall(6, this, "UInt*", &dwState := 0), dwState)
 }
 ; https://docs.microsoft.com/en-us/windows/win32/api/mmdeviceapi/nn-mmdeviceapi-immdevicecollection
@@ -119,9 +119,9 @@ class IAudioSessionControl extends IAudioBase {
 	static IID := "{F4B1A599-7266-4319-A8CA-E70ACB11E8CD}"
 	; AudioSessionState: AudioSessionStateInactive 0, AudioSessionStateActive 1, AudioSessionStateExpired 2
 	GetState() => (ComCall(3, this, "UInt*", &RetVal := 0), RetVal)
-	GetDisplayName() => (ComCall(4, this, "Ptr*", &RetVal := 0), IAudioBase.BSTR(RetVal))
+	GetDisplayName() => (ComCall(4, this, "Ptr*", &RetVal := 0), IAudioBase.STR(RetVal))
 	SetDisplayName(Value, EventContext := 0) => ComCall(5, this, "Str", Value, "Ptr", EventContext)
-	GetIconPath() => (ComCall(6, this, "Ptr*", &RetVal := ""), IAudioBase.BSTR(RetVal))
+	GetIconPath() => (ComCall(6, this, "Ptr*", &RetVal := ""), IAudioBase.STR(RetVal))
 	SetIconPath(Value, EventContext := 0) => ComCall(7, this, "Str", Value, "Ptr", EventContext)
 	GetGroupingParam() {
 		ComCall(8, this, "Ptr", pRetVal := Buffer(16))
@@ -134,8 +134,8 @@ class IAudioSessionControl extends IAudioBase {
 ; https://docs.microsoft.com/en-us/windows/win32/api/audiopolicy/nn-audiopolicy-iaudiosessioncontrol2
 class IAudioSessionControl2 extends IAudioSessionControl {
 	static IID := "{bfb7ff88-7239-4fc9-8fa2-07c950be9c6d}"
-	GetSessionIdentifier() => (ComCall(12, this, "Ptr*", &RetVal := 0), IAudioBase.BSTR(RetVal))
-	GetSessionInstanceIdentifier() => (ComCall(13, this, "Ptr*", &RetVal := 0), IAudioBase.BSTR(RetVal))
+	GetSessionIdentifier() => (ComCall(12, this, "Ptr*", &RetVal := 0), IAudioBase.STR(RetVal))
+	GetSessionInstanceIdentifier() => (ComCall(13, this, "Ptr*", &RetVal := 0), IAudioBase.STR(RetVal))
 	GetProcessId() => (ComCall(14, this, "UInt*", &RetVal := 0), RetVal)
 	IsSystemSoundsSession() => ComCall(15, this)
 	SetDuckingPreference(optOut) => ComCall(16, this, "Int", optOut)
