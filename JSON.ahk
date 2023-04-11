@@ -75,7 +75,7 @@ class JSON {
 			else if A
 				LF := P A_LoopField, C.Push(InStr(LF, "\") ? UC(LF) : LF), P := ""
 			else if V
-				LF := P A_LoopField, C[K] := InStr(LF, "\") ? UC(LF) : LF, K := V := P := ""
+				LF := P A_LoopField, map_set(C, K, InStr(LF, "\") ? UC(LF) : LF), K := V := P := ""
 			else
 				LF := P A_LoopField, K := InStr(LF, "\") ? UC(LF) : LF, P := ""
 		}
