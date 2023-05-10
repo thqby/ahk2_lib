@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Modify from G33kDude's Chrome.ahk v1
  * @author thqby
- * @date 2023/04/02
- * @version 1.0.3
+ * @date 2023/05/10
+ * @version 1.0.4
  ***********************************************************************/
 
 class Chrome {
@@ -106,11 +106,11 @@ class Chrome {
 		return Pages
 	}
 
-	NewPage(url := 'about:blank') {
+	NewPage(url := 'about:blank', fnCallback?) {
 		http := Chrome._http
 		http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
 		if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
-			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), http)
+			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), fnCallback?)
 	}
 
 	ClosePage(opts, MatchMode := 'exact') {
