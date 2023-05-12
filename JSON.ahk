@@ -2,8 +2,8 @@
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2023/01/08
- * @version 1.0.4
+ * @date 2023/05/12
+ * @version 1.0.5
  ***********************************************************************/
 
 class JSON {
@@ -35,7 +35,7 @@ class JSON {
 						else if InStr("{[", A_LoopField) {
 							if !A && !V
 								throw Error("Malformed JSON - missing key.", 0, t)
-							C := A_LoopField = "[" ? [] : maptype(), A ? D[L].Push(C) : D[L][K] := C, D.Has(++L) ? D[L] := C : D.Push(C), V := "", A := Type(C) = "Array"
+							C := A_LoopField = "[" ? [] : maptype(), A ? D[L].Push(C) : map_set(D[L], K, C), D.Has(++L) ? D[L] := C : D.Push(C), V := "", A := Type(C) = "Array"
 							continue
 						} else if InStr("]}", A_LoopField) {
 							if !A && V
