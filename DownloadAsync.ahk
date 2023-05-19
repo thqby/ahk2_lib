@@ -1,14 +1,21 @@
 ﻿#Include 'WinHttpRequest.ahk'
 
+/*
+; Example 
+url := "https://raw.githubusercontent.com/thqby/ahk2_lib/master/JSON.ahk"
+
+DL := DownloadAsync(url, "JSON.ahk")
+*/
+
 class DownloadAsync {
 	size := 0, totalsize := -1
 
 	/**
-	 * 异步下载, 可获取下载进度
-	 * @param URL 待下载的URL地址, 包含http(s)头
-	 * @param Filename 保存的文件路径
-	 * @param OnStateChanged 下载状态回调函数
-	 * @param OnProgress 下载进度回调函数
+	 * Asynchronous download, you can get the download progress
+	 * @param URL The URL address to be downloaded, including the http(s) header
+	 * @param Filename saved file path
+	 * @param OnStateChanged Download status callback function
+	 * @param OnProgress Download progress callback function
 	 */
 	__New(URL, Filename, OnStateChanged := 0, OnProgress := 0) {
 		this.req := req := WinHttpRequest()
