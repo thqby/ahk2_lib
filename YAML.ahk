@@ -180,11 +180,11 @@ class YAML {
 		}
 		YA(O, P, L) {	; YamlArray: convert json sequence
 			s := "", v := q := c := b := tp := 0, lf := nl := ""
-			while ("" != c := Chr(NumGet(p, "UShort"))) {
-				if c = "`n" || (c = "`r" && 10 = NumGet(p + 2, "UShort")) {
-					if (q || !v || SubStr(Ltrim(StrGet(p + (c = "`n" ? 2 : 4)), " `t`r`n"), 1, 1) = "]") && P += c = "`n" ? 2 : 4
+			while ("" != c := Chr(NumGet(P, "UShort"))) {
+				if c = "`n" || (c = "`r" && 10 = NumGet(P + 2, "UShort")) {
+					if (q || !v || SubStr(LTrim(StrGet(P + (c = "`n" ? 2 : 4)), " `t`r`n"), 1, 1) = "]") && P += c = "`n" ? 2 : 4
 						continue
-					else throw Error("Malformed inline YAML string.", 0, s "`n" StrGet(p - 6))
+					else throw Error("Malformed inline YAML string.", 0, s "`n" StrGet(P - 6))
 				} else if !q && (c = " " || c = A_Tab) && (lf != '' && lf .= c, P += 2)
 					continue
 				else if !v && (c = '"' || c = "'") && (q := c, v := 1, P += 2)
@@ -201,10 +201,12 @@ class YAML {
 						return NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr	; in case `r`n we have 2 times NULL chr
 					else if (lf ~= "^\s*#") && P += 2 * StrLen(lf) + 2
 						continue
-					else throw Error("Malformed inline YAML string.", 0, StrGet(p))
-				} else if !v && (c = "," || c = " " || c = "`t") && P += 2	;InStr(", `t",c)
+					else throw Error("Malformed inline YAML string.", 0, StrGet(P))
+				} else if !v && InStr(", `t",c) && P += 2 {
+					if !q && c == ","
+						O.Push(YAML.null)
 					continue
-				else if !v && (lf .= c, v := 1, b := c = "\", P += 2)
+				} else if !v && (lf .= c, v := 1, b := c = "\", P += 2)
 					continue
 				else if v && (lf .= c, b := !b && c = "\", P += 2)
 					continue
