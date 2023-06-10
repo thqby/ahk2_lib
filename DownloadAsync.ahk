@@ -10,6 +10,7 @@
  * @return {WinHttpRequest} A WinHttpRequest instance, can be used to terminate the download
  * @example
  * url := "https://www.autohotkey.com/download/ahk-v2.exe"
+ * Persistent()
  * DownloadAsync(url,,
  *   (req) => (Persistent(0), ToolTip(), (req is OSError) ? MsgBox('Error:' req.Message) : MsgBox('size: ' req.ResponseBody.Size)),
  *   (s, t) => ToolTip('downloading: ' s '/' t))
