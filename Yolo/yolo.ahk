@@ -14,7 +14,7 @@ class Yolo {
 	static hModule := 0
 	static init(dll_path := '') {
 		if (!this.hModule && !(this.hModule := DllCall('LoadLibraryEx', 'str', (dll_path || A_LineFile '\..') '\yolo', 'ptr', 0, 'uint', 8, 'ptr')))
-			throw Error('load Yolo fail', -1)
+			throw OSError()
 	}
 
 	/**

@@ -1,8 +1,9 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2023/01/29
- * @version 1.0.1
+ * @date 2023/06/19
+ * @version 1.0.2
+ * @requires AutoHotkey-v2.0.3+	The lower version ahk uses version 1.0.1.
  ***********************************************************************/
 
 ; Represents the completion of an asynchronous operation
@@ -23,12 +24,12 @@ class Promise {
 		this.onResolvedCallbacks := []
 		this.onRejectedCallbacks := []
 		try
-			executor(resolve, reason => reject(this, reason))
+			(executor.MaxParams = 1) ? executor(resolve) : executor(resolve, reject)
 		catch Any as e
-			reject(this, e)
+			reject(e)
 		resolve(value) {
 			if value is Promise
-				return value.then(resolve, reason => reject(this, reason))
+				return value.then(resolve, reject)
 			if (this.status != 'pending')
 				return
 			this.value := value
@@ -36,7 +37,7 @@ class Promise {
 			handle(this, 'onRejectedCallbacks')
 			handle(this, 'onResolvedCallbacks', value)
 		}
-		static reject(this, reason) {
+		reject(reason) {
 			if (this.status != 'pending')
 				return
 			this.reason := reason
@@ -45,7 +46,6 @@ class Promise {
 			if !handle(this, 'onRejectedCallbacks', reason)
 				SetTimer(this.throw := () => (this.DeleteProp('throw'), (Promise.onRejected)(reason)), -1)
 		}
-		static _(*) => ''
 		static handle(this, name, val?) {
 			cbs := this.%name%
 			this.%name% := { Push: (*) => 0 }
@@ -108,14 +108,14 @@ class Promise {
 	 * @param {(reason)=>any} onrejected The callback to execute when the Promise is rejected.
 	 * @returns {Promise} A Promise for the completion of the callback.
 	 */
-	_catch(onrejected) => this.then(val => val, onrejected)
+	catch(onrejected) => this.then(val => val, onrejected)
 	/**
 	 * Attaches a callback that is invoked when the Promise is settled (fulfilled or rejected).
 	 * The resolved value cannot be modified from the callback.
 	 * @param {()=>void} onfinally The callback to execute when the Promise is settled (fulfilled or rejected).
 	 * @returns {Promise} A Promise for the completion of the callback.
 	 */
-	_finally(onfinally) => this.then(
+	finally(onfinally) => this.then(
 		val => (onfinally(), val),
 		err => (onfinally(), (Promise.onRejected)(err)),
 	)
