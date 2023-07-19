@@ -1,8 +1,8 @@
 /************************************************************************
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
- * @date 2023/03/16
- * @version 1.0.3
+ * @date 2023/07/19
+ * @version 1.0.4
  ***********************************************************************/
 
 class ctypes {
@@ -313,7 +313,7 @@ class ctypes {
 			} else throw TypeError()
 		}
 
-		__Enum(n) => (i := 0, l := this.Length, (&v, *) => i++ < l ? (v := this[i], true) : false)
+		__Enum(n) => (i := 0, l := this.Length, (&v, *) => i < l ? (v := this[i++], true) : false)
 		ptr() => this.Ptr
 		size() => this.Size
 	}
