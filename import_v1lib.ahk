@@ -10,13 +10,25 @@
  * @param pathsorcode The paths of the include script files or ahk v1 code. `Array or String`
  * @param ahkv1runtime The path of the AutoHotkey v1 runtime (AutoHotkey.exe or AutoHotkey.dll).
  */
-import_v1lib(pathsorcode, ahkv1runtime := "C:\Program Files\AutoHotkey\AutoHotkey.exe") {
+
+ahkv1import(pathsorcode, ahkv1runtime := "C:\Program Files\AutoHotkey\AutoHotkey.exe") {
 	static IDispatch := Buffer(16), _ := NumPut("int64", 0x20400, "int64", 0x46000000000000c0, IDispatch)
 	lresult := DllCall("oleacc\LresultFromObject", "ptr", IDispatch, "ptr", 0, "ptr", ObjPtr(client := { proxy: 0 }), "ptr")
 	; free com marshal on fail
 	autofree := { ptr: lresult, __Delete: (s) => DllCall("oleacc\ObjectFromLresult", "ptr", s, "ptr", IDispatch, "ptr", 0, "ptr*", ComValue(9, 0)) }
-	if !FileExist(ahkv1runtime)
-		throw Error("Could not find AutoHotkey v1 runtime")
+	if !FileExist(ahkv1runtime) {
+		if !FileExist(A_MyDocuments "\Autohotkey.exe") {
+			try {
+				Download("https://github.com/samfisherirl/download-Autohotkey-v2-Documentation/releases/download/v2/AutoHotkeyU64.exe",
+					A_MyDocuments "\Autohotkey.exe")
+				ahkv1runtime := A_MyDocuments "\Autohotkey.exe"
+			} catch {
+				throw Error("Could not find AutoHotkey v1 runtime")
+			}
+		} else {
+			ahkv1runtime := A_MyDocuments "\Autohotkey.exe"
+		}
+	}
 	if pathsorcode is Array {
 		t := pathsorcode, pathsorcode := ""
 		for p in t
