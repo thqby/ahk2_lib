@@ -1,14 +1,19 @@
 /************************************************************************
  * @author thqby
- * @date 2023/01/16
- * @version 1.0.2
+ * @date 2023/07/26
+ * @version 1.0.3
  ***********************************************************************/
 
 #DllLoad winhttp.dll
 class WebSocket {
 	Ptr := 0, async := 0, readyState := 0, url := ''
-	HINTERNETs := [], cache := Buffer(0), recdata := Buffer(0)
+	cache := Buffer(0), recdata := Buffer(0)
 
+	; The array of HINTERNET handles, [hSession, hConnect, hRequest, hWebSocket]
+	HINTERNETs := []
+
+	; when request is opened
+	onOpen() => 0
 	; when server sent a close frame
 	onClose(status, reason) => 0
 	; when server sent binary message
@@ -19,17 +24,20 @@ class WebSocket {
 
 	/**
 	 * @param {String} Url the url of websocket
-	 * @param {Object} Events an object of `{data:(this, buf)=>void,message:(this, msg)=>void,close:(this, status, reason)=>void}`
+	 * @param {Object} Events an object of `{open:(this)=>void,data:(this, buf)=>void,message:(this, msg)=>void,close:(this, status, reason)=>void}`
 	 * @param {Integer} Async Use asynchronous mode
 	 * @param {Object|Map|String} Headers Request header
+	 * @param {Integer} TimeOut Set resolve, connect, send and receive timeout
 	 */
-	__New(Url, Events := 0, Async := true, Headers := '') {
+	__New(Url, Events := 0, Async := true, Headers := '', TimeOut := 0) {
 		this.HINTERNETs := [], this.async := !!Async, this.cache.Size := 8192, this.url := Url
 		if (!RegExMatch(Url, 'i)^((?<SCHEME>wss?)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
 			throw WebSocket.Error('Invalid websocket url')
 		if !hSession := DllCall('Winhttp\WinHttpOpen', 'ptr', 0, 'uint', 0, 'ptr', 0, 'ptr', 0, 'uint', Async ? 0x10000000 : 0, 'ptr')
 			throw WebSocket.Error()
 		this.HINTERNETs.Push(hSession), port := m.PORT ? Integer(m.PORT) : m.SCHEME = 'ws' ? 80 : 443, dwFlags := m.SCHEME = 'wss' ? 0x800000 : 0
+		if TimeOut
+			DllCall('Winhttp\WinHttpSetTimeouts', 'ptr', hSession, 'int', TimeOut, 'int', TimeOut, 'int', TimeOut, 'int', TimeOut, 'int')
 		if !hConnect := DllCall('Winhttp\WinHttpConnect', 'ptr', hSession, 'wstr', m.HOST, 'ushort', port, 'uint', 0, 'ptr')
 			throw WebSocket.Error()
 		this.HINTERNETs.Push(hConnect)
@@ -45,7 +53,7 @@ class WebSocket {
 		}
 		if (Events) {
 			for k, v in Events.OwnProps()
-				if (k ~= 'i)^(data|message|close)$')
+				if (k ~= 'i)^(open|data|message|close)$')
 					this.DefineProp('on' k, { call: v })
 		}
 		connect(this), this.DefineProp('reconnect', { call: connect })
@@ -60,7 +68,7 @@ class WebSocket {
 				DllCall('Winhttp\WinHttpCloseHandle', 'ptr', self.HINTERNETs.Pop())
 			if !hRequest := DllCall('Winhttp\WinHttpOpenRequest', 'ptr', hConnect, 'wstr', 'GET', 'wstr', m.PATH, 'ptr', 0, 'ptr', 0, 'ptr', 0, 'uint', dwFlags, 'ptr')
 				throw WebSocket.Error()
-			self.HINTERNETs.Push(hRequest)
+			self.HINTERNETs.Push(hRequest), self.onOpen()
 			if (Headers)
 				DllCall('Winhttp\WinHttpAddRequestHeaders', 'ptr', hRequest, 'wstr', Headers, 'uint', -1, 'uint', 0x20000000, 'int')
 			if (!DllCall('Winhttp\WinHttpSetOption', 'ptr', hRequest, 'uint', 114, 'ptr', 0, 'uint', 0, 'int')
