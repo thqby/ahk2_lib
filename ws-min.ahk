@@ -10,11 +10,11 @@ class WebSocket {
 	doc := "", BlockSleep := 50, Timeout := 15000
 
 	; usage1
-	; WebSocket("ws://xxx.xx.xx.xx:xxxx", {Message: (self,event)=>MsgBox(event.data), Close: (*)=>Msgbox("websocket close")})
+	; WebSocket("ws://xxx.xx.xx.xx:xxxx", {Message: (self,data)=>MsgBox(data), Close: (*)=>Msgbox("websocket close")})
 	; usage2
 	; class socketinst extends WebSocket
 	; {
-	; 	OnMessage(event)=>MsgBox(event.data)
+	; 	OnMessage(data)=>MsgBox(data)
 	; }
 	; socketinst("ws://xxx.xx.xx.xx:xxxx")
 	__New(ws_url, Callbacks := "", Timeout := "") {
