@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2023/02/23
- * @version 1.0.7
+ * @date 2023/07/31
+ * @version 1.0.8
  ***********************************************************************/
 
 class YAML {
@@ -191,9 +191,11 @@ class YAML {
 					continue
 				else if !v && (c = "[" || c = "{") && (P := c = "[" ? YA((O.Push(lf := []), lf), P + 2, L) : YO((O.Push(lf := Map()), lf), P + 2, L), lf := "", 1)
 					continue
-				else if v && ((!q && c = ",") || (q && !b && c = q)) && (v := 0, O.Push(q ? (InStr(lf, "\") ? UC(lf) : lf) : IsNumber(lf) ? lf + 0 : lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : lf), q := 0, lf := "", P += 2)
+				else if v && (!q && c = ",") && (v := 0, O.Push(q ? (InStr(lf, "\") ? UC(lf) : lf) : IsNumber(lf) ? lf + 0 : lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : lf), q := 0, lf := "", P += 2)
 					continue
-				else if !q && c = "]" && (v ? (O.Push(lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : IsNumber(lf) ? lf + 0 : lf), 1) : 1) {
+				else if q && !b && c = q && (q := "", P += 2)
+					continue
+				else if !q && c = "]" && (q := 0, v ? (O.Push(lf = "true" ? _true : lf = "false" ? _false : lf = "null" ? _null : IsNumber(lf) ? lf + 0 : lf), 1) : 1) {
 					;~ if ((tp:=G(P+2,lf))&&(NumGet(P+2,"UShort")=10||NumGet(P+4,"UShort")=10||(nl:=RegExMatch(lf,"^\s+?$"))||RegExMatch(lf,"^\s*[,\}\]]")))
 					if ((tp := DllCall(NXTLN, "PTR", P + 2, "Int", false, "cdecl PTR"), lf := StrGet(P + 2), tp) && (NumGet(P + 2, "UShort") = 0 || (nl := RegExMatch(lf, "^\s+?$")) || RegExMatch(lf, "^\s*[,\}\]]")))
 						return nl ? DllCall(NXTLN, "PTR", P + 2, "Int", true, "cdecl PTR") : lf ? P + 2 : NumGet(P + 4, "UShort") = 0 ? P + 6 : P + 4	; in case `r`n we have 2 times NULL chr
@@ -208,7 +210,7 @@ class YAML {
 					continue
 				} else if !v && (lf .= c, v := 1, b := c = "\", P += 2)
 					continue
-				else if v && (lf .= c, b := !b && c = "\", P += 2)
+				else if v && q != "" && (lf .= c, b := !b && c = "\", P += 2)
 					continue
 				else throw Error("Undefined")
 			}
