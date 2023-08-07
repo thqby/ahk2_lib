@@ -2,9 +2,9 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2023/06/10
- * @version 1.0.29
- * @webview2version 1.0.1823.32
+ * @date 2023/07/30
+ * @version 1.0.30
+ * @webview2version 1.0.1901.177
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -1041,6 +1041,9 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(10, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 			set => ComCall(11, this, 'wstr', Value)
 		}
+
+		static IID_3 := '{DDFFE494-4942-4BD2-AB73-35B8FF40E19F}'
+		NavigationKind => (ComCall(12, this, 'int*', &navigation_kind := 0), navigation_kind)
 	}
 	class NewWindowRequestedEventArgs extends WebView2.Base {
 		static IID := '{34acb11c-fc37-4418-9132-f9c21d1eafb9}'
@@ -1635,7 +1638,8 @@ class WebView2 extends WebView2.Base {
 		PASSWORD_AUTOSAVE: (1 << 11),
 		BROWSING_HISTORY: (1 << 12),
 		SETTINGS: (1 << 13),
-		ALL_PROFILE: (1 << 14)
+		ALL_PROFILE: (1 << 14),
+		SERVICE_WORKERS: (1 << 15)
 	}
 	static SERVER_CERTIFICATE_ERROR_ACTION := { ALWAYS_ALLOW: 0, CANCEL: 1, DEFAULT: 2 }
 	static FAVICON_IMAGE_FORMAT := { PNG: 0, JPEG: 1 }
@@ -1658,6 +1662,7 @@ class WebView2 extends WebView2.Base {
 	}
 	static SHARED_BUFFER_ACCESS := { READ_ONLY: 0, READ_WRITE: 1 }
 	static MEMORY_USAGE_TARGET_LEVEL := { NORMAL: 0, LOW: 1 }
+	static NAVIGATION_KIND := { RELOAD: 0, BACK_OR_FORWARD: 1, NEW_DOCUMENT: 2 }
 	static COOKIE_SAME_SITE_KIND := { NONE: 0, LAX: 1, STRICT: 2 }
 	static HOST_RESOURCE_ACCESS_KIND := { DENY: 0, ALLOW: 1, DENY_CORS: 2 }
 	static SCRIPT_DIALOG_KIND := { ALERT: 0, CONFIRM: 1, PROMPT: 2, BEFOREUNLOAD: 3 }
