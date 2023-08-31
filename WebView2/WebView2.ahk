@@ -16,7 +16,8 @@ class WebView2 extends WebView2.Base {
 	 * @param createdEnvironment Create WebView2 controls from the created environment.
 	 * @param datadir User data folder.
 	 * @param edgeruntime The path of Edge Runtime or Edge(dev..) Bin.
-	 * @param options The environment options of Edge. `{TargetCompatibleBrowserVersion?: string, AdditionalBrowserArguments?: string, AllowSingleSignOnUsingOSPrimaryAccount?: bool, Language?: string, ExclusiveUserDataFolderAccess?: bool}`
+	 * @param options The environment options of Edge. @see WebView2.EnvironmentOptions
+	 * `{TargetCompatibleBrowserVersion?: string, AdditionalBrowserArguments?: string, AllowSingleSignOnUsingOSPrimaryAccount?: bool, Language?: string, ExclusiveUserDataFolderAccess?: bool}`
 	 * @param dllPath The path of `WebView2Loader.dll`.
 	 */
 	static create(hwnd, callback := unset, createdEnvironment := 0, datadir := '', edgeruntime := '', options := 0, dllPath := 'WebView2Loader.dll') {
@@ -253,10 +254,9 @@ class WebView2 extends WebView2.Base {
 		CoreWebView2 => (ComCall(25, this, 'ptr*', coreWebView2 := WebView2.Core()), coreWebView2)
 
 		static IID_2 := '{c979903e-d4ca-4228-92eb-47ee3fa96eab}'
-		; BGR color only, Alpha is not supported
 		DefaultBackgroundColor {
-			get => (ComCall(26, this, 'uint*', &backgroundColor := 0), backgroundColor >> 8)
-			set => ComCall(27, this, 'uint', Value << 8 | 0xff)
+			get => (ComCall(26, this, 'uint*', &backgroundColor := 0), backgroundColor)
+			set => ComCall(27, this, 'uint', Value)
 		}
 
 		static IID_3 := '{f9614724-5d2b-41dc-aef7-73d62b51543b}'
@@ -854,7 +854,7 @@ class WebView2 extends WebView2.Base {
 			put_xxx(this, value) => 0
 			get_xxx_str(prop, this, pvalue) {
 				if opts.HasOwnProp(prop) {
-					pm := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := this.%prop%) * 2 + 2, 'ptr')
+					pm := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := opts.%prop%) * 2 + 2, 'ptr')
 					DllCall('RtlMoveMemory', 'ptr', p, 'ptr', StrPtr(v), 'uptr', s)
 				} else pm := 0
 				return (NumPut('ptr', pm, pvalue), 0)
