@@ -4,7 +4,7 @@
  * @author thqby
  * @date 2023/07/30
  * @version 1.0.30
- * @webview2version 1.0.1901.177
+ * @webview2version 1.0.1938.49
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -808,7 +808,7 @@ class WebView2 extends WebView2.Base {
 				; options2
 				QueryInterface, AddRef, Release,
 				get_xxx_bool.Bind('ExclusiveUserDataFolderAccess'), put_xxx,
-				;options3
+				; options3
 				QueryInterface, AddRef, Release,
 				get_xxx_bool.Bind('IsCustomCrashReportingEnabled'), put_xxx,
 				; options4
@@ -818,33 +818,30 @@ class WebView2 extends WebView2.Base {
 				QueryInterface, AddRef, Release,
 				get_xxx_bool.Bind('EnableTrackingPrevention'), put_xxx,
 			]
-			n := 5
+			n := 5, i := 0
 			super.__New((n + cbs.Length) * A_PtrSize)
 			p_this := ObjPtr(this), p_unk := this.Ptr, p := p_unk + n * A_PtrSize
 			mp := Map(), fnptrs := [], this.DefineProp('__Delete', { call: __Delete })
 			for cb in cbs {
 				if cb == QueryInterface
-					NumPut('ptr', p, this, (A_Index - 1) * A_PtrSize)
+					NumPut('ptr', p, this, (i++) * A_PtrSize)
 				p := NumPut('ptr', mp.Get(cb, 0) || mp[cb] := CallbackCreate(cb, , cb.MinParams || 2), p)
 			}
 			for _, p in mp
 				fnptrs.Push(p)
 			QueryInterface(this, riid, ppvObject) {
-				static iids := [
-					'{2FDE08A8-1E9A-4766-8C05-95A9CEB9D1C5}',
-					'{1821A568-A141-4D77-B3D8-2878E383D8DD}',
-					'{4A5C436E-A9E3-4A2E-89C3-910D3513F5CC}',
-					'{ac52d13f-0d38-475a-9dca-876580d6793e}',
-					'{0AE35D64-C47F-4464-814E-259C345D1501}'
-				]
+				static iids := Map(
+					'{2FDE08A8-1E9A-4766-8C05-95A9CEB9D1C5}', 0,	; ICoreWebView2EnvironmentOptions
+					'{FF85C98A-1BA7-4A6B-90C8-2B752C89E9E2}', 1,	; ICoreWebView2EnvironmentOptions2
+					'{4A5C436E-A9E3-4A2E-89C3-910D3513F5CC}', 2,	; ICoreWebView2EnvironmentOptions3
+					'{AC52D13F-0D38-475A-9DCA-876580D6793E}', 3,	; ICoreWebView2EnvironmentOptions4
+					'{0AE35D64-C47F-4464-814E-259C345D1501}', 4,	; ICoreWebView2EnvironmentOptions5
+				)
 				DllCall("ole32.dll\StringFromGUID2", "ptr", riid, "ptr", buf := Buffer(78), "int", 39)
-				iid := StrGet(buf)
-				for s in iids {
-					if s = iid {
-						ObjAddRef(p_this)
-						NumPut('ptr', p_unk + (A_Index - 1) * A_PtrSize, ppvObject)
-						return 0
-					}
+				if (index := iids.Get(iid := StrUpper(StrGet(buf)), -1)) >= 0 {
+					ObjAddRef(p_this)
+					NumPut('ptr', p_unk + index * A_PtrSize, ppvObject)
+					return 0
 				}
 				NumPut('ptr', 0, ppvObject)
 				return 0x80004002
@@ -855,13 +852,13 @@ class WebView2 extends WebView2.Base {
 			get_xxx_str(prop, this, pvalue) {
 				if opts.HasOwnProp(prop) {
 					pm := DllCall('ole32\CoTaskMemAlloc', 'uptr', s := StrLen(v := opts.%prop%) * 2 + 2, 'ptr')
-					DllCall('RtlMoveMemory', 'ptr', p, 'ptr', StrPtr(v), 'uptr', s)
+					DllCall('RtlMoveMemory', 'ptr', pm, 'ptr', StrPtr(v), 'uptr', s)
 				} else pm := 0
 				return (NumPut('ptr', pm, pvalue), 0)
 			}
 			get_xxx_bool(prop, this, pvalue) {
 				if opts.HasOwnProp(prop)
-					v := !opts.%prop%
+					v := !!opts.%prop%
 				else v := 0
 				return (NumPut('int', v, pvalue), 0)
 			}
