@@ -2,19 +2,40 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2022/11/24
- * @version 1.1.7
+ * @date 2023/09/09
+ * @version 1.1.8
  ***********************************************************************/
 
 class Native extends Func {
 	static Prototype.caches := Map()
+	static sizes := {
+		func: 8 * A_PtrSize + 16,
+		method: 9 * A_PtrSize + 16,
+		mdfunc: 10 * A_PtrSize + 16,
+	}
+	static offsets := {
+		name: 3 * A_PtrSize + 8,
+		buffer_data: 3 * A_PtrSize + 8,
+		maxparams: 4 * A_PtrSize + 8,
+		outputvars: 5 * A_PtrSize + 16,
+		pfn: 6 * A_PtrSize + 16,
+	}
+	static __New() {
+		this.DeleteProp('__New')
+		if VerCompare(A_AhkVersion, '2.1-alpha.3') >= 0 {
+			for prop in ['sizes', 'offsets']
+				for name in (obj := this.%prop%).OwnProps()
+					obj.%name% += 2 * A_PtrSize
+		}
+	}
 
 	; Auto free the NativeFunc object memory, because destructor is overridden, ahk will not free the memory.
 	; Freeing memory before func obj is released can cause invalid reads and writes to memory.
 	; Delayed free memory, the memory of the last function is freed when the function object is released.
 	__Delete() {
-		NumPut('ptr', pthis := ObjPtr(this), ObjPtr(this.Base.caches[''] := Buffer()), 3 * A_PtrSize + 8)
-		try this.Base.caches.Delete(NumGet(pthis + 6 * A_PtrSize + 16, 'ptr'))
+		static buffer_data_offset := Native.offsets.buffer_data, pfn_offset := Native.offsets.pfn
+		NumPut('ptr', pthis := ObjPtr(this), ObjPtr(this.caches[''] := Buffer()), buffer_data_offset)
+		try this.caches.Delete(NumGet(pthis + pfn_offset, 'ptr'))
 	}
 
 	; Provides a way for modules to call ahk objects
@@ -52,7 +73,8 @@ class Native extends Func {
 	 * @param FID Function ID, `aResultToken.func->mFID`, for code sharing: this function's ID in the group of functions which share the same C++ function
 	 */
 	static Func(BIF, MinParams := 0, ParamCount := 0, OutputVars := 0, FID := 0) {
-		static p__init := ObjPtr(Any.__Init), size := 8 * A_PtrSize + 16
+		static p__init := ObjPtr(Any.__Init)
+		offsets := this.offsets, size := this.sizes.func
 		if BIF is String
 			BIF := this.MCode(BIF)
 		; copy a func object memory
@@ -64,14 +86,14 @@ class Native extends Func {
 		; init func refcount and base obj
 		NumPut('uint', 1, 'uint', 0, 'ptr', ObjPtrAddRef(Native.Prototype), sbif, A_PtrSize)
 		; init func infos
-		NumPut('ptr', StrPtr('User-BIF'), 'int', ParamCount, 'int', MinParams, 'int', IsVariadic, sbif, 3 * A_PtrSize + 8)
-		NumPut('ptr', BIF, 'ptr', FID, sbif, 6 * A_PtrSize + 16)
+		NumPut('ptr', StrPtr('User-BIF'), 'int', ParamCount, 'int', MinParams, 'int', IsVariadic, sbif, offsets.name)
+		NumPut('ptr', BIF, 'ptr', FID, sbif, offsets.pfn)
 		if OutputVars {
-			NumPut('ptr', s := sbif.Ptr + size, sbif, 5 * A_PtrSize + 16)	; mOutputVars
+			NumPut('ptr', s := sbif.Ptr + size, sbif, offsets.outputvars)	; mOutputVars
 			loop Min(OutputVars.Length, 7)	; MAX_FUNC_OUTPUT_VAR = 7
 				s := NumPut('uchar', OutputVars[A_Index], s)
 		}
-		NumPut('ptr', 0, 'ptr', 0, ObjPtr(sbif), 3 * A_PtrSize + 8) ; Avoid the memory of func object be freed when buffer is released
+		NumPut('ptr', 0, 'ptr', 0, ObjPtr(sbif), offsets.buffer_data) ; Avoid the memory of func object be freed when buffer is released
 		return obif
 	}
 
@@ -80,7 +102,8 @@ class Native extends Func {
 	 * @param base The base of instance
 	 */
 	static Method(base, BIM, MIT, MinParams := 0, ParamCount := 0, MID := 0) {
-		static pOwnProps := ObjPtr({}.OwnProps), size := 9 * A_PtrSize + 16, nameoffset := 3 * A_PtrSize + 8
+		static pOwnProps := ObjPtr({}.OwnProps)
+		offsets := this.offsets, size := this.sizes.method, nameoffset := offsets.name
 		if BIM is String
 			BIM := this.MCode(BIM)
 		sbim := Buffer(size, 0), DllCall('RtlMoveMemory', 'ptr', sbim, 'ptr', pOwnProps, 'uint', size)
@@ -91,9 +114,9 @@ class Native extends Func {
 			case 'get', 0: ++MinParams, ParamCount := Max(MinParams, ParamCount + 1), NumPut('ptr', StrPtr('User-BIM.Get'), sbim, nameoffset), MIT := 0
 		}
 		NumPut('uint', 1, 'uint', 0, 'ptr', ObjPtrAddRef(Native.Prototype), sbim, A_PtrSize)
-		NumPut('int', Max(MinParams, ParamCount), 'int', MinParams, 'int', IsVariadic, sbim, 4 * A_PtrSize + 8)
-		NumPut('ptr', BIM, 'ptr', base, 'uchar', MID, 'uchar', MIT, sbim, 6 * A_PtrSize + 16)
-		NumPut('ptr', 0, 'ptr', 0, ObjPtr(sbim), 3 * A_PtrSize + 8)
+		NumPut('int', Max(MinParams, ParamCount), 'int', MinParams, 'int', IsVariadic, sbim, offsets.maxparams)
+		NumPut('ptr', BIM, 'ptr', base, 'uchar', MID, 'uchar', MIT, sbim, offsets.pfn)
+		NumPut('ptr', 0, 'ptr', 0, ObjPtr(sbim), offsets.buffer_data)
 		return obim
 	}
 
@@ -237,7 +260,7 @@ class Native extends Func {
 	 * @param sig Signature of function `rettype(argtypes)`, [rettype, argtypes*]
 	 */
 	static MdFunc(fn, sig, prototype := 0) {
-		static p_mdfunc := ObjPtr(MsgBox), size := 10 * A_PtrSize + 16
+		static p_mdfunc := ObjPtr(MsgBox), size := this.sizes.mdfunc
 		static mdtypes := {
 			void: 0,
 			int8: 1,
@@ -264,11 +287,12 @@ class Native extends Func {
 			uintptr: A_PtrSize = 8 ? 8 : 6,
 			intptr: A_PtrSize = 8 ? 7 : 5,
 		}
+		offsets := this.offsets, mdfn_offset := offsets.pfn
 		if fn is String
 			fn := this.MCode(fn)
 		; copy a func object memory
 		smdf := Buffer(size, 0), DllCall('RtlMoveMemory', 'ptr', smdf, 'ptr', p_mdfunc, 'uint', size)
-		p := NumPut('ptr', fn, smdf, 6 * A_PtrSize + 16), ac := pc := MinParams := 0
+		p := NumPut('ptr', fn, smdf, mdfn_offset), ac := pc := MinParams := 0
 		if prototype
 			NumPut('char', 1, NumPut('ptr', IsObject(prototype) ? ObjPtr(prototype) : prototype, p) + A_PtrSize + 3), ac := pc := MinParams := 1
 		IsVariadic := false, MaxResultTokens := 0
@@ -305,15 +329,15 @@ class Native extends Func {
 				}
 				opt := false, retval := false, out := 0
 			}
-			NumPut('ptr', smdf.Ptr + size, 'uchar', ret, 'uchar', MaxResultTokens, 'uchar', ac, smdf, 8 * A_PtrSize + 16)
+			NumPut('ptr', smdf.Ptr + size, 'uchar', ret, 'uchar', MaxResultTokens, 'uchar', ac, smdf, 2 * A_PtrSize + mdfn_offset)
 		} else throw TypeError()
 		ParamCount := pc
 		obif := ObjFromPtr(smdf.Ptr)
 		; init func refcount and base obj
 		NumPut('uint', 1, 'uint', 0, 'ptr', ObjPtrAddRef(Native.Prototype), smdf, A_PtrSize)
 		; init func infos
-		NumPut('ptr', StrPtr('User-MdFunc'), 'int', ParamCount, 'int', MinParams, 'int', IsVariadic, smdf, 3 * A_PtrSize + 8)
-		NumPut('ptr', 0, 'ptr', 0, ObjPtr(smdf), 3 * A_PtrSize + 8)	; Avoid the memory of func object be freed when buffer is released
+		NumPut('ptr', StrPtr('User-MdFunc'), 'int', ParamCount, 'int', MinParams, 'int', IsVariadic, smdf, offsets.name)
+		NumPut('ptr', 0, 'ptr', 0, ObjPtr(smdf), offsets.buffer_data)	; Avoid the memory of func object be freed when buffer is released
 		return obif
 	}
 }
