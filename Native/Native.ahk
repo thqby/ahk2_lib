@@ -225,7 +225,7 @@ class Native extends Func {
 					if !mems.HasOwnProp(name)
 						t := mems.%name% := {}
 					else t := mems.%name%
-					t.%sub% := me := this.Method(pbase, method, mit, minparams, maxparams, id)
+					t.DefineProp sub, me := this.Method(pbase, method, mit, minparams, maxparams, id)
 					NumPut('ptr', pname, ObjPtr(me), 3 * A_PtrSize + 8)
 					pmem += A_PtrSize - 3
 				} else {
@@ -297,7 +297,7 @@ class Native extends Func {
 			NumPut('char', 1, NumPut('ptr', IsObject(prototype) ? ObjPtr(prototype) : prototype, p) + A_PtrSize + 3), ac := pc := MinParams := 1
 		IsVariadic := false, MaxResultTokens := 0
 		if sig is Array {
-			if sig.Length > 1
+			if sig.Length
 				ret := sig.RemoveAt(1), smdf.Size += sig.Length, ret is String && ret := mdtypes.%ret%
 			else ret := 0
 			opt := false, retval := false, out := 0
