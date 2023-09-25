@@ -1,8 +1,8 @@
 /************************************************************************
  * @description create struct, union, array and pointer binding, and use it like ahk object
  * @author thqby
- * @date 2023/07/19
- * @version 1.0.4
+ * @date 2023/09/25
+ * @version 1.0.5
  ***********************************************************************/
 
 class ctypes {
@@ -74,14 +74,14 @@ class ctypes {
 		 * @return {this}
 		 */
 		static from_ptr(ptr, size := 0, root := 0) {
-			static offset_ptr := 3 * A_PtrSize + 8
+			static offset_ptr := (VerCompare(A_AhkVersion, '2.1-alpha.3') >= 0 ? 5 : 3) * A_PtrSize + 8
 			if !ptr
 				return 0
-			NumPut('ptr', ptr, 'uptr', size || this.size, ObjPtr(obj := (Buffer.Call)(this)), offset_ptr)
+			NumPut('ptr', ptr, 'uptr', size || this.size, ObjPtr(obj := super()), offset_ptr)
 			obj.DefineProp('__Delete', { call: __del }), root && obj.DefineProp('__root', { value: root })
 			return obj
 			__del(this) {
-				try this.base.__Delete()
+				try (this.base.__Delete)(this)
 				NumPut('ptr', 0, ObjPtr(this), offset_ptr)
 			}
 		}
@@ -252,6 +252,11 @@ class ctypes {
 		size() {
 			static get_buf_size := Buffer.Prototype.GetOwnPropDesc('Size').Get
 			return get_buf_size(this)
+		}
+
+		__Enum(n?) {
+			i := 0, n := (fields := this.__fields).Length
+			return (&k?, &v?, *) => (i < n ? (v := this.%k := fields[++i][2]%, true) : false)
 		}
 
 		static name => this.Prototype.__Class
