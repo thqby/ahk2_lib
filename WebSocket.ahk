@@ -31,7 +31,7 @@ class WebSocket {
 	 */
 	__New(Url, Events := 0, Async := true, Headers := '', TimeOut := 0) {
 		this.HINTERNETs := [], this.async := !!Async, this.cache.Size := 8192, this.url := Url
-		if (!RegExMatch(Url, 'i)^((?<SCHEME>wss?)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
+		if (!RegExMatch(Url, 'i)^((?<SCHEME>wss?)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:\s]+)(:(?<PORT>\d+))?(?<PATH>/\S*)?$', &m))
 			throw WebSocket.Error('Invalid websocket url')
 		if !hSession := DllCall('Winhttp\WinHttpOpen', 'ptr', 0, 'uint', 0, 'ptr', 0, 'ptr', 0, 'uint', Async ? 0x10000000 : 0, 'ptr')
 			throw WebSocket.Error()
