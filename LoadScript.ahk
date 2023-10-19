@@ -8,14 +8,15 @@ class LoadScript {
 	 */
 	static Call(pathorcode, exe := A_AhkPath, noTrayIcon := true) {
 		ObjRegisterActive(client := { _parent: LoadScript.Proxy() }, guid := CreateGUID())
-		exec := ComObject('WScript.Shell').Exec(Format('"{}" /CP{} /ErrorStdOut *', exe, DllCall('GetACP', 'uint')))
+		exec := ComObject('WScript.Shell').Exec(Format('"{}" /script /CP{} /ErrorStdOut *', exe, DllCall('GetACP', 'uint')))
 		exec.StdIn.Write(Format('
-			(
+		(
 			LoadScript.Serve('{}')
-			#include {}
+			#Include {}
+			#Warn All, Off
 			{}
 			{}
-		)', guid, A_LineFile, noTrayIcon ? '#NoTrayIcon' : '',
+		)', guid, A_IsCompiled ? '<LoadScript>' : A_LineFile, noTrayIcon ? '#NoTrayIcon' : '',
 			FileExist(pathorcode) ? '#include ' pathorcode '`nA_ScriptName := "' pathorcode '"' : pathorcode))
 		exec.StdIn.Close()
 		status := exec.Status, t := A_TickCount
