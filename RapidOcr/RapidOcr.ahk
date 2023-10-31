@@ -1,34 +1,40 @@
 /************************************************************************
- * @description [RapidOcrOnnx](https://github.com/RapidAI/RapidOcrOnnx)基于PaddleOCR和OnnxRuntime, 采用静态库编译, 无其他依赖
+ * @description [RapidOcrOnnx](https://github.com/RapidAI/RapidOcrOnnx)
+ * A cross platform OCR Library based on PaddleOCR & OnnxRuntime
  * @author thqby, RapidAI
- * @date 2023/01/12
- * @version 1.0.0
+ * @date 2023/10/28
+ * @version 1.0.1
+ * @license Apache-2.0
  ***********************************************************************/
 
 class RapidOcr {
 	ptr := 0
 	/**
-	 * @param {Map|Object} config 设置det,rec,cls模型所在路径, keys.txt路径, 线程数. 值格式:
-	 * `{ det: det模型路径, rec: rec模型路径, keys: keys.txt路径, cls?: cls模型路径, numThread?: 线程数 }`
-	 * 或`{ modelpath: 模型所在文件夹路径, numThread?: 线程数量 }`
-	 * @param dllpath RapidOcrOnnx.dll所在路径
+	 * @param {Map|Object} config Set det, rec, cls model location path, keys.txt path, thread number.
+	 * @param {String} [config.models] dir of model files
+	 * @param {String} [config.det] model file name of det
+	 * @param {String} [config.rec] model file name of rec
+	 * @param {String} [config.keys] keys file name
+	 * @param {String} [config.cls] model file name of cls
+	 * @param {Integer} [config.numThread] The thread number, default: 4
+	 * @param {String} dllpath The path of RapidOcrOnnx.dll
 	 */
 	__New(config?, dllpath?) {
 		static init := 0
 		if (!init) {
-			init := DllCall('LoadLibrary', 'str', dllpath ?? A_LineFile '\..\RapidOcrOnnx.dll', 'ptr')
+			init := DllCall('LoadLibrary', 'str', dllpath ?? A_LineFile '\..\' (A_PtrSize * 8) 'bit\RapidOcrOnnx.dll', 'ptr')
 			if (!init)
-				throw OSError()
+				Throw OSError()
 		}
 		if !IsSet(config)
-			config := { modelpath: A_LineFile '\..\models' }, !FileExist(config.modelpath) && (config.modelpath := unset)
-		det_model := cls_model := rec_model := keys_dict := '', numThread := 8
+			config := { models: A_LineFile '\..\models' }, !FileExist(config.models) && (config.models := unset)
+		det_model := cls_model := rec_model := keys_dict := '', numThread := 4
 		for k, v in (config is Map ? config : config.OwnProps()) {
 			switch k, false {
 				case 'det', 'cls', 'rec': %k%_model := v
 				case 'keys', 'dict': keys_dict := v
 				case 'det_model', 'cls_model', 'rec_model', 'keys_dict', 'numThread': %k% := v
-				case 'modelpath':
+				case 'models', 'modelpath':
 					if !(v ~= '[/\\]$')
 						v .= '\'
 					if !keys_dict {
@@ -47,26 +53,39 @@ class RapidOcr {
 		for k in ['keys_dict', 'det_model', 'cls_model', 'rec_model']
 			if !%k% {
 				if k != 'cls_model'
-					throw ValueError('未指定值错误: ' k)
+					Throw ValueError('No value is specified: ' k)
 			} else if !FileExist(%k%)
-				throw TargetError('"' k '"文件不存在')
+				Throw TargetError('file "' k '" does not exist')
+			cls_model:=''
 		this.ptr := DllCall('RapidOcrOnnx\OcrInit', 'str', det_model, 'str', cls_model, 'str', rec_model, 'str', keys_dict, 'int', numThread, 'ptr')
 	}
 	__Delete() => this.ptr && DllCall('RapidOcrOnnx\OcrDestroy', 'ptr', this)
 
-	static __cbobj := { ptr: CallbackCreate((userdata, ptext, presult) => %ObjFromPtrAddRef(userdata)% := StrGet(ptext, 'utf-8')), __Delete: this => CallbackFree(this) }
+	static __cb(i) {
+		static cbs := [
+			{ ptr: CallbackCreate(get_text), __Delete: this => CallbackFree(this.ptr) },
+			{ ptr: CallbackCreate(get_result), __Delete: this => CallbackFree(this.ptr) },
+		]
+		return cbs[i]
+		get_text(userdata, ptext, presult) => %ObjFromPtrAddRef(userdata)% := StrGet(ptext, 'utf-8')
+		get_result(userdata, ptext, presult) {
+			result := %ObjFromPtrAddRef(userdata)% := RapidOcr.OcrResult(presult)
+			result.text := StrGet(ptext, 'utf-8')
+			return result
+		}
+	}
 
-	; ocr识别opencv4.7.0 Mat对象
-	ocr_from_mat(mat, param := 0) => DllCall('RapidOcrOnnx\OcrDetectMat', 'ptr', this, 'ptr', mat, 'ptr', param, 'ptr', RapidOcr.__cbobj, 'ptr', ObjPtr(&res)) ? res : ''
+	; opencv4.8.0 Mat
+	ocr_from_mat(mat, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectMat', 'ptr', this, 'ptr', mat, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
 
-	; ocr识别本地文件
-	ocr_from_file(picpath, param := 0) => DllCall('RapidOcrOnnx\OcrDetectFile', 'ptr', this, 'astr', picpath, 'ptr', param, 'ptr', RapidOcr.__cbobj, 'ptr', ObjPtr(&res)) ? res : ''
+	; path of pic
+	ocr_from_file(picpath, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectFile', 'ptr', this, 'astr', picpath, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
 
-	; ocr识别图像二进制数据
-	ocr_from_binary(data, size, param := 0) => DllCall('RapidOcrOnnx\OcrDetectBinary', 'ptr', this, 'ptr', data, 'uptr', size, 'ptr', param, 'ptr', RapidOcr.__cbobj, 'ptr', ObjPtr(&res)) ? res : ''
+	; Image binary data
+	ocr_from_binary(data, size, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBinary', 'ptr', this, 'ptr', data, 'uptr', size, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
 
-	; ocr识别结构体`struct BITMAP_DATA { void *bits; uint pitch; int width, height, bytespixel;};`
-	ocr_from_bitmapdata(data, param := 0) => DllCall('RapidOcrOnnx\OcrDetectBitmapData', 'ptr', this, 'ptr', data, 'ptr', param, 'ptr', RapidOcr.__cbobj, 'ptr', ObjPtr(&res)) ? res : ''
+	; `struct BITMAP_DATA { void *bits; uint pitch; int width, height, bytespixel;};`
+	ocr_from_bitmapdata(data, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBitmapData', 'ptr', this, 'ptr', data, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
 
 	class OcrParam extends Buffer {
 		__New(param?) {
@@ -78,54 +97,91 @@ class RapidOcr {
 				if this.Base.HasOwnProp(k)
 					this.%k% := v
 		}
-		; 图像预处理，在图片外周添加白边，用于提升识别率，文字框没有正确框住所有文字时，增加此值
+		; default: 50
 		padding {
 			get => NumGet(this, 0, 'int')
-			set => NumPut('int', value, this, 0)
+			set => NumPut('int', Value, this, 0)
 		}
-		; 按图片最长边的长度，此值为0代表不缩放，例：1024，如果图片长边大于1024则把图像整体缩小到1024再进行图像分割计算，
-		; 如果图片长边小于1024则不缩放，如果图片长边小于32，则缩放到32
+		; default: 1024
 		maxSideLen {
 			get => NumGet(this, 4, 'int')
-			set => NumPut('int', value, this, 4)
+			set => NumPut('int', Value, this, 4)
 		}
-		; 文字框置信度门限，文字框没有正确框住所有文字时，减小此值
+		; default: 0.5
 		boxScoreThresh {
 			get => NumGet(this, 8, 'float')
-			set => NumPut('float', value, this, 8)
+			set => NumPut('float', Value, this, 8)
 		}
+		; default: 0.3
 		boxThresh {
 			get => NumGet(this, 12, 'float')
-			set => NumPut('float', value, this, 12)
+			set => NumPut('float', Value, this, 12)
 		}
-		; 单个文字框大小倍率，越大时单个文字框越大。此项与图片的大小相关，越大的图片此值应该越大
+		; default: 1.6
 		unClipRatio {
 			get => NumGet(this, 16, 'float')
-			set => NumPut('float', value, this, 16)
+			set => NumPut('float', Value, this, 16)
 		}
-		; 启用(1)/禁用(0) 文字方向检测，只有图片倒置的情况下(旋转90~270度的图片)，才需要启用文字方向检测
+		; default: false
 		doAngle {
 			get => NumGet(this, 20, 'int')
-			set => NumPut('int', value, this, 20)
+			set => NumPut('int', Value, this, 20)
 		}
-		; 启用(1)/禁用(0) 角度投票(整张图片以最大可能文字方向来识别)，当禁用文字方向检测时，此项也不起作用
+		; default: false
 		mostAngle {
 			get => NumGet(this, 24, 'int')
-			set => NumPut('int', value, this, 24)
+			set => NumPut('int', Value, this, 24)
 		}
-		; 输出标记框后的图像路径
+		; Output path of image with the boxes
 		outputPath {
 			get => StrGet(NumGet(this, 24 + A_PtrSize, 'ptr') || StrPtr(''), 'cp0')
 			set => (StrPut(Value, this.__outputbuf := Buffer(StrPut(Value, 'cp0')), 'cp0'), NumPut('ptr', this.__outputbuf.Ptr, this, 24 + A_PtrSize))
 		}
 	}
+
+	class OcrResult extends Array {
+		__New(ptr) {
+			this.dbNetTime := NumGet(ptr, 'double')
+			this.detectTime := NumGet(ptr, 8, 'double')
+			read_vector(this, &ptr += 16, read_textblock)
+			align(ptr, begin, to_align) => begin + ((ptr - begin + --to_align) & ~to_align)
+			read_textblock(&ptr, begin := ptr) => {
+				boxPoint: read_vector([], &ptr, read_point),
+				boxScore: read_float(&ptr),
+				angleIndex: read_int(&ptr),
+				angleScore: read_float(&ptr),
+				angleTime: read_double(&ptr := align(ptr, begin, 8)),
+				text: read_string(&ptr),
+				charScores: read_vector([], &ptr, read_float),
+				crnnTime: read_double(&ptr := align(ptr, begin, 8)),
+				blockTime: read_double(&ptr)
+			}
+			read_double(&ptr) => (v := NumGet(ptr, 'double'), ptr += 8, v)
+			read_float(&ptr) => (v := NumGet(ptr, 'float'), ptr += 4, v)
+			read_int(&ptr) => (v := NumGet(ptr, 'int'), ptr += 4, v)
+			read_point(&ptr) => { x: read_int(&ptr), y: read_int(&ptr) }
+			read_string(&ptr) {
+				static size := 2 * A_PtrSize + 16
+				sz := NumGet(ptr + 16, 'uptr'), p := sz < 16 ? ptr : NumGet(ptr, 'ptr'), ptr += size
+				s := StrGet(p, sz, 'utf-8')
+				return s
+			}
+			read_vector(arr, &ptr, read_element) {
+				static size := 3 * A_PtrSize
+				pend := NumGet(ptr, A_PtrSize, 'ptr'), p := NumGet(ptr, 'ptr'), ptr += size
+				while p < pend
+					arr.Push(read_element(&p))
+				return arr
+			}
+		}
+	}
 }
 
-; if A_LineFile == A_ScriptFullPath {
-; 	param := RapidOcr.OcrParam()
-; 	param.doAngle := false
-; 	; param.maxSideLen := 300
-; 	ocr := RapidOcr({ modelpath: A_ScriptDir '\models' })
-; 	t := A_TickCount
-; 	MsgBox ocr.ocr_from_file('1.jpg', param) '`n' (A_TickCount - t)
-; }
+if A_LineFile == A_ScriptFullPath {
+	param := RapidOcr.OcrParam()
+	param.doAngle := false
+	; param.maxSideLen := 300
+	ocr := RapidOcr({ models: A_ScriptDir '\models' })
+	t := A_TickCount
+	MsgBox ocr.ocr_from_file('1.jpg', param) '`n' (A_TickCount - t)
+}
