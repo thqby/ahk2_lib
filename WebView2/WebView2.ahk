@@ -2,9 +2,9 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2023/07/30
- * @version 1.0.30
- * @webview2version 1.0.1938.49
+ * @date 2023/11/20
+ * @version 1.0.31
+ * @webview2version 1.0.2151.40
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -30,9 +30,10 @@ class WebView2 extends WebView2.Base {
 				dllPath := t
 			if (!edgeruntime) {
 				ver := '0.0.0.0'
-				loop files 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application\*', 'D'
-					if RegExMatch(A_LoopFilePath, '\\([\d.]+)$', &m) && VerCompare(m[1], ver) > 0
-						edgeruntime := A_LoopFileFullPath, ver := m[1]
+				for root in [EnvGet('ProgramFiles(x86)'), A_AppData '\..\Local']
+					loop files root '\Microsoft\EdgeWebView\Application\*', 'D'
+						if RegExMatch(A_LoopFilePath, '\\([\d.]+)$', &m) && VerCompare(m[1], ver) > 0
+							edgeruntime := A_LoopFileFullPath, ver := m[1]
 			}
 			EnvironmentCompletedHandler := WebView2.Handler(EnvironmentCompleted_Invoke)
 			if options {
@@ -1059,6 +1060,9 @@ class WebView2 extends WebView2.Base {
 
 		static IID_2 := '{bbc7baed-74c6-4c92-b63a-7f5aeae03de3}'
 		Name => (ComCall(11, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+
+		static IID_3 := '{842bed3c-6ad6-4dd9-b938-28c96667ad66}'
+		OriginalSourceFrameInfo => (ComCall(12, this, 'ptr*', frameInfo := WebView2.FrameInfo()), frameInfo)
 	}
 	class ObjectCollectionView extends WebView2.Base {
 		static IID := '{0f36fd87-4f69-4415-98da-888f89fb9a33}'
@@ -1788,7 +1792,9 @@ class WebView2 extends WebView2.Base {
 		WHEEL: 0x20a,
 		X_BUTTON_DOUBLE_CLICK: 0x20d,
 		X_BUTTON_DOWN: 0x20b,
-		X_BUTTON_UP: 0x20c
+		X_BUTTON_UP: 0x20c,
+		NON_CLIENT_RIGHT_BUTTON_DOWN: 0xa4,
+		NON_CLIENT_RIGHT_BUTTON_UP: 0xa5
 	}
 	static MOUSE_EVENT_VIRTUAL_KEYS := {
 		NONE: 0,
