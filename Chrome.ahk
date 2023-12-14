@@ -235,8 +235,8 @@ class Chrome {
 				awaitPromise: JSON.false
 			})
 			if (response is Map) {
-				if (response.Has('ErrorDetails'))
-					throw Error(response['result']['description'], , JSON.stringify(response['ErrorDetails']))
+				if (response.Has('exceptionDetails'))
+					throw Error(response['result']['description'], , JSON.stringify(response['exceptionDetails']))
 				return response['result']
 			}
 		}
