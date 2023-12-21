@@ -18,6 +18,11 @@ class RapidOcr {
 	 * @param {String} [config.cls] model file name of cls
 	 * @param {Integer} [config.numThread] The thread number, default: 4
 	 * @param {String} dllpath The path of RapidOcrOnnx.dll
+	 * @example
+	 * param := RapidOcr.OcrParam()
+	 * param.doAngle := false ;, param.maxSideLen := 300
+	 * ocr := RapidOcr({ models: A_ScriptDir '\models' })
+	 * MsgBox ocr.ocr_from_file('1.jpg', param)
 	 */
 	__New(config?, dllpath?) {
 		static init := 0
@@ -175,13 +180,4 @@ class RapidOcr {
 			}
 		}
 	}
-}
-
-if A_LineFile == A_ScriptFullPath {
-	param := RapidOcr.OcrParam()
-	param.doAngle := false
-	; param.maxSideLen := 300
-	ocr := RapidOcr({ models: A_ScriptDir '\models' })
-	t := A_TickCount
-	MsgBox ocr.ocr_from_file('1.jpg', param) '`n' (A_TickCount - t)
 }
