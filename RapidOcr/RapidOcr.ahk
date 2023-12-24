@@ -61,7 +61,6 @@ class RapidOcr {
 					Throw ValueError('No value is specified: ' k)
 			} else if !FileExist(%k%)
 				Throw TargetError('file "' k '" does not exist')
-			cls_model:=''
 		this.ptr := DllCall('RapidOcrOnnx\OcrInit', 'str', det_model, 'str', cls_model, 'str', rec_model, 'str', keys_dict, 'int', numThread, 'ptr')
 	}
 	__Delete() => this.ptr && DllCall('RapidOcrOnnx\OcrDestroy', 'ptr', this)
