@@ -1,7 +1,7 @@
 ﻿/************************************************************************
  * @author thqby
- * @date 2022/12/24
- * @version 1.0.2
+ * @date 2023/12/31
+ * @version 1.0.3
  ***********************************************************************/
 
 class child_process {
@@ -76,10 +76,10 @@ class child_process {
 			return c || RegExMatch(s, '\s') ? '"' s '"' : s
 		}
 		toString(arr, begin := 0) {	; zero-based index
-			static mIndex_offset := 6 * A_PtrSize + 16
+			static mIndex_offset := (VerCompare(A_AhkVersion, '2.1-alpha.3') >= 0 ? 8 : 6) * A_PtrSize + 16
 			for v in (s := '', begin > 0 ? (NumPut('uint', begin - 1, ObjPtr(enum := arr.__Enum(1)), mIndex_offset), enum) : arr)
-				s .= '`n' v
-			return SubStr(s, 2)
+				s .= v
+			return s
 		}
 	}
 	__Delete() {
@@ -121,16 +121,24 @@ class child_process {
 			if !(f := this.%k%)
 				continue
 			out := k = 'stdout' ? this.output : this.error
-			if DllCall('PeekNamedPipe', 'ptr', f, 'ptr', 0, 'int', 0, 'ptr', 0, 'ptr', 0, 'ptr', 0) && (t := '', ++peek) {
+			if DllCall('PeekNamedPipe', 'ptr', f, 'ptr', 0, 'int', 0, 'ptr', 0, 'ptr', 0, 'ptr', 0) && ++peek {
 				while f {
-					if t := t f.Read() {
-						arr := StrSplit(t, '`n', '`r'), t := f.AtEOF ? '' : arr.Pop()
-						for line in arr
-							try if (out.Push(line), 1) && this.onData(k, line) && (--peek, !f := this.%k% := 0) {
+					if t := f.Read() {
+						arr := StrSplit(t, '`n', '`r'), l := arr.Length
+						crlf := l > 1 && InStr(t, '`r`n') ? '`r`n' : '`n'
+						for line in arr {
+							if A_Index < l
+								line .= crlf
+							else if !line
+								break
+							out.Push(line)
+							try if this.onData(k, line) && (--peek, !f := this.%k% := 0) {
 								try this.onClose(k)
 								break 2
-							} catch MethodError
+							}
+							catch MethodError
 								continue
+						}
 					} else if f.AtEOF
 						break
 					else Sleep(5)
