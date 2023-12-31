@@ -1,7 +1,7 @@
 /************************************************************************
  * @author thqby
- * @date 2023/11/07
- * @version 1.0.5
+ * @date 2023/12/31
+ * @version 1.0.6
  ***********************************************************************/
 
 #DllLoad winhttp.dll
@@ -142,7 +142,7 @@ class WebSocket {
 		static async_shutdown(self) {
 			if self.Ptr
 				DllCall('Winhttp\WinHttpSetOption', 'ptr', self, 'uint', 45, 'ptr*', 0, 'uint', A_PtrSize)
-			(WebSocket.Prototype.shutdown)(self), self.__context := unset, self.__send_queue := []
+			(WebSocket.Prototype.shutdown)(self), Sleep(32), self.__context := unset, self.__send_queue := []
 		}
 
 		static get_sync_callback() {
