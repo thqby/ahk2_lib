@@ -776,7 +776,7 @@ class WebView2 extends WebView2.Base {
 		CreateContextMenuItem(label, iconStream, kind) => (ComCall(19, this, 'wstr', label, 'ptr', iconStream, 'int', kind, 'ptr', item := WebView2.ContextMenuItem()), item)	; IStream*, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND
 
 		static IID_10 := '{ee0eb9df-6f12-46ce-b53f-3f47b9c928e0}'
-		CreateCoreWebView2ControllerOptions() => (ComCall(20, this, 'ptr', options := WebView2.ControllerOptions()), options)
+		CreateCoreWebView2ControllerOptions() => (ComCall(20, this, 'ptr*', options := WebView2.ControllerOptions()), options)
 		CreateCoreWebView2ControllerWithOptions(parentWindow, options, handler) => ComCall(21, this, 'ptr', parentWindow, 'ptr', options, 'ptr', handler)	; ICoreWebView2ControllerOptions, ICoreWebView2CreateCoreWebView2ControllerCompletedHandler
 		CreateCoreWebView2CompositionControllerWithOptions(parentWindow, options, handler) => ComCall(22, this, 'ptr', parentWindow, 'ptr', options, 'ptr', handler)	; ICoreWebView2ControllerOptions, ICoreWebView2CreateCoreWebView2CompositionControllerCompletedHandler
 
