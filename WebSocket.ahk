@@ -142,7 +142,7 @@ class WebSocket {
 		static async_shutdown(self) {
 			if self.Ptr
 				DllCall('Winhttp\WinHttpSetOption', 'ptr', self, 'uint', 45, 'ptr*', 0, 'uint', A_PtrSize)
-			(WebSocket.Prototype.shutdown)(self), Sleep(32), self.__context := unset, self.__send_queue := []
+			(WebSocket.Prototype.shutdown)(self), Sleep(32), self.DeleteProp('__context'), self.__send_queue := []
 		}
 
 		static get_sync_callback() {
