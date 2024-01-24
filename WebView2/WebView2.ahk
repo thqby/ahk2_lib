@@ -145,7 +145,7 @@ class WebView2 extends WebView2.Base {
 		KeyEventKind => (ComCall(3, this, 'int*', &keyEventKind := 0), keyEventKind)	; COREWEBVIEW2_KEY_EVENT_KIND
 		VirtualKey => (ComCall(4, this, 'uint*', &virtualKey := 0), virtualKey)
 		KeyEventLParam => (ComCall(5, this, 'int*', &lParam := 0), lParam)
-		PhysicalKeyStatus => (ComCall(6, this, 'ptr', physicalKeyStatus := WebView2.PHYSICAL_KEY_STATUS()), physicalKeyStatus)	; COREWEBVIEW2_PHYSICAL_KEY_STATUS
+		PhysicalKeyStatus => (ComCall(6, this, 'ptr*', physicalKeyStatus := WebView2.PHYSICAL_KEY_STATUS()), physicalKeyStatus)	; COREWEBVIEW2_PHYSICAL_KEY_STATUS
 		Handled {
 			get => (ComCall(7, this, 'int*', &handled := 0), handled)
 			set => ComCall(8, this, 'int', Value)
