@@ -431,7 +431,7 @@ class WinHttp {
 		if (this._statuscb)
 			CallbackFree(this._statuscb), this._statuscb := 0
 	}
-	openRequset(Method, Url) {
+	openRequest(Method, Url, fallbackCharset := 'utf-16') {
 		static _ports := {ftp: 21, http: 80, https: 443}
 		if (!RegExMatch(Url, '^((?<SCHEME>\w+)://)?((?<USERNAME>[^:]+):(?<PASSWORD>.+)@)?(?<HOST>[^/:]+)(:(?<PORT>\d+))?(?<PATH>/.*)?$', &m))
 			throw Error('无效的url')
@@ -446,6 +446,7 @@ class WinHttp {
 			WinHttp.SetStatusCallback(req.Ptr, this._statuscb, WinHttp.CALLBACK_FLAG_ALL_COMPLETIONS)
 			val := Buffer(A_PtrSize), NumPut('ptr', ObjPtr(req), val), req.option[WinHttp.OPTION_CONTEXT_VALUE] := val
 		}
+		req.setFallbackCharset(fallbackCharset)
 		return req
 	}
 	GetProxyForUrl(lpcwszUrl, pAutoProxyOptions, pProxyInfo) => DllCall('Winhttp\WinHttpGetProxyForUrl', 'ptr', this, 'wstr', lpcwszUrl, 'ptr', pAutoProxyOptions, 'ptr', pProxyInfo, 'int')
@@ -574,6 +575,7 @@ class WinHttp {
 
 	class Request {
 		Ptr := 0, hConnect := 0, async := 0, _ResponseBody := 0, _HasReceiveResponse := 0, readyState := 0, onreadystatechange := 0
+		fallbackCharset := 'utf-16'	;useful when the class cannot auto-detect non-utf-16 encoding
 		__New(hRequest, hConnect, async) {
 			this.Ptr := hRequest, this.hConnect := hConnect, this.async := async
 		}
@@ -690,6 +692,9 @@ class WinHttp {
 
 			}
 		}
+		setFallbackCharset(fallbackCharset := 'utf-16'){
+			this.fallbackCharset := fallbackCharset
+		}
 		responseText {
 			get {
 				if (this._ResponseBody || this.ResponseBody) {
@@ -697,13 +702,13 @@ class WinHttp {
 						charset := m[1]
 					else
 						charset := this.getResponseHeader(WinHttp.QUERY_ACCEPT_CHARSET)
-					switch charset {
+					switch charset, "Off" {
 						case 'utf-8', 'utf-16':
 						case 'gb2312':
 							charset := 'cp936'
 						default:
 							if (charset = '')
-								charset := 'utf-16'
+								charset := this.fallbackCharset ;'utf-16'
 							else
 								throw Error('未知的字符集: ' charset)
 					}
