@@ -2,8 +2,8 @@
  * @description: JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2024/01/28
- * @version 1.0.6
+ * @date 2024/02/24
+ * @version 1.0.7
  ***********************************************************************/
 
 class JSON {
@@ -22,7 +22,7 @@ class JSON {
 		D := [C := (A := InStr(text := LTrim(text, " `t`r`n"), "[") = 1) ? [] : maptype()], text := LTrim(SubStr(text, 2), " `t`r`n"), L := 1, N := 0, V := K := "", J := C, !(Q := InStr(text, '"') != 1) ? text := LTrim(text, '"') : ""
 		Loop Parse text, '"' {
 			Q := NQ ? 1 : !Q
-			NQ := Q && (SubStr(A_LoopField, -3) = "\\\" || (SubStr(A_LoopField, -1) = "\" && SubStr(A_LoopField, -2) != "\\"))
+			NQ := Q && RegExMatch(A_LoopField, '(^|[^\\])(\\\\)*\\$')
 			if !Q {
 				if (t := Trim(A_LoopField, " `t`r`n")) = "," || (t = ":" && V := 1)
 					continue
