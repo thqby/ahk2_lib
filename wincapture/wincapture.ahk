@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description Windows capture library, including `DXGI`, `DWM`, `WGC`. And some bitmap functions.
  * @author thqby
- * @date 2022/06/15
- * @version 1.2.6
+ * @date 2024/03/13
+ * @version 1.2.7
  ***********************************************************************/
 
 class wincapture {
@@ -299,7 +299,7 @@ class BitmapBuffer {
 		if IsSet(thresh)
 			if thresh is Array
 				thresh.Length := 4, thresh[4] := bb, bb.threshold(thresh*), thresh.Pop()
-			else bb.threshold(thresh,,, bb)
+			else bb.threshold(thresh, , , bb)
 		if (bits <= 8 && bb.bytespixel != 1)
 			bb.cvtBytes(1, bb)
 		return bb
@@ -351,34 +351,34 @@ class BitmapBuffer {
 		if (bytespixel != 3)
 			this.DefineProp("__Item", { get: (s, x, y) => NumGet(s, y * pitch + x * bytespixel, tp), set: (s, v, x, y) => NumPut(tp, v, s, y * pitch + x * bytespixel) })
 	}
-	
+
 	getHexColor(x, y) => Format("0x{:08X}", this[x, y])
 
 	/**
 	 * @param type thresholding type
-	 *
+	 * 
 	 * THRESH_BINARY = 0, ; dst(x,y) = src(x,y) > thresh ? maxval : 0
-	 *
+	 * 
 	 * THRESH_BINARY_INV = 1, ; dst(x,y) = src(x,y) > thresh ? 0 : maxval
-	 *
-	 * THRESH_TRUNC = 2, ; dst(x,y) = src(x,y) > thresh > threshold : src(x,y)
-	 *
+	 * 
+	 * THRESH_TRUNC = 2, ; dst(x,y) = src(x,y) > thresh ? threshold : src(x,y)
+	 * 
 	 * THRESH_TOZERO = 3, ; dst(x,y) = src(x,y) > thresh ? src(x,y) : 0
-	 *
+	 * 
 	 * THRESH_TOZERO_INV = 4, ; dst(x,y) = src(x,y) > thresh ? 0 : src(x,y)
-	 *
+	 * 
 	 * THRESH_MASK = 7,
 	 * THRESH_OTSU = 8,
 	 * THRESH_ITERATIVEBEST = 16,
 	 * THRESH_MEAN = 32,
-	 *
+	 * 
 	 * THRESH_ADAPTIVE_SAUVOLA = 64	; local threshold adaptive
 	 * @param params thresholding params
-	 *
+	 * 
 	 * (threshold_min & 0xff) | (((threshold_max ?? 0) & 0xff) << 8) when (type & ~THRESH_MASK = 0)
-	 *
+	 * 
 	 * threshold = auto_threshold + params(-255~255 correction_value) when (type & (THRESH_OTSU | THRESH_ITERATIVEBEST | THRESH_MEAN))
-	 *
+	 * 
 	 * threshold = mean*(1 + k*((std / 128) - 1)) when (type & THRESH_ADAPTIVE_SAUVOLA),
 	 * correction_factor(-1.0<= params && params <= 1.0)
 	 * or radius(params > 1 ? params : bmp_width >> -params)
@@ -428,11 +428,11 @@ class BitmapBuffer {
 	}
 	/**
 	 * @param mode Grayscale conversion mode.
-	 *
-	 * (r * 19595 + g * 38469 + b * 7472) >> 32 (mode 0)
-	 *
+	 * 
+	 * (r * 19595 + g * 38469 + b * 7472) >> 16 (mode 0)
+	 * 
 	 * (r ^ 2.2 * 0.2973 + g ^ 2.2 * 0.6274 + b ^ 2.2 * 0.0753) ^ (1 / 2.2)	(mode 1 Adobe RGB (1998) [gamma=2.20])
-	 *
+	 * 
 	 * [r, g, b] custom rgb ratio, the percentages are `r/(r+g+b)`, `g/(r+g+b)`, `b/(r+g+b)`
 	 */
 	cvtGray(mode := 0, dst := unset) {
@@ -446,19 +446,20 @@ class BitmapBuffer {
 				for k, v in mode
 					switch k, false {
 						case 1, "r": NumPut("uint", v, buf)
-						case 2, "g": NumPut("uint", v, buf)
-						case 3, "b": NumPut("uint", v, buf)
+						case 2, "g": NumPut("uint", v, buf, 4)
+						case 3, "b": NumPut("uint", v, buf, 8)
 					}
 			}
 			if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", dst.info, "ptr", buf)
 				throw TypeError("invalid BitmapData")
 			dst.gray := buf
+		} else {
+			if mode != 0 && mode != 1
+				throw ValueError("mode only is 0 or 1")
+			if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", dst.info, "ptr", mode)
+				throw TypeError("invalid BitmapData")
+			dst.gray := mode
 		}
-		if mode != 0 && mode != 1
-			throw ValueError("mode only is 0 or 1")
-		if !DllCall("wincapture\cvtGray", "ptr", this.info, "ptr", dst.info, "ptr", mode)
-			throw TypeError("invalid BitmapData")
-		else dst.gray := mode
 		dst.updateDesc()
 		return dst
 	}
@@ -468,7 +469,7 @@ class BitmapBuffer {
 		else roi := 0
 		DllCall("wincapture\copyBitmapData", "ptr", this.info, "ptr", dst, "int", linestep, "ptr", roi)
 	}
-	; Select or copy part of the image 
+	; Select or copy part of the image
 	range(x1 := 0, y1 := 0, x2 := unset, y2 := unset, copy := false) {
 		if !IsSet(x2)
 			x2 := this.width
@@ -543,7 +544,7 @@ class BitmapBuffer {
 	 * @param maxcount the max position count
 	 * @param variation gradient value and transparent color, transparent_color << 32 | variation,
 	 * black transparent color must is 0xff000000(32bpp) or 0xff00(8bpp)
-	 *
+	 * 
 	 * for 32bpp bitmap, a pixel color that alpha < 255 will be considered transparent, and `ignore alpha of source bitmap`
 	 * @param direction find direction, x→ y↓ 0, x← y↓ 1, x→ y↑ 2, x← y↑ 3
 	 */
@@ -601,8 +602,8 @@ class BitmapBuffer {
 			else if this.height > 0.8 * A_ScreenHeight
 				g.Show("NA h" (h := 0.8 * A_ScreenHeight) " w" (h / this.height * this.width))
 			else g.Show("NA w" this.width " h" this.height)
-			g.OnEvent("Close", (g, * ) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := 0, g.hdc := 0, guis.Delete(guiname)))
-			g.OnEvent("Size", (g, * ) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
+			g.OnEvent("Close", (g, *) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := 0, g.hdc := 0, guis.Delete(guiname)))
+			g.OnEvent("Size", (g, *) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
 		} else (g := guis[guiname]).Show("NA")
 
 		hbm := getDIBitmap()

@@ -4,8 +4,6 @@
  * Asynchronous download, you can get the download progress, and call the specified function after the download is complete
  * @param {String} URL The URL address to be downloaded, including the http(s) header
  * @param {String} Filename File path to save. If omit, download to memory
- * @param {(whr_or_err)=>void} OnStateChanged Download completed or error occurred callback function
- * @param {OSError|WinHttpRequest} whr_or_err
  * @param {(downloaded_size, total_size)=>void} OnProgress Download progress callback function
  * @return {WinHttpRequest} A WinHttpRequest instance, can be used to terminate the download
  * @example
