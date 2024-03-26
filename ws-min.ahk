@@ -49,7 +49,7 @@ class WebSocket {
 	__Delete() => (this.doc := (this.readyState = 1) ? (this.Disconnect(), "") : "")
 	Disconnect() => ((this.readyState = 1) ? this.doc.parentWindow.ws.close() : "")
 	onEvent(EventName, Event) {
-		if this.HasOwnProp("on" EventName)
+		if this.HasProp("on" EventName)
 			try this.on%EventName%(Event)
 	}
 	bufferedAmount => this.doc.parentWindow.ws.bufferedAmount
