@@ -89,7 +89,7 @@ class gzip {
 				argsize += args[A_Index * 2 - 1] = 'int64' ? 8 : 4
 			base.DefineProp(name, { call: DllCall.Bind(p := get_proc_addr(name, argsize), args*) })
 			if !p
-				MsgBox
+				throw Error('nonexistent function', , name)
 		}
 	}
 }
