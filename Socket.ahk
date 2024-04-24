@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2023/02/05
- * @version 1.0.3
+ * @date 2024/04/21
+ * @version 1.0.4
  ***********************************************************************/
 
 /**
@@ -24,18 +24,17 @@ class Socket {
 	static __New() {
 		#DllLoad ws2_32.dll
 		if this != Socket
-			return
-		this.DeleteProp('__New')
-		if err := DllCall('ws2_32\WSAStartup', 'ushort', 0x0202, 'ptr', WSAData := Buffer(394 + A_PtrSize))
+			throw Error('Invalid base class')
+		if err := DllCall('ws2_32\WSAStartup', 'ushort', 0x0202, 'ptr', WSAData := Buffer(394 + A_PtrSize, 0))
 			throw OSError(err)
 		if NumGet(WSAData, 2, 'ushort') != 0x0202
 			throw Error('Winsock version 2.2 not available')
-		this.DefineProp('__Delete', { call: ((pSocket, self) => ObjPtr(self) == pSocket && DllCall('ws2_32\WSACleanup')).Bind(ObjPtr(Socket)) })
+		this.DefineProp('__Delete', { call: (*) => DllCall('ws2_32\WSACleanup') })
 		proto := this.base.Prototype
 		for k, v in { addr: '', async: 0, Ptr: -1 }.OwnProps()
 			proto.DefineProp(k, { value: v })
 		for k in this.EVENT.OwnProps()
-			proto.DefineProp('On' k, { set: get_setter('On' k) })
+			k := 'On' StrTitle(k), proto.DefineProp(k, { set: get_setter(k) })
 		get_setter(name) {
 			return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
 		}
@@ -44,8 +43,8 @@ class Socket {
 
 	class AddrInfo {
 		static Prototype.size := 48
-		static Call(host, port?) {
-			if IsSet(port) {
+		static Call(host, port := 0) {
+			if port {
 				if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', 0, 'ptr*', &addr := 0)
 					throw OSError(err, -1)
 				return { base: this.Prototype, ptr: addr, __Delete: this => DllCall('ws2_32\FreeAddrInfoW', 'ptr', this) }
@@ -67,7 +66,6 @@ class Socket {
 	}
 
 	class base {
-		addr := '', async := false, Ptr := -1
 		__Delete() {
 			if this.Ptr == -1
 				return
@@ -95,7 +93,8 @@ class Socket {
 						flags |= v
 			if flags {
 				Socket.__sockets_table[this.Ptr] := ObjPtr(this), this.async := 1
-				OnMessage(WM_SOCKET, On_WM_SOCKET, 0x7fffffff)
+				OnMessage(WM_SOCKET, On_WM_SOCKET, 255)
+				this.DefineProp('_async_select', { call: async_select })
 			} else {
 				try {
 					Socket.__sockets_table.Delete(this.Ptr)
@@ -103,16 +102,27 @@ class Socket {
 						OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
 				}
 			}
-			if this.async
+			if this.async {
 				DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
-			if !flags && start && this.async && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
-				this.async := 0
+				if !flags && start && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
+					this.async := 0
+			}
 			return flags
 			static On_WM_SOCKET(wp, lp, *) {
 				if !sk := Socket.__sockets_table.Get(wp, 0)
 					return
-				event := id_to_event[lp & 0xffff]
-				ObjFromPtrAddRef(sk).On%event%((lp >> 16) & 0xffff)
+				sk := ObjFromPtrAddRef(sk)
+				sk._async_select(ev := lp & 0xffff, false)
+				sk.On%id_to_event[ev]%((lp >> 16) & 0xffff)
+				sk._async_select(ev)
+			}
+			async_select(this, _flags, add := true) {
+				if _flags=32
+					return
+				if add
+					flags |= _flags
+				else flags &= ~_flags
+				r := DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
 			}
 			init_table() {
 				m := Map()
@@ -125,6 +135,14 @@ class Socket {
 
 	class Client extends Socket.base {
 		static Prototype.isConnected := 1
+		/**
+		 * Create a socket client to connect to the specified server.
+		 * @param {String} host The name of host, if port is 0, the value should be the path of pipe or file.
+		 * @param {Number} port Listen to the specified port, and if it is 0, listen to the pipe or file.
+		 * @param {Socket.TYPE} socktype The type of socket.
+		 * @param {Socket.IPPROTO} protocol The protocol of socket.
+		 * @example <caption>https://github.com/thqby/ahk2_lib/issues/27</caption>
+		 */
 		__New(host, port?, socktype := Socket.TYPE.STREAM, protocol := 0) {
 			this.addrinfo := host is Socket.AddrInfo ? host : Socket.AddrInfo(host, port?)
 			last_family := -1, err := ai := 0
@@ -164,8 +182,19 @@ class Socket {
 			else throw OSError(err)
 		}
 
+		; When it is a client, it is used to reconnect after disconnecting from the server.
 		ReConnect(next := false) => 10061
 
+		/**
+		 * Sends data on a connected socket.
+		 * @param {Buffer | Integer} buf The data to be transmitted.
+		 * @param {Integer} size The size of data.
+		 * @param {Socket.MSG} flags A set of flags that specify the way in which the call is made.
+		 * This parameter is constructed by using the bitwise OR operator with any of the following values.
+		 * - DONTROUTE — Specifies that the data should not be subject to routing. A Windows Sockets service provider can choose to ignore this flag.
+		 * - OOB — Sends OOB data (stream-style socket such as SOCK_STREAM only).
+		 * @returns {Integer} The total number of bytes sent.
+		 */
 		Send(buf, size?, flags := 0) {
 			if (size := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', flags)) == -1
 				throw OSError(Socket.GetLastError())
@@ -178,6 +207,13 @@ class Socket {
 			return this.Send(buf, size, flags)
 		}
 
+		/**
+		 * @param {Socket.MSG} flags A set of flags that specify the way in which the call is made.
+		 * This parameter is constructed by using the bitwise OR operator with any of the following values.
+		 * - OOB — Processes Out Of Band (OOB) data.
+		 * - PEEK — Peeks at the incoming data. The data is copied into the buffer, but is not removed from the input queue.
+		 * - WAITALL
+		 */
 		_recv(buf, size, flags := 0) => DllCall('ws2_32\recv', 'ptr', this, 'ptr', buf, 'int', size, 'int', flags)
 
 		Recv(&buf, maxsize := 0x7fffffff, flags := 0, timeout := 0) {
@@ -212,8 +248,17 @@ class Socket {
 	}
 
 	class Server extends Socket.base {
-		__New(port?, host := '127.0.0.1', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
-			_ := ai := Socket.AddrInfo(host, port?), ptr := last_family := -1
+		/**
+		 * Create a socket server to listen to the specified port or local file.
+		 * @param {Number} port Listen to the specified port, and if it is 0, listen to the pipe or file.
+		 * @param {String} host The name of host, if port is 0, the value should be the path of pipe or file.
+		 * @param {Socket.TYPE} socktype The type of socket.
+		 * @param {Socket.IPPROTO} protocol The protocol of socket.
+		 * @param {Integer} backlog The maximum length of the queue of pending connections.
+		 * @example <caption>https://github.com/thqby/ahk2_lib/issues/27</caption>
+		 */
+		__New(port := 0, host := '127.0.0.1', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
+			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
 			if ai.family == 1
 				this.file := make_del_token(ai.addrstr)
 			loop {
@@ -249,6 +294,11 @@ class Socket {
 			return ptr
 		}
 
+		/**
+		 * Accept the connection of socket client.
+		 * @param {typeof Socket.Client} clientType The class for socket instantiation.
+		 * @returns {Socket.Client}
+		 */
 		AcceptAsClient(clientType := Socket.Client) {
 			ptr := this._accept(&addr)
 			sock := { base: clientType.Prototype, ptr: ptr, async: this.async, addr: addr }
