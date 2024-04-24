@@ -1,4 +1,6 @@
 /************************************************************************
+ * @description The websocket client implemented through winhttp,
+ * requires that the system version be no less than win8.
  * @author thqby
  * @date 2024/01/27
  * @version 1.0.7
@@ -25,7 +27,7 @@ class WebSocket {
 	 * @param {String} Url the url of websocket
 	 * @param {Object} Events an object of `{open:(this)=>void,data:(this, data, size)=>bool,message:(this, msg)=>bool,close:(this, status, reason)=>void}`
 	 * @param {Integer} Async Use asynchronous mode
-	 * @param {Object|Map|String} Headers Request header
+	 * @param {Object|Map|String} Headers Additional request headers to use when creating connections
 	 * @param {Integer} TimeOut Set resolve, connect, send and receive timeout
 	 */
 	__New(Url, Events := 0, Async := true, Headers := '', TimeOut := 0, InitialSize := 8192) {
