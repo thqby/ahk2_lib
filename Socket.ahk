@@ -257,7 +257,7 @@ class Socket {
 		 * @param {Integer} backlog The maximum length of the queue of pending connections.
 		 * @example <caption>https://github.com/thqby/ahk2_lib/issues/27</caption>
 		 */
-		__New(port := 0, host := '127.0.0.1', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
+		__New(port := 0, host := '0.0.0.0', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
 			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
 			if ai.family == 1
 				this.file := make_del_token(ai.addrstr)
