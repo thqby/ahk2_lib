@@ -19,9 +19,9 @@ class WebSockets {
 		 * ws := WebSockets.Server(6789)
 		 * ws.onClientConnect := (ws, c) => (c.onMessage := (c, msg)=>c.SendText(msg), c.onData := (c, buf)=>s.SendData(buf))
 		 */
-		__New(port, host := '127.0.0.1', clientType := WebSockets.Client, backlog := 4) {
+		__New(port, host?, clientType := WebSockets.Client, backlog := 4) {
 			this._clientType := clientType
-			super.__New(port, host, , , backlog)
+			super.__New(port, host?, , , backlog)
 		}
 		__Delete() {
 			for sock in this.clients
