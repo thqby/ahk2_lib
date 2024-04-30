@@ -87,7 +87,7 @@ class JSON {
 				if !((e := !e) && A_LoopField = "" ? v .= "\" : !e ? (v .= A_LoopField, 1) : 0)
 					v .= (t := m.Get(SubStr(A_LoopField, 1, 1), 0)) ? t SubStr(A_LoopField, 2) :
 						(t := RegExMatch(A_LoopField, "i)^(u[\da-f]{4}|x[\da-f]{2})\K")) ?
-							Chr("0x" SubStr(A_LoopField, 2, t - 1)) SubStr(A_LoopField, t) : "\" A_LoopField,
+							Chr("0x" SubStr(A_LoopField, 2, t - 2)) SubStr(A_LoopField, t) : "\" A_LoopField,
 							e := A_LoopField = "" ? e : !e
 			return v
 		}
