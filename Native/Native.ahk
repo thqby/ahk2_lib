@@ -2,8 +2,8 @@
  * @description create native functions or methods from mcode,
  * load ahk modules(write by c/c++) as native classes or fuctions.
  * @author thqby
- * @date 2023/09/09
- * @version 1.1.8
+ * @date 2024/05/04
+ * @version 1.1.9
  ***********************************************************************/
 
 class Native extends Func {
@@ -223,9 +223,9 @@ class Native extends Func {
 					else
 						mems := members, pbase := ObjPtr(symbol.Prototype.Base)
 					if !mems.HasOwnProp(name)
-						t := mems.%name% := {}
+						mems.DefineProp(name, { value: t := {} })
 					else t := mems.%name%
-					t.DefineProp sub, me := this.Method(pbase, method, mit, minparams, maxparams, id)
+					t.DefineProp(sub, { value: me := this.Method(pbase, method, mit, minparams, maxparams, id) })
 					NumPut('ptr', pname, ObjPtr(me), 3 * A_PtrSize + 8)
 					pmem += A_PtrSize - 3
 				} else {
