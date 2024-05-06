@@ -1,5 +1,5 @@
 /************************************************************************
- * @description Enhanced version of MCode, which can build machine code supporting import function,
+ * @description Enhanced version of MCode, which can build machine code supporting import symbol,
  * multi-function export, using strings, setting global variables and other features.
  * @author thqby
  * @date 2024/04/30
@@ -12,13 +12,13 @@ class MCodeLoader extends Buffer {
 	 * @param {{32?:String|$Code, 64?:String|$Code, import?:String, export?:String}} configs 
 	 * @param {Integer} bits Number of bits corresponding to the code to be loaded.
 	 * The built code cannot be run when the bits are inconsistent with the current exe.
-	 * @param {Map} import_fn_ptrs Fill in the import function address table with the function address obtained by yourself.
+	 * @param {Map} import_fn_ptrs Fill in the import address table with the function address obtained by yourself.
 	 * @typedef {Object} $Code
 	 * @property {String} code Base64 format string.
 	 * @property {Integer} size If the code is compressed by LZ, the value is the decompressed size.
 	 * @property {String|Array<String>} export The comma-concatenated names that are sequentially associated with the export function.
 	 * If not specified, it is named by serial number.
-	 * @property {String} import Get the address of dll import function in sequence and fill them into the import function address table.
+	 * @property {String} import Get the address of dll import symbols in sequence and fill them into the import address table.
 	 * e.g. `dll1:fn1,fn2|dll2:fn3`
 	 */
 	__New(configs, bits := A_PtrSize * 8, import_fn_ptrs := Map()) {
@@ -54,7 +54,7 @@ class MCodeLoader extends Buffer {
 				throw ValueError('unknown/corrupt code format')
 			else NumPut('ptr', t, n)
 
-		; import functions
+		; import symbols
 		if import_count {
 			tp := bits = 32 ? 'uint' : 'int64'
 			import_fn_ptrs := _fn_ptrs := import_fn_ptrs.Get.Bind(import_fn_ptrs, , 0)
@@ -68,11 +68,11 @@ class MCodeLoader extends Buffer {
 					throw OSError(,, r)
 				for n in StrSplit(SubStr(n, t + 1), ',', ' ')
 					if !cptr := import_fn_ptrs(n)
-						throw ValueError('unknown import function',, r '\' n)
+						throw ValueError('unknown import symbol',, r '\' n)
 					else import_entry := NumPut(tp, cptr, import_entry), import_count--
 			}
 			if import_count
-				throw ValueError('wrong number of import functions', import_count)
+				throw ValueError('wrong number of import symbols', import_count)
 		}
 
 		if bits = A_PtrSize * 8 && !DllCall('VirtualProtect', 'ptr', bptr, 'uint', this.Size, 'uint', 0x40, 'uint*', 0)
