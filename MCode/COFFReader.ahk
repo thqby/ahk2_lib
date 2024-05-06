@@ -155,7 +155,7 @@ class COFFReader extends Buffer {
 		this.Is64Bit := Magic = 0x8664
 
 		if (this.Is32Bit + this.Is64Bit != 1) {
-			Throw Error('Not a valid 32/64 bit COFF file')
+			throw Error('Not a valid 32/64 bit COFF file')
 		}
 
 		SymbolTableOffset := this.ReadUInt(8)
@@ -176,6 +176,22 @@ class COFFReader extends Buffer {
 
 			; Aux symbols only serve to pad out the symbol table so the indexes inside of relocations are correct.
 			this.Symbols.Length += NextSymbol.AuxSymbolCount
+
+			; IMAGE_SYM_CLASS_WEAK_EXTERNAL
+			if NextSymbol.StorageClass = 105 && NextSymbol.AuxSymbolCount {
+				Offset := SymbolTableOffset + (SymbolIndex + 1) * SIZEOF_SYMBOL
+				Index := this.ReadUInt(Offset), Characteristics := this.ReadUInt(Offset + 4)
+				switch this.ReadUInt(Offset + 4) {
+					case 4:	; IMAGE_WEAK_EXTERN_ANTI_DEPENDENCY
+						throw Error('unimplemented')
+					case 2:	; IMAGE_WEAK_EXTERN_SEARCH_LIBRARY
+						this.Symbols[SymbolIndex + 1].WeakExternal := this.Symbols[Index + 1]
+						throw Error('unimplemented')
+					default:	; IMAGE_WEAK_EXTERN_SEARCH_NOLIBRARY, IMAGE_WEAK_EXTERN_SEARCH_ALIAS
+						this.Symbols[SymbolIndex + 1] := this.Symbols[Index + 1]
+				}
+			}
+
 			SymbolIndex += 1 + NextSymbol.AuxSymbolCount
 		}
 
@@ -200,17 +216,9 @@ class COFFReader extends Buffer {
 		; On 64 bit, this is anything RIP-relative to `Section`, or DISP8/DISP32 operands.
 		; On 32 bit, this is only DISP8/DISP32 operands, since RIP-relative doesn't exist.
 
-		static IMAGE_REL_I386_REL32 := 0x14
-		static IMAGE_REL_AMD64_REL32 := 0x4
-		static IMAGE_REL_I386_DIR32 := 0x6
-		static IMAGE_REL_AMD64_ADDR64 := 0x1
-
 		; Note: The relocation list is cloned since we'll be modifying it to remove any relocations resolved
 		;  entirely within this function.
-		if this.Is32Bit
-			REL32 := IMAGE_REL_I386_REL32, ADDR := IMAGE_REL_I386_DIR32, Type := 'int'
-		else REL32 := IMAGE_REL_AMD64_REL32, ADDR := IMAGE_REL_AMD64_ADDR64, Type := 'int64'
-		relocations := []
+		relocations := [], data := Section.Data, apply := this.Is32Bit ? ApplyRelx86 : ApplyRelx64
 		for Relocation in Section.Relocations {
 			if (Relocation.Symbol.Section != Section) {
 				; If the data is relocated against a symbol in any other section, we can't resolve it, since
@@ -219,26 +227,62 @@ class COFFReader extends Buffer {
 				continue
 			}
 
-			switch Relocation.Type {
-				case REL32:
-					; Rel32, we need to find the distance between `RelocationAddress` and `SymbolAddress + *RelocationAddres`
-					;  and write it back to `RelocationAddress`.
-					Source := Relocation.Address
-					Offset := Section.Data.Read(Source, 'Int')
-					Target := Relocation.Symbol.Value + Offset
-					Difference := Target - (Source + 4)	; An extra 4 is added to get the value of RIP (or EIP) while the instruction
-					; containing the RIP-relative address is executing.
-
-					Section.Data.Write(Difference, Source, 'Int')
-				case ADDR:
-					Source := Relocation.Address
-					Offset := Section.Data.Read(Source, Type)
-					Target := Relocation.Symbol.Value + Offset
-					Section.Data.Write(Target, Source, Type)
-					relocations.Push(Source)
-			}
+			apply(Relocation)
 		}
 		return relocations
+		ApplyRelx86(reloc) {
+			static IMAGE_REL_I386_DIR32 := 0x6
+			static IMAGE_REL_I386_DIR32NB := 0x7
+			static IMAGE_REL_I386_REL32 := 0x14
+			off := reloc.Address
+			s := reloc.Symbol.Value
+			switch rt := reloc.Type {
+				case IMAGE_REL_I386_DIR32:
+					data.Write(data.Read(off, 'int') + s, off, 'int')
+					relocations.Push(off)
+				case IMAGE_REL_I386_DIR32NB:
+					data.Write(data.Read(off, 'int') + s, off, 'int')
+				case IMAGE_REL_I386_REL32:
+					data.Write(data.Read(off, 'int') + s - off - 4, off, 'int')
+				default: throw Error(Format('unsupported relocation type: 0x{:02x}', rt))
+			}
+		}
+		ApplyRelx64(reloc) {
+			static IMAGE_REL_AMD64_ADDR64 := 0x1
+			static IMAGE_REL_AMD64_ADDR32 := 0x2
+			static IMAGE_REL_AMD64_ADDR32NB := 0x3
+			static IMAGE_REL_AMD64_REL32 := 0x4
+			static IMAGE_REL_AMD64_REL32_1 := 0x5
+			static IMAGE_REL_AMD64_REL32_2 := 0x6
+			static IMAGE_REL_AMD64_REL32_3 := 0x7
+			static IMAGE_REL_AMD64_REL32_4 := 0x8
+			static IMAGE_REL_AMD64_REL32_5 := 0x9
+			off := reloc.Address
+			s := reloc.Symbol.Value
+			switch rt := reloc.Type {
+				case IMAGE_REL_AMD64_ADDR64:
+					data.Write(data.Read(off, 'int64') + s, off, 'int64')
+					relocations.Push(off)
+				case IMAGE_REL_AMD64_ADDR32:
+					data.Write(data.Read(off, 'int') + s, off, 'int')
+					relocations.Push(off)
+				case IMAGE_REL_AMD64_ADDR32NB:
+					data.Write(data.Read(off, 'int') + s, off, 'int')
+				case IMAGE_REL_AMD64_REL32:
+					data.Write(data.Read(off, 'int') + s - off - 4, off, 'int')
+				case IMAGE_REL_AMD64_REL32_1:
+					data.Write(data.Read(off, 'int') + s - off - 5, off, 'int')
+				case IMAGE_REL_AMD64_REL32_2:
+					data.Write(data.Read(off, 'int') + s - off - 6, off, 'int')
+				case IMAGE_REL_AMD64_REL32_3:
+					data.Write(data.Read(off, 'int') + s - off - 7, off, 'int')
+				case IMAGE_REL_AMD64_REL32_4:
+					data.Write(data.Read(off, 'int') + s - off - 8, off, 'int')
+				case IMAGE_REL_AMD64_REL32_5:
+					data.Write(data.Read(off, 'int') + s - off - 9, off, 'int')
+				default: throw Error(Format('unsupported relocation type: 0x{:02x}', rt))
+			}
+		}
 	}
 
 	/**
@@ -287,7 +331,7 @@ class COFFReader extends Buffer {
 					return NumGet(v, Offset, Type)
 				Offset -= v.Size
 			}
-			Throw Error('Attempt to read from offset past end of section data')
+			throw Error('Attempt to read from offset past end of section data')
 		}
 		Write(Value, Offset, Type) {
 			for v in this {
@@ -295,7 +339,7 @@ class COFFReader extends Buffer {
 					return NumPut(Type, Value, v, Offset)
 				Offset -= v.Size
 			}
-			Throw Error('Attempt to write to offset past end of section data')
+			throw Error('Attempt to write to offset past end of section data')
 		}
 	}
 	static __New() {
@@ -381,6 +425,12 @@ next:
 				thunk.Symbols.Push(fn)
 				fn.Section := thunk
 				fn := _
+				; void __cdecl operator delete(void*, size_t) -> void __cdecl operator delete(void*)
+				if ptrsize = 8 {
+					if fnn == '??3@YAXPEAX_K@Z'
+						fnn := fn.Name := '??3@YAXPEAX@Z'
+				} else if fnn == '??3@YAXPAXI@Z'
+					fnn := fn.Name := '??3@YAXPAX@Z'
 			}
 			for n in import_dlls
 				if has_export(et := dllet[n], fnn) ||
@@ -507,7 +557,7 @@ next:
 				sz += 2, ps.Push(n & 0xff, n >> 8 | 0x80)
 			else if n < 0x40000000
 				sz += 4, ps.Push(n & 0xff, n >> 8 & 0xff, n >> 16 & 0xff, n >> 24 | 0xc0)
-			else Throw ValueError('out of range')
+			else throw ValueError('out of range')
 		}
 		buf := Buffer(sz), p := buf.Ptr
 		for n in ps
