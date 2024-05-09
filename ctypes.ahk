@@ -82,7 +82,7 @@ class ctypes {
 			return obj
 			__del(this) {
 				try (this.base.__Delete)(this)
-				NumPut('ptr', 0, ObjPtr(this), offset_ptr)
+				finally NumPut('ptr', 0, ObjPtr(this), offset_ptr)
 			}
 		}
 
@@ -496,7 +496,7 @@ class ctypes {
 		; Release the type cache when ahk exits,
 		; avoid some types that have circular references that cannot be released.
 		; But in ahk_l, this is not called.
-		(Array, Enumerator, MethodError, PropertyError)
+		(Array, Enumerator, MethodError, PropertyError, VarRef)
 		for tp in t := this.types.Get('', [])
 			try tp.__dispose()
 		for n, tp in this.types
