@@ -4,7 +4,7 @@
  * and write files, pipes, http, and sockets.
  * @author thqby
  * @date 2024/05/24
- * @version 1.0.0
+ * @version 1.0.1
  ***********************************************************************/
 
 class OVERLAPPED extends Buffer {
@@ -73,6 +73,10 @@ class OVERLAPPED extends Buffer {
 			Throw OSError()
 	}
 	Clear() => DllCall('RtlZeroMemory', 'ptr', this, 'uptr', 2 * A_PtrSize + 8)
-	Reset() => (ev := NumGet(this, 2 * A_PtrSize + 8, 'ptr')) && DllCall('ResetEvent', 'ptr', ev)
-	__Delete() => (ev := NumGet(this, 2 * A_PtrSize + 8, 'ptr')) && DllCall('CloseHandle', 'ptr', ev)
+	Internal => NumGet(this, 'uptr')
+	InternalHigh => NumGet(this, A_PtrSize, 'uptr')
+	hEvent => NumGet(this, 2 * A_PtrSize + 8, 'ptr')
+	Reset() => DllCall('ResetEvent', 'ptr', this.hEvent)
+	Set() => DllCall('SetEvent', 'ptr', this.hEvent)
+	__Delete() => DllCall('CloseHandle', 'ptr', this.hEvent)
 }
