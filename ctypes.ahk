@@ -82,7 +82,7 @@ class ctypes {
 			return obj
 			__del(this) {
 				try (this.base.__Delete)(this)
-				finally NumPut('ptr', 0, ObjPtr(this), offset_ptr)
+				NumPut('ptr', 0, ObjPtr(this), offset_ptr)
 			}
 		}
 
