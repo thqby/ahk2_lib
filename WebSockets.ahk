@@ -17,7 +17,7 @@ class WebSockets {
 		 * @example
 		 * Persistent()
 		 * ws := WebSockets.Server(6789)
-		 * ws.onClientConnect := (ws, c) => (c.onMessage := (c, msg)=>c.SendText(msg), c.onData := (c, buf)=>s.SendData(buf))
+		 * ws.onClientConnect := (ws, c) => (c.onMessage := (c, msg)=>c.SendText(msg), c.onData := (c, buf)=>c.SendData(buf))
 		 */
 		__New(port, host?, clientType := WebSockets.Client, backlog := 4) {
 			this._clientType := clientType
@@ -137,7 +137,7 @@ head:
 			else this._head |= v & 0x808f
 			if len < 126 {
 				if this._bytes := this._len := len
-				(frame ??= this._frame).Size += len, this._eptr := frame.ptr + frame.size
+					(frame ??= this._frame).Size += len, this._eptr := frame.ptr + frame.size
 				if need_mask
 					goto mask
 				goto payload
