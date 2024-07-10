@@ -1,21 +1,21 @@
 /************************************************************************
- * @description Read and write gzip data using libarchive
- * @file gzip.ahk
+ * @description Read and write gzip/zstd data using libarchive
  * @author thqby
- * @date 2023/10/01
- * @version 1.0.0
+ * @date 2024/07/11
+ * @version 1.0.1
  ***********************************************************************/
 
-class gzip {
+class compress {
 	/**
-	 * Decompress the gzip data
+	 * Decompress the gzip/zstd data
 	 * @param {Buffer|Integer} data Data to be decompressed
 	 * @param {Integer} size Data size
+	 * @param {'gzip'|'zstd'} filter
 	 * @returns {Buffer}
 	 */
-	static decode(data, size?) {
+	static decode(data, size?, filter := 'zstd') {
 		gz := this.reader()
-		r := gz.read_support_filter_gzip() || gz.read_support_format_raw() ||
+		r := gz.read_support_filter_%filter%() || gz.read_support_format_raw() ||
 			gz.read_open_memory(data, size ?? data.size) || gz.read_next_header(0)
 		if r < 0
 			throw Error(gz.error_string())
@@ -27,16 +27,17 @@ class gzip {
 		throw Error(gz.error_string())
 	}
 	/**
-	 * Compress data into gzip
+	 * Compress data into gzip/zstd
 	 * @param {Buffer|Integer} data Data that needs to be compressed
 	 * @param {Integer} size Data size
+	 * @param {'gzip'|'zstd'} filter
 	 * @param {Integer} compression_level 0~9 compression levels, up to 9, with the highest compression rate but the slowest compression speed
 	 * @returns {Buffer}
 	 */
-	static encode(data, size?, compression_level?) {
-		size := size ?? data.size, gz := gzip.writer(), buf := Buffer((bufsize := size + 56) + 8)	; Reserved 56 + 8 bytes
-		pused := buf.Ptr + bufsize, entry := gzip.entry(), entry.entry_set_filetype(32768)	; IFREG
-		r := gz.write_add_filter_gzip() || gz.write_set_format_raw() ||
+	static encode(data, size?, filter := 'zstd', compression_level?) {
+		size := size ?? data.size, gz := this.writer(), buf := Buffer((bufsize := size + 56) + 8)	; Reserved 56 + 8 bytes
+		pused := buf.Ptr + bufsize, entry := this.entry(), entry.entry_set_filetype(32768)	; IFREG
+		r := gz.write_add_filter_%filter%() || gz.write_set_format_raw() ||
 			IsSet(compression_level) && gz.write_set_options('compression-level=' compression_level) ||
 			gz.write_open_memory(buf, bufsize, pused := buf.Ptr + bufsize) ||
 			gz.write_header(entry) || (gz.write_data(data, size), gz.write_close())
@@ -66,12 +67,14 @@ class gzip {
 		load('read_next_header', 'ptr', , 'ptr*', unset)
 		load('read_open_memory', 'ptr', , 'ptr', , 'uptr', unset)
 		load('read_support_filter_gzip', 'ptr', unset)
+		load('read_support_filter_zstd', 'ptr', unset)
 		load('read_support_format_raw', 'ptr', unset)
 
 		; load archive_write_xx
 		base := base_writer
 		base.DefineProp('error_string', { call: base_reader.error_string })
 		load('write_add_filter_gzip', 'ptr', unset)
+		load('write_add_filter_zstd', 'ptr', unset)
 		load('write_close', 'ptr', unset)
 		load('write_data', 'ptr', , 'ptr', , 'uptr', unset)
 		load('write_header', 'ptr', , 'ptr', unset)
