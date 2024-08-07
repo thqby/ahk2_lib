@@ -91,7 +91,7 @@ class archive {
 		 * @returns {Buffer | void}
 		 * @example <caption>read to memory</caption>
 		 * m := Map()
-		 * for e in a := archive(path)
+		 * for e in a := archive.reader(path)
 		 *   (e.filetype = 'IFREG') && m[e.pathname] := a.read_data()
 		 */
 		read_data() {
@@ -136,7 +136,7 @@ class archive {
 		 * Extract all items from the archive to disk.
 		 * @param {String} dest_dir the name of the destination directory, which is assumed to be in A_WorkingDir if an absolute path isn't specified.
 		 * @example <caption>extract all from archive</caption>
-		 * archive(path).extract_all(A_ScriptDir)
+		 * archive.reader(path).extract_all(A_ScriptDir)
 		 */
 		extract_all(dest_dir := '') {
 			if dest_dir
@@ -149,7 +149,7 @@ class archive {
 		 * After reading the first item entry, you can get the format name of the archive file.
 		 * @returns {String} the format name of archive.
 		 * @example <caption>get archive format name</caption>
-		 * (a := archive(path))._read_next_header()
+		 * (a := archive.reader(path))._read_next_header()
 		 * MsgBox(a.format_name)
 		 */
 		format_name => DllCall(archive['format_name'], 'ptr', this, 'astr')
