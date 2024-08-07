@@ -2,8 +2,8 @@
  * @description [RapidOcrOnnx](https://github.com/RapidAI/RapidOcrOnnx)
  * A cross platform OCR Library based on PaddleOCR & OnnxRuntime
  * @author thqby, RapidAI
- * @date 2023/10/28
- * @version 1.0.1
+ * @date 2024/08/07
+ * @version 1.0.2
  * @license Apache-2.0
  ***********************************************************************/
 
@@ -16,7 +16,7 @@ class RapidOcr {
 	 * @param {String} [config.rec] model file name of rec
 	 * @param {String} [config.keys] keys file name
 	 * @param {String} [config.cls] model file name of cls
-	 * @param {Integer} [config.numThread] The thread number, default: 4
+	 * @param {Integer} [config.numThread] The thread number, default: 2
 	 * @param {String} dllpath The path of RapidOcrOnnx.dll
 	 * @example
 	 * param := RapidOcr.OcrParam()
@@ -32,8 +32,12 @@ class RapidOcr {
 				Throw OSError()
 		}
 		if !IsSet(config)
-			config := { models: A_LineFile '\..\models' }, !FileExist(config.models) && (config.models := unset)
-		det_model := cls_model := rec_model := keys_dict := '', numThread := 4
+			config := { models: A_LineFile '\..\models' }
+		else if !HasProp(config, 'models')
+			config.models := A_LineFile '\..\models'
+		if !FileExist(config.models) 
+			config.models := unset
+		det_model := cls_model := rec_model := keys_dict := '', numThread := 2
 		for k, v in (config is Map ? config : config.OwnProps()) {
 			switch k, false {
 				case 'det', 'cls', 'rec': %k%_model := v
