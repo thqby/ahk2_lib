@@ -58,10 +58,3 @@ Crypt_AES(pData, nSize, sPassword, SID := 256, bEncrypt := True){
 	DllCall("advapi32\CryptReleaseContext", "Ptr", hProv, "Uint", 0)
 	Return	nSize
 }
-
-s:="daferewvx", k:="fsdf"
-msgbox lp:=StrPut(s, "UTF-8")
-bf:=Buffer(lp*4, 0)
-StrPut(s, bf, "UTF-8")
-msgbox l:=Crypt_AES(bf, lp, k)
-msgbox l "|" StrGet(bf, l, "UTF-16")
