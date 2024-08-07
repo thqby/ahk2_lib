@@ -1,3 +1,4 @@
+;@Ahk2Exe-AddResource LoadScript.ahk, LOADSCRIPT
 class LoadScript {
 	/**
 	 * 加载脚本文件或脚本代码作为子进程并返回一个对象，该对象可用于调用函数或获取/设置全局变量.
@@ -16,7 +17,7 @@ class LoadScript {
 			#Warn All, Off
 			{}
 			{}
-		)', guid, A_IsCompiled ? '<LoadScript>' : A_LineFile, noTrayIcon ? '#NoTrayIcon' : '',
+		)', guid, A_IsCompiled ? '*LOADSCRIPT' : A_LineFile, noTrayIcon ? '#NoTrayIcon' : '',
 			FileExist(pathorcode) ? '#include ' pathorcode '`nA_ScriptName := "' pathorcode '"' : pathorcode))
 		exec.StdIn.Close()
 		status := exec.Status, t := A_TickCount
