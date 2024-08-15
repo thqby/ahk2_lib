@@ -43,7 +43,7 @@ class DirectoryWatcher {
 					case 0xC0000120:	; STATUS_CANCELLED
 						return
 					case 0xC0000056:	; STATUS_DELETE_PENDING
-						return SetTimer(notifyCallback.Bind(ObjFromPtrAddRef(ol._root), { action: ActionName(2), name: '' }))
+						return SetTimer(notifyCallback.Bind(ObjFromPtrAddRef(ol._root), { action: ActionName(2), name: '' }), -1)
 					default: Throw OSError(err)
 				}
 				addr := buf.Ptr, offset := 0, _this := ObjFromPtrAddRef(ol._root)
@@ -61,7 +61,7 @@ class DirectoryWatcher {
 					Throw OSError()
 			}
 		}
-		stop(this) => DllCall('CancelIoEx', 'ptr', this.DefineProp('Start', { call: start }))
+		stop(this) => DllCall('CancelIoEx', 'ptr', this.DefineProp('Start', { call: start }), 'ptr', this._overlapped)
 	}
 	__Delete() {
 		static caches := Map()
