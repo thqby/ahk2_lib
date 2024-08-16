@@ -3,8 +3,8 @@
  * @file WebView2.ahk
  * @author thqby
  * @date 2024/08/16
- * @version 1.0.33
- * @webview2version 1.0.2478.35
+ * @version 1.0.34
+ * @webview2version 1.0.2651.64
  ***********************************************************************/
 
 #Include '..\ComVar.ahk'
@@ -111,26 +111,17 @@ class WebView2 extends WebView2.Base {
 			} else
 				Throw Error('This value of type "' this.__Class '" has no method named "add_' Name '".', -1)
 		}
-		__Enum(n) {
-			if this.Base.HasOwnProp('__Item') {
-				if n = 1
-					return (n := this.Count, i := 0, (&v) => i < n ? (v := this[i++], true) : false)
-				return (n := this.Count, i := 0, (&k, &v, *) => i < n ? (v := this[k := i++], true) : false)
-			} else if n > 1
-				return _enum(this)
-			_enum(self) {
-				iter := self.Base.OwnProps(), iter()	; skip `__Class`
-				return next
-				next(&k, &v, *) {
-					while iter(&k)
-						if !((v := self.%k%) is Func)
-							return true
-					return false
-				}
-			}
-		}
 		AddRef() => ObjAddRef(this.ptr)
 		Release() => this.ptr && ObjRelease(this.ptr)
+	}
+	class List extends WebView2.Base {
+		;@lint-disable class-non-dynamic-member-check
+		__Item[index] => this.GetValueAtIndex(index)
+		__Enum(n) {
+			if n = 1
+				return (n := this.Count, i := 0, (&v) => i < n ? (v := this.GetValueAtIndex(i++), true) : false)
+			return (n := this.Count, i := 0, (&k, &v, *) => i < n ? (v := this.GetValueAtIndex(k := i++), true) : false)
+		}
 	}
 
 	;#region WebView2 Interfaces
@@ -180,9 +171,8 @@ class WebView2 extends WebView2.Base {
 		IsEnabled => (ComCall(6, this, 'int*', &value := 0), value)
 		Enable(isEnabled, handler) => ComCall(7, this, 'int', isEnabled, 'ptr', WebView2.Handler(handler))
 	}
-	class BrowserExtensionList extends WebView2.Base {
+	class BrowserExtensionList extends WebView2.List {
 		static IID := '{2EF3D2DC-BD5F-4F4D-90AF-FD67798F0C2F}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', extension := WebView2.BrowserExtension()), extension)
 	}
@@ -344,9 +334,8 @@ class WebView2 extends WebView2.Base {
 		add_CustomItemSelected(eventHandler) => (ComCall(14, this, 'ptr', eventHandler, 'int64*', &token := 0), token)
 		remove_CustomItemSelected(token) => ComCall(15, this, 'int64', token)
 	}
-	class ContextMenuItemCollection extends WebView2.Base {
+	class ContextMenuItemCollection extends WebView2.List {
 		static IID := '{f562a2f5-c415-45cf-b909-d4b7c1e276d3}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', value := WebView2.ContextMenuItem()), value)
 		RemoveValueAtIndex(index) => ComCall(5, this, 'uint', index)
@@ -410,9 +399,8 @@ class WebView2 extends WebView2.Base {
 		}
 		IsSession => (ComCall(16, this, 'int*', &isSession := 0), isSession)
 	}
-	class CookieList extends WebView2.Base {
+	class CookieList extends WebView2.List {
 		static IID := '{F7F6F714-5D2A-43C6-9503-346ECE02D186}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', cookie := WebView2.Cookie()), cookie)
 	}
@@ -602,6 +590,14 @@ class WebView2 extends WebView2.Base {
 		static IID_22 := '{DB75DFC7-A857-4632-A398-6969DDE26C0A}'
 		AddWebResourceRequestedFilterWithRequestSourceKinds(uri, resourceContext, requestSourceKinds) => ComCall(123, this, 'wstr', uri, 'int', resourceContext, 'int', requestSourceKinds)
 		RemoveWebResourceRequestedFilterWithRequestSourceKinds(uri, resourceContext, requestSourceKinds) => ComCall(124, this, 'wstr', uri, 'int', resourceContext, 'int', requestSourceKinds)
+
+		static IID_23 := '508f0db5-90c4-5872-90a7-267a91377502'
+		/**
+		 * Same as PostWebMessageAsJson, but also has support for posting DOM objects to page content.
+		 * @param {String} webMessageAsJson
+		 * @param {WebView2.ObjectCollectionView} additionalObjects
+		 */
+		PostWebMessageAsJsonWithAdditionalObjects(webMessageAsJson, additionalObjects) => ComCall(125, this, 'wstr', webMessageAsJson, 'ptr', additionalObjects)
 	}
 	class ClientCertificate extends WebView2.Base {
 		static IID := '{e7188076-bcc3-11eb-8529-0242ac130003}'
@@ -683,9 +679,8 @@ class WebView2 extends WebView2.Base {
 			}
 		}
 	}
-	class ClientCertificateCollection extends WebView2.Base {
+	class ClientCertificateCollection extends WebView2.List {
 		static IID := '{ef5674d2-bcc3-11eb-8529-0242ac130003}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', certificate := WebView2.ClientCertificate()), certificate)
 	}
@@ -818,6 +813,25 @@ class WebView2 extends WebView2.Base {
 
 		static IID_13 := '{af641f58-72b2-11ee-b962-0242ac120002}'
 		GetProcessExtendedInfos(handler) => ComCall(25, this, 'ptr', WebView2.Handler(handler))
+
+		static IID_14 := 'a5e9fad9-c875-59da-9bd7-473aa5ca1cef'
+		/**
+		 * @param {$FilePath} path 
+		 * @param {WebView2.FILE_SYSTEM_HANDLE_PERMISSION} permission
+		 */
+		CreateWebFileSystemFileHandle(path, permission) => ComCall(26, this, 'wstr', path, 'int', permission, 'ptr*', value := WebView2.FileSystemHandle(), value)
+		/**
+		 * @param {$DirPath} path 
+		 * @param {WebView2.FILE_SYSTEM_HANDLE_PERMISSION} permission
+		 */
+		CreateWebFileSystemDirectoryHandle(path, permission) => ComCall(27, this, 'wstr', path, 'int', permission, 'ptr*', value := WebView2.FileSystemHandle(), value)
+		/** @param {Array<IUnknown>} objects */
+		CreateObjectCollection(objects) {
+			items := Buffer(A_PtrSize * len := objects.Length), p := items.Ptr
+			for it in objects
+				p := NumPut('ptr', it.Ptr, p)
+			ComCall(28, this, 'uint', len, 'ptr', items, 'ptr*', objectCollection := WebView2.ObjectCollection(), objectCollection)
+		}
 	}
 	class EnvironmentOptions extends Buffer {
 		/**
@@ -833,6 +847,7 @@ class WebView2 extends WebView2.Base {
 		 * @param {Bool} opts.AreBrowserExtensionsEnabled When AreBrowserExtensionsEnabled is set to true, new extensions can be added to user profile and used.
 		 * @param {WebView2.CHANNEL_SEARCH_KIND} opts.ChannelSearchKind The ChannelSearchKind property is CoreWebView2ChannelSearchKind.MostStable by default and environment creation searches for a release channel on the machine from most to least stable using the first channel found. The default search order is: WebView2 Release -> Beta -> Dev -> Canary.
 		 * @param {WebView2.RELEASE_CHANNELS} opts.ReleaseChannels OR operation(s) can be applied to multiple to create a mask. The default value is a mask of all the channels. By default, environment creation searches for channels from most to least stable, using the first channel found on the device.
+		 * @param {WebView2.SCROLLBAR_STYLE} opts.ScrollBarStyle The ScrollBar style being set on the WebView2 Environment.
 		 */
 		__New(opts) {
 			cbs := [
@@ -861,8 +876,11 @@ class WebView2 extends WebView2.Base {
 				QueryInterface, AddRef, Release,
 				get_xxx_int.Bind('ChannelSearchKind'), put_xxx,
 				get_xxx_int.Bind('ReleaseChannels'), put_xxx,
+				; options8
+				QueryInterface, AddRef, Release,
+				get_xxx_int.Bind('ScrollBarStyle'), put_xxx,
 			]
-			n := 7, i := 0
+			n := 8, i := 0
 			super.__New((n + cbs.Length) * A_PtrSize)
 			p_this := ObjPtr(this), p_unk := this.Ptr, p := p_unk + n * A_PtrSize
 			mp := Map(), fnptrs := [], this.DefineProp('__Delete', { call: __Delete })
@@ -882,6 +900,7 @@ class WebView2 extends WebView2.Base {
 					'{0AE35D64-C47F-4464-814E-259C345D1501}', 4,	; ICoreWebView2EnvironmentOptions5
 					'{57D29CC3-C84F-42A0-B0E2-EFFBD5E179DE}', 5,	; ICoreWebView2EnvironmentOptions6
 					'{C48D539F-E39F-441C-AE68-1F66E570BDC5}', 6,	; ICoreWebView2EnvironmentOptions7
+					'{7c7ecf51-e918-5caf-853c-e9a2bcc27775}', 7,	; ICoreWebView2EnvironmentOptions8
 				)
 				DllCall("ole32.dll\StringFromGUID2", "ptr", riid, "ptr", buf := Buffer(78), "int", 39)
 				if (index := iids.Get(iid := StrUpper(StrGet(buf)), -1)) >= 0 {
@@ -938,6 +957,14 @@ class WebView2 extends WebView2.Base {
 	class File extends WebView2.Base {
 		static IID := '{f2c19559-6bc1-4583-a757-90021be9afec}'
 		Path => (ComCall(3, this, 'ptr*', &path := 0), CoTaskMem_String(path))
+	}
+	class FileSystemHandle extends WebView2.Base {
+		static IID := '{c65100ac-0de2-5551-a362-23d9bd1d0e1f}'
+		/** @type {WebView2.FILE_SYSTEM_HANDLE_KIND} */
+		Kind => (ComCall(3, this, 'int*', &value := 0), value)
+		Path => (ComCall(4, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		/** @type {WebView2.FILE_SYSTEM_HANDLE_PERMISSION} */
+		Permission => (ComCall(5, this, 'int*', &value := 0), value)
 	}
 	class Frame extends WebView2.Base {
 		static IID := '{f1131a5e-9ba9-11eb-a8b3-0242ac130003}'
@@ -1006,6 +1033,7 @@ class WebView2 extends WebView2.Base {
 		HasCurrent => (ComCall(3, this, 'int*', &hasCurrent := 0), hasCurrent)
 		GetCurrent() => (ComCall(4, this, 'ptr*', frameInfo := WebView2.FrameInfo()), frameInfo)
 		MoveNext() => (ComCall(5, this, 'int*', &hasNext := 0), hasNext)
+		__Enum(n) => (&fi, *) => this.HasCurrent && (fi := this.GetCurrent(), this.MoveNext(), true)
 	}
 	class Handler extends Buffer {
 		/**
@@ -1043,6 +1071,7 @@ class WebView2 extends WebView2.Base {
 		}
 		HasCurrentHeader => (ComCall(4, this, 'int*', &hasCurrent := 0), hasCurrent)
 		MoveNext() => (ComCall(5, this, 'int*', &hasNext := 0), hasNext)
+		__Enum(n) => (&name, &value, *) => this.HasCurrentHeader && (this.GetCurrentHeader(&name, &value), this.MoveNext(), true)
 	}
 	class HttpRequestHeaders extends WebView2.Base {
 		static IID := '{e86cac0e-5523-465c-b536-8fb9fc8c8c60}'
@@ -1135,9 +1164,13 @@ class WebView2 extends WebView2.Base {
 		static IID := '{AB71D500-0820-4A52-809C-48DB04FF93BF}'
 		RegionKind => (ComCall(3, this, 'int*', &value := 0), value)
 	}
-	class ObjectCollectionView extends WebView2.Base {
+	class ObjectCollection extends WebView2.ObjectCollectionView {
+		static IID := '{5cfec11c-25bd-4e8d-9e1a-7acdaeeec047}'
+		RemoveValueAtIndex(index) => ComCall(5, this, 'uint', index)
+		InsertValueAtIndex(index, value) => ComCall(6, this, 'uint', index, 'ptr', value)
+	}
+	class ObjectCollectionView extends WebView2.List {
 		static IID := '{0f36fd87-4f69-4415-98da-888f89fb9a33}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr', value := ComValue(0xd, 0)), value)
 	}
@@ -1170,9 +1203,8 @@ class WebView2 extends WebView2.Base {
 		PermissionOrigin => (ComCall(4, this, 'int*', &value := 0), CoTaskMem_String(value))
 		PermissionState => (ComCall(5, this, 'int*', &value := 0), value)	; COREWEBVIEW2_PERMISSION_STATE
 	}
-	class PermissionSettingCollectionView extends WebView2.Base {
+	class PermissionSettingCollectionView extends WebView2.List {
 		static IID := '{f5596f62-3de5-47b1-91e8-a4104b596b96}'
-		__Item[index] => this.GetValueAtIndex(index)
 		GetValueAtIndex(index) => (ComCall(3, this, 'ptr*', permissionSetting := WebView2.PermissionSetting()), permissionSetting)
 		Count => (ComCall(4, this, 'uint*', &value := 0), value)
 	}
@@ -1385,9 +1417,8 @@ class WebView2 extends WebView2.Base {
 		ProcessInfo => (ComCall(3, this, 'ptr*', processInfo := WebView2.ProcessInfo()), processInfo)
 		AssociatedFrameInfos => (ComCall(3, this, 'ptr*', frames := WebView2.FrameInfoCollection()), frames)
 	}
-	class ProcessExtendedInfoCollection extends WebView2.Base {
+	class ProcessExtendedInfoCollection extends WebView2.List {
 		static IID := '{32efa696-407a-11ee-be56-0242ac120002}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', processInfo := WebView2.ProcessExtendedInfo()), processInfo)
 	}
@@ -1396,9 +1427,8 @@ class WebView2 extends WebView2.Base {
 		ProcessId => (ComCall(3, this, 'int*', &value := 0), value)
 		Kind => (ComCall(4, this, 'int*', &kind := 0), kind)	; COREWEBVIEW2_PROCESS_KIND
 	}
-	class ProcessInfoCollection extends WebView2.Base {
+	class ProcessInfoCollection extends WebView2.List {
 		static IID := '{402B99CD-A0CC-4FA5-B7A5-51D86A1D2339}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &count := 0), count)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', processInfo := WebView2.ProcessInfo()), processInfo)
 	}
@@ -1466,9 +1496,8 @@ class WebView2 extends WebView2.Base {
 		static IID_3 := '{ab667428-094d-5fd1-b480-8b4c0fdbdf2f}'
 		FailureSourceModulePath => (ComCall(8, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
-	class RegionRectCollectionView extends WebView2.Base {
+	class RegionRectCollectionView extends WebView2.List {
 		static IID := '{333353B8-48BF-4449-8FCC-22697FAF5753}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr', value := Buffer(16)), value)
 	}
@@ -1608,9 +1637,8 @@ class WebView2 extends WebView2.Base {
 		static IID := '{31e0e545-1dba-4266-8914-f63848a1f7d7}'
 		IsNewDocument => (ComCall(3, this, 'int*', &isNewDocument := 0), isNewDocument)
 	}
-	class StringCollection extends WebView2.Base {
+	class StringCollection extends WebView2.List {
 		static IID := '{f41f3f8a-bcc3-11eb-8529-0242ac130003}'
-		__Item[index] => this.GetValueAtIndex(index)
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
 		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', &value := 0), CoTaskMem_String(value))
 	}
@@ -1726,254 +1754,54 @@ class WebView2 extends WebView2.Base {
 	;#endregion
 
 	;#region constants
-	static CAPTURE_PREVIEW_IMAGE_FORMAT := { PNG: 0, JPEG: 1 }
-	static CONTEXT_MENU_TARGET_KIND := {
-		PAGE: 0,
-		IMAGE: 1,
-		SELECTED_TEXT: 2,
-		AUDIO: 3,
-		VIDEO: 4
-	}
-	static CONTEXT_MENU_ITEM_KIND := {
-		COMMAND: 0,
-		CHECK_BOX: 1,
-		RADIO: 2,
-		SEPARATOR: 3,
-		SUBMENU: 4
-	}
-	static PREFERRED_COLOR_SCHEME := { AUTO: 0, LIGHT: 1, DARK: 2 }
-	static BROWSING_DATA_KINDS := {
-		FILE_SYSTEMS: (1 << 0),
-		INDEXED_DB: (1 << 1),
-		LOCAL_STORAGE: (1 << 2),
-		WEB_SQL: (1 << 3),
-		CACHE_STORAGE: (1 << 4),
-		ALL_DOM_STORAGE: (1 << 5),
-		COOKIES: (1 << 6),
-		ALL_SITE: (1 << 7),
-		DISK_CACHE: (1 << 8),
-		DOWNLOAD_HISTORY: (1 << 9),
-		GENERAL_AUTOFILL: (1 << 10),
-		PASSWORD_AUTOSAVE: (1 << 11),
-		BROWSING_HISTORY: (1 << 12),
-		SETTINGS: (1 << 13),
-		ALL_PROFILE: (1 << 14),
-		SERVICE_WORKERS: (1 << 15)
-	}
-	static SERVER_CERTIFICATE_ERROR_ACTION := { ALWAYS_ALLOW: 0, CANCEL: 1, DEFAULT: 2 }
-	static FAVICON_IMAGE_FORMAT := { PNG: 0, JPEG: 1 }
-	static PRINT_DIALOG_KIND := { BROWSER: 0, SYSTEM: 1 }
-	static PRINT_DUPLEX := {
-		DEFAULT: 0,
-		ONE_SIDED: 1,
-		TWO_SIDED_LONG_EDGE: 2,
-		TWO_SIDED_SHORT_EDGE: 3
-	}
-	static PRINT_COLOR_MODE := { DEFAULT: 0, COLOR: 1, GRAYSCALE: 2 }
-	static PRINT_COLLATION := { DEFAULT: 0, COLLATED: 1, UNCOLLATED: 2 }
-	static PRINT_MEDIA_SIZE := { DEFAULT: 0, CUSTOM: 1 }
-	static PRINT_STATUS := { SUCCEEDED: 0, PRINTER_UNAVAILABLE: 1, OTHER_ERROR: 2 }
-	static TRACKING_PREVENTION_LEVEL := {
-		NONE: 0,
-		BASIC: 1,
-		BALANCED: 2,
-		STRICT: 3
-	}
-	static SHARED_BUFFER_ACCESS := { READ_ONLY: 0, READ_WRITE: 1 }
-	static MEMORY_USAGE_TARGET_LEVEL := { NORMAL: 0, LOW: 1 }
-	static NAVIGATION_KIND := { RELOAD: 0, BACK_OR_FORWARD: 1, NEW_DOCUMENT: 2 }
-	static FRAME_KIND := { UNKNOWN: 0, MAIN_FRAME: 1, IFRAME: 2, EMBED: 3, OBJECT: 4 }
-	static WEB_RESOURCE_REQUEST_SOURCE_KINDS := { NONE: 0, DOCUMENT: 1, SHARED_WORKER: 2, SERVICE_WORKER: 4, ALL: 0Xffffffff }
-	static NON_CLIENT_REGION_KIND := { NOWHERE: 0, CLIENT: 1, CAPTION: 2 }
-	static CHANNEL_SEARCH_KIND := { MOST_STABLE: 0, LEAST_STABLE: 1 }
-	static RELEASE_CHANNELS := { NONE: 0, STABLE: 1, BETA: 2, DEV: 4, CANARY: 8 }
-	static COOKIE_SAME_SITE_KIND := { NONE: 0, LAX: 1, STRICT: 2 }
-	static HOST_RESOURCE_ACCESS_KIND := { DENY: 0, ALLOW: 1, DENY_CORS: 2 }
-	static SCRIPT_DIALOG_KIND := { ALERT: 0, CONFIRM: 1, PROMPT: 2, BEFOREUNLOAD: 3 }
-	static PDF_TOOLBAR_ITEMS := {
-		ITEMS_NONE: 0,
-		ITEMS_SAVE: 0x1,
-		ITEMS_PRINT: 0x2,
-		ITEMS_SAVE_AS: 0x4,
-		ITEMS_ZOOM_IN: 0x8,
-		ITEMS_ZOOM_OUT: 0x10,
-		ITEMS_ROTATE: 0x20,
-		ITEMS_FIT_PAGE: 0x40,
-		ITEMS_PAGE_LAYOUT: 0x80,
-		ITEMS_BOOKMARKS: 0x100,
-		ITEMS_PAGE_SELECTOR: 0x200,
-		ITEMS_SEARCH: 0x400,
-		ITEMS_FULL_SCREEN: 0x800,
-		ITEMS_MORE_SETTINGS: 0x1000
-	}
-	static PROCESS_FAILED_KIND := {
-		BROWSER_PROCESS_EXITED: 0,
-		RENDER_PROCESS_EXITED: 1,
-		RENDER_PROCESS_UNRESPONSIVE: 2,
-		FRAME_RENDER_PROCESS_EXITED: 3,
-		UTILITY_PROCESS_EXITED: 4,
-		SANDBOX_HELPER_PROCESS_EXITED: 5,
-		GPU_PROCESS_EXITED: 6,
-		PPAPI_PLUGIN_PROCESS_EXITED: 7,
-		PPAPI_BROKER_PROCESS_EXITED: 8,
-		UNKNOWN_PROCESS_EXITED: 9
-	}
-	static PROCESS_FAILED_REASON := {
-		UNEXPECTED: 0,
-		UNRESPONSIVE: 1,
-		TERMINATED: 2,
-		CRASHED: 3,
-		LAUNCH_FAILED: 4,
-		OUT_OF_MEMORY: 5,
-		PROFILE_DELETED: 6
-	}
-	static PERMISSION_KIND := {
-		UNKNOWN_PERMISSION: 0,
-		MICROPHONE: 1,
-		CAMERA: 2,
-		GEOLOCATION: 3,
-		NOTIFICATIONS: 4,
-		OTHER_SENSORS: 5,
-		CLIPBOARD_READ: 6,
-		MULTIPLE_AUTOMATIC_DOWNLOADS: 7,
-		FILE_READ_WRITE: 8,
-		AUTOPLAY: 9,
-		LOCAL_FONTS: 10,
-		MIDI_SYSTEM_EXCLUSIVE_MESSAGES: 11,
-		WINDOW_MANAGEMENT: 12
-	}
-	static PERMISSION_STATE := {
-		DEFAULT: 0,
-		ALLOW: 1,
-		DENY: 2
-	}
-	static PROCESS_KIND := {
-		BROWSER: 0,
-		RENDERER: 1,
-		UTILITY: 2,
-		SANDBOX_HELPER: 3,
-		GPU: 4,
-		PPAPI_PLUGIN: 5,
-		PPAPI_BROKER: 6
-	}
-	static WEB_ERROR_STATUS := {
-		UNKNOWN: 0,
-		CERTIFICATE_COMMON_NAME_IS_INCORRECT: 1,
-		CERTIFICATE_EXPIRED: 2,
-		CLIENT_CERTIFICATE_CONTAINS_ERRORS: 3,
-		CERTIFICATE_REVOKED: 4,
-		CERTIFICATE_IS_INVALID: 5,
-		SERVER_UNREACHABLE: 6,
-		TIMEOUT: 7,
-		ERROR_HTTP_INVALID_SERVER_RESPONSE: 8,
-		CONNECTION_ABORTED: 9,
-		CONNECTION_RESET: 10,
-		DISCONNECTED: 11,
-		CANNOT_CONNECT: 12,
-		HOST_NAME_NOT_RESOLVED: 13,
-		OPERATION_CANCELED: 14,
-		REDIRECT_FAILED: 15,
-		UNEXPECTED_ERROR: 16,
-		VALID_AUTHENTICATION_CREDENTIALS_REQUIRED: 17,
-		VALID_PROXY_AUTHENTICATION_REQUIRED: 18
-	}
-	static WEB_RESOURCE_CONTEXT := {
-		ALL: 0,
-		DOCUMENT: 1,
-		STYLESHEET: 2,
-		IMAGE: 3,
-		MEDIA: 4,
-		FONT: 5,
-		SCRIPT: 6,
-		XML_HTTP_REQUEST: 7,
-		FETCH: 8,
-		TEXT_TRACK: 9,
-		EVENT_SOURCE: 10,
-		WEBSOCKET: 11,
-		MANIFEST: 12,
-		SIGNED_EXCHANGE: 13,
-		PING: 14,
-		CSP_VIOLATION_REPORT: 15,
-		OTHER: 16
-	}
-	static MOVE_FOCUS_REASON := { PROGRAMMATIC: 0, NEXT: 1, PREVIOUS: 2 }
-	static KEY_EVENT_KIND := { KEY_DOWN: 0, KEY_UP: 1, SYSTEM_KEY_DOWN: 2, SYSTEM_KEY_UP: 3 }
-	static BROWSER_PROCESS_EXIT_KIND := { NORMAL: 0, FAILED: 1 }
-	static MOUSE_EVENT_KIND := {
-		HORIZONTAL_WHEEL: 0x20e,
-		LEFT_BUTTON_DOUBLE_CLICK: 0x203,
-		LEFT_BUTTON_DOWN: 0x201,
-		LEFT_BUTTON_UP: 0x202,
-		LEAVE: 0x2a3,
-		MIDDLE_BUTTON_DOUBLE_CLICK: 0x209,
-		MIDDLE_BUTTON_DOWN: 0x207,
-		MIDDLE_BUTTON_UP: 0x208,
-		MOVE: 0x200,
-		RIGHT_BUTTON_DOUBLE_CLICK: 0x206,
-		RIGHT_BUTTON_DOWN: 0x204,
-		RIGHT_BUTTON_UP: 0x205,
-		WHEEL: 0x20a,
-		X_BUTTON_DOUBLE_CLICK: 0x20d,
-		X_BUTTON_DOWN: 0x20b,
-		X_BUTTON_UP: 0x20c,
-		NON_CLIENT_RIGHT_BUTTON_DOWN: 0xa4,
-		NON_CLIENT_RIGHT_BUTTON_UP: 0xa5
-	}
-	static MOUSE_EVENT_VIRTUAL_KEYS := {
-		NONE: 0,
-		LEFT_BUTTON: 0x1,
-		RIGHT_BUTTON: 0x2,
-		SHIFT: 0x4,
-		CONTROL: 0x8,
-		MIDDLE_BUTTON: 0x10,
-		X_BUTTON1: 0x20,
-		X_BUTTON2: 0x40
-	}
-	static POINTER_EVENT_KIND := {
-		ACTIVATE: 0x24b,
-		DOWN: 0x246,
-		ENTER: 0x249,
-		LEAVE: 0x24a,
-		UP: 0x247,
-		UPDATE: 0x245
-	}
 	static BOUNDS_MODE := { USE_RAW_PIXELS: 0, USE_RASTERIZATION_SCALE: 1 }
+	static BROWSER_PROCESS_EXIT_KIND := { NORMAL: 0, FAILED: 1 }
+	static BROWSING_DATA_KINDS := { FILE_SYSTEMS: (1 << 0), INDEXED_DB: (1 << 1), LOCAL_STORAGE: (1 << 2), WEB_SQL: (1 << 3), CACHE_STORAGE: (1 << 4), ALL_DOM_STORAGE: (1 << 5), COOKIES: (1 << 6), ALL_SITE: (1 << 7), DISK_CACHE: (1 << 8), DOWNLOAD_HISTORY: (1 << 9), GENERAL_AUTOFILL: (1 << 10), PASSWORD_AUTOSAVE: (1 << 11), BROWSING_HISTORY: (1 << 12), SETTINGS: (1 << 13), ALL_PROFILE: (1 << 14), SERVICE_WORKERS: (1 << 15) }
+	static CAPTURE_PREVIEW_IMAGE_FORMAT := { PNG: 0, JPEG: 1 }
+	static CHANNEL_SEARCH_KIND := { MOST_STABLE: 0, LEAST_STABLE: 1 }
 	static CLIENT_CERTIFICATE_KIND := { SMART_CARD: 0, PIN: 1, OTHER: 2 }
-	static DOWNLOAD_STATE := { IN_PROGRESS: 0, INTERRUPTED: 1, COMPLETED: 2 }
-	static DOWNLOAD_INTERRUPT_REASON := {
-		NONE: 0,
-		FILE_FAILED: 1,
-		FILE_ACCESS_DENIED: 2,
-		FILE_NO_SPACE: 3,
-		FILE_NAME_TOO_LONG: 4,
-		FILE_TOO_LARGE: 5,
-		FILE_MALICIOUS: 6,
-		FILE_TRANSIENT_ERROR: 7,
-		FILE_BLOCKED_BY_POLICY: 8,
-		FILE_SECURITY_CHECK_FAILED: 9,
-		FILE_TOO_SHORT: 10,
-		FILE_HASH_MISMATCH: 11,
-		NETWORK_FAILED: 12,
-		NETWORK_TIMEOUT: 13,
-		NETWORK_DISCONNECTED: 14,
-		NETWORK_SERVER_DOWN: 15,
-		NETWORK_INVALID_REQUEST: 16,
-		SERVER_FAILED: 17,
-		SERVER_NO_RANGE: 18,
-		SERVER_BAD_CONTENT: 19,
-		SERVER_UNAUTHORIZED: 20,
-		SERVER_CERTIFICATE_PROBLEM: 21,
-		SERVER_FORBIDDEN: 22,
-		SERVER_UNEXPECTED_RESPONSE: 23,
-		SERVER_CONTENT_LENGTH_MISMATCH: 24,
-		SERVER_CROSS_ORIGIN_REDIRECT: 25,
-		USER_CANCELED: 26,
-		USER_SHUTDOWN: 27,
-		USER_PAUSED: 28,
-		DOWNLOAD_PROCESS_CRASHED: 29
-	}
-	static PRINT_ORIENTATION := { PORTRAIT: 0, LANDSCAPE: 1 }
+	static CONTEXT_MENU_ITEM_KIND := { COMMAND: 0, CHECK_BOX: 1, RADIO: 2, SEPARATOR: 3, SUBMENU: 4 }
+	static CONTEXT_MENU_TARGET_KIND := { PAGE: 0, IMAGE: 1, SELECTED_TEXT: 2, AUDIO: 3, VIDEO: 4 }
+	static COOKIE_SAME_SITE_KIND := { NONE: 0, LAX: 1, STRICT: 2 }
 	static DEFAULT_DOWNLOAD_DIALOG_CORNER_ALIGNMENT := { TOP_LEFT: 0, TOP_RIGHT: 1, BOTTOM_LEFT: 2, BOTTOM_RIGHT: 3 }
+	static DOWNLOAD_INTERRUPT_REASON := { NONE: 0, FILE_FAILED: 1, FILE_ACCESS_DENIED: 2, FILE_NO_SPACE: 3, FILE_NAME_TOO_LONG: 4, FILE_TOO_LARGE: 5, FILE_MALICIOUS: 6, FILE_TRANSIENT_ERROR: 7, FILE_BLOCKED_BY_POLICY: 8, FILE_SECURITY_CHECK_FAILED: 9, FILE_TOO_SHORT: 10, FILE_HASH_MISMATCH: 11, NETWORK_FAILED: 12, NETWORK_TIMEOUT: 13, NETWORK_DISCONNECTED: 14, NETWORK_SERVER_DOWN: 15, NETWORK_INVALID_REQUEST: 16, SERVER_FAILED: 17, SERVER_NO_RANGE: 18, SERVER_BAD_CONTENT: 19, SERVER_UNAUTHORIZED: 20, SERVER_CERTIFICATE_PROBLEM: 21, SERVER_FORBIDDEN: 22, SERVER_UNEXPECTED_RESPONSE: 23, SERVER_CONTENT_LENGTH_MISMATCH: 24, SERVER_CROSS_ORIGIN_REDIRECT: 25, USER_CANCELED: 26, USER_SHUTDOWN: 27, USER_PAUSED: 28, DOWNLOAD_PROCESS_CRASHED: 29 }
+	static DOWNLOAD_STATE := { IN_PROGRESS: 0, INTERRUPTED: 1, COMPLETED: 2 }
+	static FAVICON_IMAGE_FORMAT := { PNG: 0, JPEG: 1 }
+	static FILE_SYSTEM_HANDLE_KIND := { FILE: 0, DIRECTORY: 1 }
+	static FILE_SYSTEM_HANDLE_PERMISSION := { READ_ONLY: 0, READ_WRITE: 1 }
+	static FRAME_KIND := { UNKNOWN: 0, MAIN_FRAME: 1, IFRAME: 2, EMBED: 3, OBJECT: 4 }
+	static HOST_RESOURCE_ACCESS_KIND := { DENY: 0, ALLOW: 1, DENY_CORS: 2 }
+	static KEY_EVENT_KIND := { KEY_DOWN: 0, KEY_UP: 1, SYSTEM_KEY_DOWN: 2, SYSTEM_KEY_UP: 3 }
+	static MEMORY_USAGE_TARGET_LEVEL := { NORMAL: 0, LOW: 1 }
+	static MOUSE_EVENT_KIND := { HORIZONTAL_WHEEL: 0x20e, LEFT_BUTTON_DOUBLE_CLICK: 0x203, LEFT_BUTTON_DOWN: 0x201, LEFT_BUTTON_UP: 0x202, LEAVE: 0x2a3, MIDDLE_BUTTON_DOUBLE_CLICK: 0x209, MIDDLE_BUTTON_DOWN: 0x207, MIDDLE_BUTTON_UP: 0x208, MOVE: 0x200, RIGHT_BUTTON_DOUBLE_CLICK: 0x206, RIGHT_BUTTON_DOWN: 0x204, RIGHT_BUTTON_UP: 0x205, WHEEL: 0x20a, X_BUTTON_DOUBLE_CLICK: 0x20d, X_BUTTON_DOWN: 0x20b, X_BUTTON_UP: 0x20c, NON_CLIENT_RIGHT_BUTTON_DOWN: 0xa4, NON_CLIENT_RIGHT_BUTTON_UP: 0xa5 }
+	static MOUSE_EVENT_VIRTUAL_KEYS := { NONE: 0, LEFT_BUTTON: 0x1, RIGHT_BUTTON: 0x2, SHIFT: 0x4, CONTROL: 0x8, MIDDLE_BUTTON: 0x10, X_BUTTON1: 0x20, X_BUTTON2: 0x40 }
+	static MOVE_FOCUS_REASON := { PROGRAMMATIC: 0, NEXT: 1, PREVIOUS: 2 }
+	static NAVIGATION_KIND := { RELOAD: 0, BACK_OR_FORWARD: 1, NEW_DOCUMENT: 2 }
+	static NON_CLIENT_REGION_KIND := { NOWHERE: 0, CLIENT: 1, CAPTION: 2 }
+	static PDF_TOOLBAR_ITEMS := { ITEMS_NONE: 0, ITEMS_SAVE: 0x1, ITEMS_PRINT: 0x2, ITEMS_SAVE_AS: 0x4, ITEMS_ZOOM_IN: 0x8, ITEMS_ZOOM_OUT: 0x10, ITEMS_ROTATE: 0x20, ITEMS_FIT_PAGE: 0x40, ITEMS_PAGE_LAYOUT: 0x80, ITEMS_BOOKMARKS: 0x100, ITEMS_PAGE_SELECTOR: 0x200, ITEMS_SEARCH: 0x400, ITEMS_FULL_SCREEN: 0x800, ITEMS_MORE_SETTINGS: 0x1000 }
+	static PERMISSION_KIND := { UNKNOWN_PERMISSION: 0, MICROPHONE: 1, CAMERA: 2, GEOLOCATION: 3, NOTIFICATIONS: 4, OTHER_SENSORS: 5, CLIPBOARD_READ: 6, MULTIPLE_AUTOMATIC_DOWNLOADS: 7, FILE_READ_WRITE: 8, AUTOPLAY: 9, LOCAL_FONTS: 10, MIDI_SYSTEM_EXCLUSIVE_MESSAGES: 11, WINDOW_MANAGEMENT: 12 }
+	static PERMISSION_STATE := { DEFAULT: 0, ALLOW: 1, DENY: 2 }
+	static POINTER_EVENT_KIND := { ACTIVATE: 0x24b, DOWN: 0x246, ENTER: 0x249, LEAVE: 0x24a, UP: 0x247, UPDATE: 0x245 }
+	static PREFERRED_COLOR_SCHEME := { AUTO: 0, LIGHT: 1, DARK: 2 }
+	static PRINT_COLLATION := { DEFAULT: 0, COLLATED: 1, UNCOLLATED: 2 }
+	static PRINT_COLOR_MODE := { DEFAULT: 0, COLOR: 1, GRAYSCALE: 2 }
+	static PRINT_DIALOG_KIND := { BROWSER: 0, SYSTEM: 1 }
+	static PRINT_DUPLEX := { DEFAULT: 0, ONE_SIDED: 1, TWO_SIDED_LONG_EDGE: 2, TWO_SIDED_SHORT_EDGE: 3 }
+	static PRINT_MEDIA_SIZE := { DEFAULT: 0, CUSTOM: 1 }
+	static PRINT_ORIENTATION := { PORTRAIT: 0, LANDSCAPE: 1 }
+	static PRINT_STATUS := { SUCCEEDED: 0, PRINTER_UNAVAILABLE: 1, OTHER_ERROR: 2 }
+	static PROCESS_FAILED_KIND := { BROWSER_PROCESS_EXITED: 0, RENDER_PROCESS_EXITED: 1, RENDER_PROCESS_UNRESPONSIVE: 2, FRAME_RENDER_PROCESS_EXITED: 3, UTILITY_PROCESS_EXITED: 4, SANDBOX_HELPER_PROCESS_EXITED: 5, GPU_PROCESS_EXITED: 6, PPAPI_PLUGIN_PROCESS_EXITED: 7, PPAPI_BROKER_PROCESS_EXITED: 8, UNKNOWN_PROCESS_EXITED: 9 }
+	static PROCESS_FAILED_REASON := { UNEXPECTED: 0, UNRESPONSIVE: 1, TERMINATED: 2, CRASHED: 3, LAUNCH_FAILED: 4, OUT_OF_MEMORY: 5, PROFILE_DELETED: 6 }
+	static PROCESS_KIND := { BROWSER: 0, RENDERER: 1, UTILITY: 2, SANDBOX_HELPER: 3, GPU: 4, PPAPI_PLUGIN: 5, PPAPI_BROKER: 6 }
+	static RELEASE_CHANNELS := { NONE: 0, STABLE: 1, BETA: 2, DEV: 4, CANARY: 8 }
+	static SCRIPT_DIALOG_KIND := { ALERT: 0, CONFIRM: 1, PROMPT: 2, BEFOREUNLOAD: 3 }
+	static SCROLLBAR_STYLE := { DEFAULT: 0, FLUENT_OVERLAY: 1 }
+	static SERVER_CERTIFICATE_ERROR_ACTION := { ALWAYS_ALLOW: 0, CANCEL: 1, DEFAULT: 2 }
+	static SHARED_BUFFER_ACCESS := { READ_ONLY: 0, READ_WRITE: 1 }
+	static TRACKING_PREVENTION_LEVEL := { NONE: 0, BASIC: 1, BALANCED: 2, STRICT: 3 }
+	static WEB_ERROR_STATUS := { UNKNOWN: 0, CERTIFICATE_COMMON_NAME_IS_INCORRECT: 1, CERTIFICATE_EXPIRED: 2, CLIENT_CERTIFICATE_CONTAINS_ERRORS: 3, CERTIFICATE_REVOKED: 4, CERTIFICATE_IS_INVALID: 5, SERVER_UNREACHABLE: 6, TIMEOUT: 7, ERROR_HTTP_INVALID_SERVER_RESPONSE: 8, CONNECTION_ABORTED: 9, CONNECTION_RESET: 10, DISCONNECTED: 11, CANNOT_CONNECT: 12, HOST_NAME_NOT_RESOLVED: 13, OPERATION_CANCELED: 14, REDIRECT_FAILED: 15, UNEXPECTED_ERROR: 16, VALID_AUTHENTICATION_CREDENTIALS_REQUIRED: 17, VALID_PROXY_AUTHENTICATION_REQUIRED: 18 }
+	static WEB_RESOURCE_CONTEXT := { ALL: 0, DOCUMENT: 1, STYLESHEET: 2, IMAGE: 3, MEDIA: 4, FONT: 5, SCRIPT: 6, XML_HTTP_REQUEST: 7, FETCH: 8, TEXT_TRACK: 9, EVENT_SOURCE: 10, WEBSOCKET: 11, MANIFEST: 12, SIGNED_EXCHANGE: 13, PING: 14, CSP_VIOLATION_REPORT: 15, OTHER: 16 }
+	static WEB_RESOURCE_REQUEST_SOURCE_KINDS := { NONE: 0, DOCUMENT: 1, SHARED_WORKER: 2, SERVICE_WORKER: 4, ALL: 0Xffffffff }
 	;#endregion
 }
 CoTaskMem_String(ptr) {
