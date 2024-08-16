@@ -61,7 +61,7 @@ class DirectoryWatcher {
 					Throw OSError()
 			}
 		}
-		stop(this) => DllCall('CancelIoEx', 'ptr', this.DefineProp('Start', { call: start }))
+		stop(this) => DllCall('CancelIoEx', 'ptr', this.DefineProp('Start', { call: start }), 'ptr', this._overlapped)
 	}
 	__Delete() {
 		static caches := Map()
