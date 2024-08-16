@@ -2,8 +2,8 @@
  * @description Use Microsoft Edge WebView2 control in ahk
  * @file WebView2.ahk
  * @author thqby
- * @date 2024/04/26
- * @version 1.0.32
+ * @date 2024/08/16
+ * @version 1.0.33
  * @webview2version 1.0.2478.35
  ***********************************************************************/
 
@@ -130,7 +130,7 @@ class WebView2 extends WebView2.Base {
 			}
 		}
 		AddRef() => ObjAddRef(this.ptr)
-		Release() => ObjRelease(this.ptr)
+		Release() => this.ptr && ObjRelease(this.ptr)
 	}
 
 	;#region WebView2 Interfaces
@@ -803,7 +803,7 @@ class WebView2 extends WebView2.Base {
 		GetProcessInfos() => (ComCall(18, this, 'ptr*', value := WebView2.ProcessInfoCollection()), value)
 
 		static IID_9 := '{f06f41bf-4b5a-49d8-b9f6-fa16cd29f274}'
-		CreateContextMenuItem(label, iconStream, kind) => (ComCall(19, this, 'wstr', label, 'ptr', iconStream, 'int', kind, 'ptr', item := WebView2.ContextMenuItem()), item)	; IStream*, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND
+		CreateContextMenuItem(label, iconStream, kind) => (ComCall(19, this, 'wstr', label, 'ptr', iconStream, 'int', kind, 'ptr*', item := WebView2.ContextMenuItem()), item)	; IStream*, COREWEBVIEW2_CONTEXT_MENU_ITEM_KIND
 
 		static IID_10 := '{ee0eb9df-6f12-46ce-b53f-3f47b9c928e0}'
 		CreateCoreWebView2ControllerOptions() => (ComCall(20, this, 'ptr*', options := WebView2.ControllerOptions()), options)
@@ -814,7 +814,7 @@ class WebView2 extends WebView2.Base {
 		FailureReportFolderPath => (ComCall(23, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 
 		static IID_12 := '{F503DB9B-739F-48DD-B151-FDFCF253F54E}'
-		CreateSharedBuffer(size) => (ComCall(24, this, 'uint64', size, 'ptr', shared_buffer := WebView2.SharedBuffer()), shared_buffer)
+		CreateSharedBuffer(size) => (ComCall(24, this, 'uint64', size, 'ptr*', shared_buffer := WebView2.SharedBuffer()), shared_buffer)
 
 		static IID_13 := '{af641f58-72b2-11ee-b962-0242ac120002}'
 		GetProcessExtendedInfos(handler) => ComCall(25, this, 'ptr', WebView2.Handler(handler))
@@ -1070,7 +1070,7 @@ class WebView2 extends WebView2.Base {
 			get => (ComCall(6, this, 'int*', &value := 0), value)
 			set => ComCall(7, this, 'int', Value)
 		}
-		GetDeferral() => (ComCall(8, this, 'ptr', value := WebView2.Deferral()), value)
+		GetDeferral() => (ComCall(8, this, 'ptr*', value := WebView2.Deferral()), value)
 	}
 	class MoveFocusRequestedEventArgs extends WebView2.Base {
 		static IID := '{2d6aa13b-3839-4a15-92fc-d88b3c0d9c9d}'
@@ -1432,7 +1432,7 @@ class WebView2 extends WebView2.Base {
 		GetNonDefaultPermissionSettings(completedHandler) => ComCall(16, this, 'ptr', completedHandler)	; ICoreWebView2GetNonDefaultPermissionSettingsCompletedHandler
 
 		static IID_5 := '{2EE5B76E-6E80-4DF2-BCD3-D4EC3340A01B}'
-		CookieManager => (ComCall(17, this, 'ptr', cookieManager := WebView2.CookieManager()), cookieManager)
+		CookieManager => (ComCall(17, this, 'ptr*', cookieManager := WebView2.CookieManager()), cookieManager)
 
 		static IID_6 := '{BD82FA6A-1D65-4C33-B2B4-0393020CC61B}'
 		IsPasswordAutosaveEnabled {
@@ -1621,7 +1621,7 @@ class WebView2 extends WebView2.Base {
 		TryGetWebMessageAsString() => (ComCall(5, this, 'ptr*', &webMessageAsString := 0), CoTaskMem_String(webMessageAsString))
 
 		static IID_2 := '{06fc7ab7-c90c-4297-9389-33ca01cf6d5e}'
-		AdditionalObjects => (ComCall(6, this, 'ptr', value := WebView2.ObjectCollectionView()), value)
+		AdditionalObjects => (ComCall(6, this, 'ptr*', value := WebView2.ObjectCollectionView()), value)
 	}
 	class WebResourceRequest extends WebView2.Base {
 		static IID := '{97055cd4-512c-4264-8b5f-e3f446cea6a5}'
