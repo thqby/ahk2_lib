@@ -3,8 +3,8 @@
  * for asynchronously overlapping IO. It can be used to asynchronously read
  * and write files, pipes, http, and sockets.
  * @author thqby
- * @date 2024/05/24
- * @version 1.0.1
+ * @date 2024/07/21
+ * @version 1.0.2
  ***********************************************************************/
 
 class OVERLAPPED extends Buffer {
@@ -12,12 +12,12 @@ class OVERLAPPED extends Buffer {
 	 * The struct used in asynchronous (or overlapped) input and output (I/O).
 	 * The specified callback function is called when the asynchronous operation completes or fails.
 	 */
-	static Call(cb := (this, err, byte) => 0) {
+	__New(cb := (this, err, byte) => 0) {
 		static size := 4 * A_PtrSize + 8
-		hEvent := DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr')
-		NumPut('ptr', hEvent, 'ptr', ObjPtr(obj := super(size, 0)), obj, size - 2 * A_PtrSize)
-		obj.Call := cb
-		return obj
+		super.__New(size, 0)
+		NumPut('ptr', DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr'),
+			'ptr', ObjPtr(this), this, size - 2 * A_PtrSize)
+		this.Call := cb
 	}
 	static EnableIoCompletionCallback(hFile) {
 		static code := init()

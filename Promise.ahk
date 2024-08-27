@@ -1,20 +1,19 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2023/06/19
- * @version 1.0.2
+ * @date 2024/08/27
+ * @version 1.0.3
  * @requires AutoHotkey-v2.0.3+	The lower version ahk uses version 1.0.1.
  ***********************************************************************/
 
 ; Represents the completion of an asynchronous operation
 class Promise {
 	/**
-	 * @param {(resolve,reject)=>void} executor A callback used to initialize the promise. This callback is passed two arguments:
+	 * @param {(resolve [,reject])=>void} executor A callback used to initialize the promise. This callback is passed two arguments:
 	 * a resolve callback used to resolve the promise with a value or the result of another promise,
 	 * and a reject callback used to reject the promise with a provided reason or error.
 	 * - resolve(data) => void
 	 * - reject(err) => void
-	 * @returns {Promise} Creates a new Promise.
 	 */
 	__New(executor) {
 		; this.DefineProp('__Delete', { call: this => OutputDebug('del: ' ObjPtr(this) '`n') })
@@ -27,8 +26,8 @@ class Promise {
 			(executor.MaxParams = 1) ? executor(resolve) : executor(resolve, reject)
 		catch Any as e
 			reject(e)
-		resolve(value) {
-			if value is Promise
+		resolve(value := '') {
+			if HasMethod(value, 'then', 2)
 				return value.then(resolve, reject)
 			if (this.status != 'pending')
 				return
@@ -37,9 +36,11 @@ class Promise {
 			handle(this, 'onRejectedCallbacks')
 			handle(this, 'onResolvedCallbacks', value)
 		}
-		reject(reason) {
+		reject(reason?) {
 			if (this.status != 'pending')
 				return
+			if !IsSet(reason)
+				reason := Error(, -1)
 			this.reason := reason
 			this.status := 'rejected'
 			handle(this, 'onResolvedCallbacks')
@@ -88,7 +89,7 @@ class Promise {
 					reject(e)
 			}
 			static resolvePromise(p2, x, resolve, reject) {
-				if !HasMethod(x, 'then', 1)
+				if !HasMethod(x, 'then', 2)
 					return resolve(x)
 				if p2 == x
 					throw TypeError('Chaining cycle detected for promise #<Promise>')
@@ -117,18 +118,34 @@ class Promise {
 	 */
 	finally(onfinally) => this.then(
 		val => (onfinally(), val),
-		err => (onfinally(), (Promise.onRejected)(err)),
+		err => (onfinally(), (Promise.onRejected)(err))
 	)
 	/**
 	 * Waits for a promise to be completed.
 	 */
-	await(timeout := 0) {
+	await(timeout := -1) {
 		end := A_TickCount + timeout
-		while this.status == 'pending' && (!timeout || A_TickCount < end)
+		while this.status == 'pending' && (timeout < 0 || A_TickCount < end)
 			Sleep(-1)
 		if this.status == 'fulfilled'
 			return this.value
 		throw this.status == 'pending' ? TimeoutError() : this.reason
+	}
+	/**
+	 * Waits for a promise to be completed.
+	 * Wake up only when a system event or timeout occurs, which takes up less cpu time.
+	 */
+	await2(timeout := -1) {
+		static hEvent := DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr')
+		static __del := { Ptr: hEvent, __Delete: this => DllCall('CloseHandle', 'ptr', this) }
+		t := A_TickCount, r := 258
+		while this.status == 'pending' && timeout &&
+			1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hEvent,
+				'int', 0, 'uint', timeout, 'uint', 7423, 'uint')
+			Sleep(-1), (timeout < 0) || timeout := Max(timeout - A_TickCount + t, 0)
+		if this.status == 'fulfilled'
+			return this.value
+		throw this.status == 'pending' ? r == 0xffffffff ? OSError() : TimeoutError() : this.reason
 	}
 	static onRejected() {
 		throw this
@@ -159,7 +176,7 @@ class Promise {
 				return resolve(res)
 			resolveRes := (index, data) => (res[index] := data, ++count == res.Length && resolve(res))
 			for val in values
-				if HasMethod(val, 'then', 1)
+				if HasMethod(val, 'then', 2)
 					val.then(resolveRes.Bind(A_Index), reject)
 				else resolveRes(A_Index, val)
 		}
@@ -179,7 +196,7 @@ class Promise {
 			resolveRes := (index, data) => (res[index] := { status: 'fulfilled', value: data }, ++count == res.Length && resolve(res))
 			rejectRes := (index, data) => (res[index] := { status: 'rejected', reason: data }, ++count == res.Length && resolve(res))
 			for val in values
-				if HasMethod(val, 'then', 1)
+				if HasMethod(val, 'then', 2)
 					val.then(resolveRes.Bind(A_Index), rejectRes.Bind(A_Index))
 				else resolveRes(A_Index, val)
 		}
@@ -194,7 +211,7 @@ class Promise {
 		return Promise(executor)
 		executor(resolve, reject) {
 			for val in values
-				if HasMethod(val, 'then', 1)
+				if HasMethod(val, 'then', 2)
 					val.then(resolve, reject)
 				else return resolve(val)
 		}
