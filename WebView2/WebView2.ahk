@@ -830,7 +830,8 @@ class WebView2 extends WebView2.Base {
 			items := Buffer(A_PtrSize * len := objects.Length), p := items.Ptr
 			for it in objects
 				p := NumPut('ptr', it.Ptr, p)
-			ComCall(28, this, 'uint', len, 'ptr', items, 'ptr*', objectCollection := WebView2.ObjectCollection(), objectCollection)
+			ComCall(28, this, 'uint', len, 'ptr', items, 'ptr*', objectCollection := WebView2.ObjectCollection())
+			return objectCollection
 		}
 	}
 	class EnvironmentOptions extends Buffer {
