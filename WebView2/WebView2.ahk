@@ -90,18 +90,33 @@ class WebView2 extends WebView2.Base {
 
 	; Interfaces Base class
 	class Base {
-		ptr := 0
-		__New(ptr := 0, addref := true) {
-			if ptr {
-				this.ptr := ptr
-				if (addref)
-					ObjAddRef(ptr)
+		static Prototype.Ptr := 0
+		/**
+		 * Some interfaces with inheritance have different addresses for their objects.
+		 * Incorrect use of methods that do not exist in the interface will cause the program to crash.
+		 * For example, the object addresses for `FrameInfo` and `FrameInfo2` are different.
+		 * By specifying the default IID, the interface is automatically queried when these objects are returned.
+		 */
+		static DefaultIID {
+			set {
+				this.Prototype.DefineProp('Ptr', { set: QueryInterface })
+				QueryInterface(this, ptr) {
+					if !ptr
+						return
+					obj := ComObjQuery(ptr, Value)
+					ObjRelease(ptr), ObjAddRef(ptr := ComObjValue(obj))
+					this.DefineProp('Ptr', { value: ptr })
+				}
 			}
 		}
-		__Delete() {
-			if (this.ptr)
-				this.Release()
+		__New(ptr := 0, addref := true) {
+			if !ptr
+				return
+			this.Ptr := ptr
+			if (addref)
+				ObjAddRef(ptr)
 		}
+		__Delete() => this.Release()
 		__Call(Name, Params) {
 			if (HasMethod(this, 'add_' Name)) {
 				if (!IsInteger(handler := Params[1]) && !(handler is WebView2.Handler))
@@ -1020,7 +1035,7 @@ class WebView2 extends WebView2.Base {
 		Name => (ComCall(3, this, 'ptr*', &name := 0), CoTaskMem_String(name))
 		Source => (ComCall(4, this, 'ptr*', &source := 0), CoTaskMem_String(source))
 
-		static IID_2 := '{56f85cfa-72c4-11ee-b962-0242ac120002}'
+		static IID_2 := this.DefaultIID := '{56f85cfa-72c4-11ee-b962-0242ac120002}'
 		ParentFrameInfo => (ComCall(5, this, 'ptr*', frameInfo := WebView2.FrameInfo()), frameInfo)
 		FrameId => (ComCall(6, this, 'uint*', &id := 0), id)
 		FrameKind => (ComCall(7, this, 'uint*', &kind := 0), kind)
