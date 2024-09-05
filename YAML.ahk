@@ -267,7 +267,7 @@ class YAML {
 			return J[1]
 		}
 		UQ(S, K := false) {	; UnQuote: remove quotes
-			return (t := SubStr(S := Trim(S, " `t"), 1, 1) SubStr(S, -1)) = '""' ? (InStr(S, "\") ? UC(SubStr(S, 2, -1)) : SubStr(S, 2, -1)) : t = "''" ? SubStr(S, 2, -1) : K ? S : IsNumber(S) ? S + 0 : S = "null" ? _null : S = "true" ? _true : S = "false" ? _false : S
+			return (t := SubStr(S := Trim(S, " `t"), 1, 1) SubStr(S, -1)) = '""' ? (InStr(S, "\") ? UC(SubStr(S, 2, -1)) : SubStr(S, 2, -1)) : t = "''" ? StrReplace(SubStr(S, 2, -1), "''", "'") : K ? S : IsNumber(S) ? S + 0 : S = "null" ? _null : S = "true" ? _true : S = "false" ? _false : S
 		}
 		CS(s, x) {	; Convert Spaces to level, 1 = first level = no spaces
 			return ((StrLen(s) << (Ord(s) = 9)) // x) + 1
