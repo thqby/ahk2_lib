@@ -72,12 +72,12 @@ class LoadScript {
 	}
 	class Proxy {
 		__Call(name, args) => %name%(args*)
-		__Item[name] {
-			get => %name%
-			set {
-				global
-				%name% := Value
-			}
+		__Get(Key, Params) => Params.Length ? %Key%[Params*] : %Key%
+		__Set(Key, Params, Value) {
+			global
+			if Params.Length
+				%Key%[Params*] := Value
+			else %Key% := Value
 		}
 	}
 }
