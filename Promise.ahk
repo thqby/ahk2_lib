@@ -94,7 +94,7 @@ class Promise {
 					reject(e)
 			}
 			static resolvePromise(p2, x, resolve, reject) {
-				if !x is Promise
+				if !(x is Promise)
 					return resolve(x)
 				if p2 == x
 					throw TypeError('Chaining cycle detected for promise #<Promise>')
@@ -132,7 +132,7 @@ class Promise {
 	await(timeout := -1) {
 		end := A_TickCount + timeout
 		while this.status == 'pending' && (timeout < 0 || A_TickCount < end)
-			Sleep(-1)
+			Sleep(1)
 		if this.status == 'fulfilled'
 			return this.value
 		throw this.status == 'pending' ? TimeoutError() : this.reason
