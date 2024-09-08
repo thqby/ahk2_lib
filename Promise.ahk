@@ -8,6 +8,7 @@
 
 /**
  * Represents the completion of an asynchronous operation
+ * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise MDN doc}
  * @alias Promise<T=Any>
  */
 class Promise {
