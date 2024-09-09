@@ -1122,7 +1122,7 @@ class WebView2 {
 		static IID := '{0CE15963-3698-4DF7-9399-71ED6CDD8C9F}'
 		Succeeded => (ComCall(3, this, 'int*', &value := 0), value)
 		ResultAsJson => (ComCall(4, this, 'ptr*', &jsonResult := 0), CoTaskMem_String(jsonResult))
-		TryGetResultAsString(&stringResult) => (ComCall(5, this, 'ptr*', &stringResult := 0, 'int*', &value := 0), stringResult := CoTaskMem_String(stringResult), value)
+		TryGetResultAsString(&resultIsString?) => (ComCall(5, this, 'ptr*', &result := 0, 'int*', &resultIsString := 0), CoTaskMem_String(result))
 		Exception => (ComCall(6, this, 'ptr*', exception := WebView2.ScriptException()), exception)
 	}
 	class File extends WebView2.Base {
