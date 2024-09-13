@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Use Microsoft Edge WebView2 control in ahk.
  * @author thqby
- * @date 2024/09/06
- * @version 2.0.0
+ * @date 2024/09/13
+ * @version 2.0.1
  * @webview2version 1.0.2739.15
  * @see {@link https://www.nuget.org/packages/Microsoft.Web.WebView2/ nuget package}
  * @see {@link https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/ API Reference}
@@ -98,7 +98,7 @@ class WebView2 {
 		}
 		static handler(this, err, result := '') {
 			this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
-			if err
+			if err && (!result || err !== 0x80070057)
 				(this.reject)(OSError(err))
 			else
 				(this.resolve)(result)
