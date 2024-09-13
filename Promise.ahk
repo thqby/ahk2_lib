@@ -1,9 +1,8 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2024/09/04
- * @version 1.0.4
- * @requires AutoHotkey-v2.0.3+	The lower version ahk uses version 1.0.1.
+ * @date 2024/09/13
+ * @version 1.0.5
  ***********************************************************************/
 
 /**
@@ -16,6 +15,7 @@ class Promise {
 	/** @type {T} */
 	static Prototype.value := ''
 	static Prototype.reason := ''
+	static Prototype.handled := false
 
 	/**
 	 * @param {(resolve [,reject])=>void} executor A callback used to initialize the promise. This callback is passed two arguments:
@@ -26,8 +26,7 @@ class Promise {
 	 */
 	__New(executor) {
 		; this.DefineProp('__Delete', { call: this => OutputDebug('del: ' ObjPtr(this) '`n') })
-		this.onResolvedCallbacks := []
-		this.onRejectedCallbacks := []
+		this.callbacks := []
 		try
 			(executor.MaxParams = 1) ? executor(resolve) : executor(resolve, reject)
 		catch Any as e
@@ -35,31 +34,23 @@ class Promise {
 		resolve(value := '') {
 			if value is Promise
 				return value.then(resolve, reject)
-			if (this.status != 'pending')
+			if ObjHasOwnProp(this, 'status')
 				return
-			this.value := value
 			this.status := 'fulfilled'
-			handle(this, 'onRejectedCallbacks')
-			handle(this, 'onResolvedCallbacks', value)
+			SetTimer(task.Bind(this, this.value := value), this := -1)
 		}
 		reject(reason?) {
-			if (this.status != 'pending')
+			if ObjHasOwnProp(this, 'status')
 				return
-			if !IsSet(reason)
-				reason := Error(, -1)
-			this.reason := reason
 			this.status := 'rejected'
-			handle(this, 'onResolvedCallbacks')
-			if !handle(this, 'onRejectedCallbacks', reason)
-				SetTimer(this.throw := () => (this.DeleteProp('throw'), (Promise.onRejected)(reason)), -1)
+			SetTimer(task.Bind(this, this.reason := reason ?? Error(, -1), 0), this := -1)
 		}
-		static handle(this, name, val?) {
-			cbs := this.%name%
-			this.%name% := { Push: (*) => 0 }
-			if IsSet(val)
-				for fn in cbs
-					SetTimer(fn.Bind(val), -1)
-			return cbs.Length
+		static task(this, val, index := -1) {
+			cbs := this.DeleteProp('callbacks')
+			loop cbs.Length >> 1
+				cbs[index += 2](val)
+			else if !index && !this.handled
+				throw val
 		}
 	}
 	/**
@@ -73,20 +64,18 @@ class Promise {
 			throw TypeError('invalid onRejected')
 		if !HasMethod(onfulfilled, , 1)
 			throw TypeError('invalid onFulfilled')
+		this.handled := true
 		promise2 := { base: Promise.Prototype }
 		promise2.__New(executor)
 		return promise2
 		executor(resolve, reject) {
 			switch this.status {
-				case 'fulfilled':
-					task(promise2, resolve, reject, onfulfilled, this.value)
-				case 'rejected':
-					if hasthrow := this.DeleteProp('throw')
-						SetTimer(hasthrow, 0)
-					task(promise2, resolve, reject, onrejected, this.reason)
-				default:
-					this.onResolvedCallbacks.Push(task.Bind(promise2, resolve, reject, onfulfilled))
-					this.onRejectedCallbacks.Push(task.Bind(promise2, resolve, reject, onrejected))
+				case 'fulfilled': task(promise2, resolve, reject, onfulfilled, this.value)
+				case 'rejected': task(promise2, resolve, reject, onrejected, this.reason)
+				default: this.callbacks.Push(
+					task.Bind(promise2, resolve, reject, onfulfilled),
+					task.Bind(promise2, resolve, reject, onrejected)
+				)
 			}
 			static task(p2, resolve, reject, fn, val) {
 				try
@@ -131,12 +120,12 @@ class Promise {
 	 * @returns {T}
 	 */
 	await(timeout := -1) {
-		end := A_TickCount + timeout
-		while this.status == 'pending' && (timeout < 0 || A_TickCount < end)
+		end := A_TickCount + timeout, this.handled := true
+		while (pending := !ObjHasOwnProp(this, 'status')) && (timeout < 0 || A_TickCount < end)
 			Sleep(1)
-		if this.status == 'fulfilled'
+		if !pending && this.status == 'fulfilled'
 			return this.value
-		throw this.status == 'pending' ? TimeoutError() : this.reason
+		throw pending ? TimeoutError() : this.reason
 	}
 	/**
 	 * Waits for a promise to be completed.
@@ -146,14 +135,14 @@ class Promise {
 	await2(timeout := -1) {
 		static hEvent := DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr')
 		static __del := { Ptr: hEvent, __Delete: this => DllCall('CloseHandle', 'ptr', this) }
-		t := A_TickCount, r := 258
-		while this.status == 'pending' && timeout &&
+		t := A_TickCount, r := 258, this.handled := true
+		while (pending := !ObjHasOwnProp(this, 'status')) && timeout &&
 			1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hEvent,
 				'int', 0, 'uint', timeout, 'uint', 7423, 'uint')
 			Sleep(-1), (timeout < 0) || timeout := Max(timeout - A_TickCount + t, 0)
-		if this.status == 'fulfilled'
+		if !pending && this.status == 'fulfilled'
 			return this.value
-		throw this.status == 'pending' ? r == 0xffffffff ? OSError() : TimeoutError() : this.reason
+		throw pending ? r == 0xffffffff ? OSError() : TimeoutError() : this.reason
 	}
 	static onRejected() {
 		throw this
