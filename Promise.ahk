@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2024/09/13
- * @version 1.0.5
+ * @date 2024/09/14
+ * @version 1.0.6
  ***********************************************************************/
 
 /**
@@ -135,10 +135,12 @@ class Promise {
 	await2(timeout := -1) {
 		static hEvent := DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr')
 		static __del := { Ptr: hEvent, __Delete: this => DllCall('CloseHandle', 'ptr', this) }
+		static msg := Buffer(4 * A_PtrSize + 16)
 		t := A_TickCount, r := 258, this.handled := true
 		while (pending := !ObjHasOwnProp(this, 'status')) && timeout &&
-			1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hEvent,
-				'int', 0, 'uint', timeout, 'uint', 7423, 'uint')
+			(DllCall('PeekMessage', 'ptr', msg, 'ptr', 0, 'uint', 0, 'uint', 0, 'uint', 0) ||
+				1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hEvent,
+					'int', 0, 'uint', timeout, 'uint', 7423, 'uint'))
 			Sleep(-1), (timeout < 0) || timeout := Max(timeout - A_TickCount + t, 0)
 		if !pending && this.status == 'fulfilled'
 			return this.value
