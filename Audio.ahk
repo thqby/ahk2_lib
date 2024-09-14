@@ -1,8 +1,8 @@
 /************************************************************************
  * @description: Core Audio APIs, Windows 多媒体设备API
  * @author thqby
- * @date 2024/08/21
- * @version 1.1.0
+ * @date 2024/09/14
+ * @version 1.1.1
  ***********************************************************************/
 #DllLoad ole32.dll
 ; https://docs.microsoft.com/en-us/windows/win32/api/unknwn/nn-unknwn-iunknown
@@ -426,7 +426,13 @@ class IAudioMeterInformation extends IAudioBase {
 	static IID := "{C02216F6-8C67-4B5B-9D00-D008E73E0064}"
 	GetPeakValue() => (ComCall(3, this, "Float*", &fPeak := 0), fPeak)
 	GetMeteringChannelCount() => (ComCall(4, this, "UInt*", &nChannelCount := 0), nChannelCount)
-	GetChannelsPeakValues(u32ChannelCount) => (ComCall(5, this, "UInt", u32ChannelCount, "Float*", &afPeakValues := 0), afPeakValues)
+	GetChannelsPeakValues() {
+		u32ChannelCount := this.GetMeteringChannelCount(), peakValues := []
+		ComCall(5, this, "UInt", u32ChannelCount, "Ptr", afPeakValues := Buffer(u32ChannelCount * 4))
+		loop u32ChannelCount
+			peakValues.Push(NumGet(afPeakValues, (A_Index - 1) * 4, 'Float'))
+		return peakValues
+	}
 	QueryHardwareSupport() => (ComCall(6, this, "UInt*", &dwHardwareSupportMask := 0), dwHardwareSupportMask)
 }
 
