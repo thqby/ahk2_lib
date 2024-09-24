@@ -98,8 +98,8 @@ class IChannelAudioVolume extends IAudioBase {
 			NumPut("float", v, pfVolumes, (A_Index - 1) << 2)
 		ComCall(6, this, "UInt", dwCount, "Ptr", pfVolumes, "Ptr", EventContext)
 	}
-	GetAllVolumes() {
-		ComCall(7, this, "UInt", dwCount := this.GetChannelCount(), "Ptr", pfVolumes := Buffer(dwCount << 2, 0))
+	GetAllVolumes(dwCount := this.GetChannelCount()) {
+		ComCall(7, this, "UInt", dwCount, "Ptr", pfVolumes := Buffer(dwCount << 2, 0))
 		volumes := []
 		loop dwCount
 			volumes.Push(NumGet(pfVolumes, (A_Index - 1) << 2, "float"))
@@ -426,8 +426,8 @@ class IAudioMeterInformation extends IAudioBase {
 	static IID := "{C02216F6-8C67-4B5B-9D00-D008E73E0064}"
 	GetPeakValue() => (ComCall(3, this, "Float*", &fPeak := 0), fPeak)
 	GetMeteringChannelCount() => (ComCall(4, this, "UInt*", &nChannelCount := 0), nChannelCount)
-	GetChannelsPeakValues() {
-		u32ChannelCount := this.GetMeteringChannelCount(), peakValues := []
+	GetChannelsPeakValues(u32ChannelCount := this.GetMeteringChannelCount()) {
+		peakValues := []
 		ComCall(5, this, "UInt", u32ChannelCount, "Ptr", afPeakValues := Buffer(u32ChannelCount * 4))
 		loop u32ChannelCount
 			peakValues.Push(NumGet(afPeakValues, (A_Index - 1) * 4, 'Float'))
