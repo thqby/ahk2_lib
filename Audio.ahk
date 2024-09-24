@@ -96,10 +96,10 @@ class IChannelAudioVolume extends IAudioBase {
 		dwCount := fVolumes.Length, pfVolumes := Buffer(dwCount << 2)
 		for v in fVolumes
 			NumPut("float", v, pfVolumes, (A_Index - 1) << 2)
-		ComCall(4, this, "UInt", dwCount, "Ptr", pfVolumes, "Ptr", EventContext)
+		ComCall(6, this, "UInt", dwCount, "Ptr", pfVolumes, "Ptr", EventContext)
 	}
 	GetAllVolumes() {
-		ComCall(5, this, "UInt", dwCount := this.GetChannelCount(), "Ptr", pfVolumes := Buffer(dwCount << 2, 0))
+		ComCall(7, this, "UInt", dwCount := this.GetChannelCount(), "Ptr", pfVolumes := Buffer(dwCount << 2, 0))
 		volumes := []
 		loop dwCount
 			volumes.Push(NumGet(pfVolumes, (A_Index - 1) << 2, "float"))
