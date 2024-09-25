@@ -228,7 +228,7 @@ class IAudioSessionControl extends IAudioBase {
 	GetState() => (ComCall(3, this, "UInt*", &RetVal := 0), RetVal)
 	GetDisplayName() => (ComCall(4, this, "Ptr*", &RetVal := 0), IAudioBase.STR(RetVal))
 	SetDisplayName(Value, EventContext := 0) => ComCall(5, this, "Str", Value, "Ptr", EventContext)
-	GetIconPath() => (ComCall(6, this, "Ptr*", &RetVal := ""), IAudioBase.STR(RetVal))
+	GetIconPath() => (ComCall(6, this, "Ptr*", &RetVal := 0), IAudioBase.STR(RetVal))
 	SetIconPath(Value, EventContext := 0) => ComCall(7, this, "Str", Value, "Ptr", EventContext)
 	GetGroupingParam() {
 		ComCall(8, this, "Ptr", pRetVal := Buffer(16))
