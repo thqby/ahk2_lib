@@ -2,8 +2,8 @@
  * @description Create a child process, and read stdout/stderr
  * asynchronously, supporting multiple stdin inputs.
  * @author thqby
- * @date 2024/05/24
- * @version 2.0.0
+ * @date 2024/09/29
+ * @version 2.0.1
  ***********************************************************************/
 
 class child_process {
@@ -112,9 +112,10 @@ class child_process {
 	 * @returns 0 (false) if the function timed out 
 	 */
 	Wait(timeout := -1) {
-		hProcess := this.hProcess, t := A_TickCount, r := 258
+		hProcess := this.hProcess, t := A_TickCount, r := 258, old := Critical(0)
 		while timeout && 1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hProcess, 'int', 0, 'uint', timeout, 'uint', 7423, 'uint')
 			(timeout == -1) || timeout := Max(timeout - A_TickCount + t, 0), Sleep(-1)
+		Critical(old)
 		if r == 0xffffffff
 			Throw OSError()
 		return r == 258 || !timeout ? 0 : 1
