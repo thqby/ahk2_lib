@@ -48,7 +48,7 @@ class WebView2 {
 					if RegExMatch(A_LoopFilePath, '\\([\d.]+)$', &m) && VerCompare(m[1], ver) > 0
 						edgeRuntime := A_LoopFileFullPath, ver := m[1]
 		}
-		if options {
+		if options && !(options is this.EnvironmentOptions) {
 			if !options.HasOwnProp('TargetCompatibleBrowserVersion')
 				options.TargetCompatibleBrowserVersion := ver
 			options := this.EnvironmentOptions(options)
@@ -656,7 +656,7 @@ class WebView2 {
 		static IID_9 := '{4d7b2eab-9fdc-468d-b998-a9260b5ed651}'
 		/** @param {(sender: WebView2.Core, args: IUnknown) => void} eventHandler */
 		add_IsDefaultDownloadDialogOpenChanged(eventHandler) => (ComCall(88, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2IsDefaultDownloadDialogOpenChangedEventHandler
-		remove_IsDefaultDownloadDialogOpenChanged(token) => ComCall(89, this, 'int64', &token := 0)
+		remove_IsDefaultDownloadDialogOpenChanged(token) => ComCall(89, this, 'int64', token)
 		IsDefaultDownloadDialogOpen => (ComCall(90, this, 'int*', &value := 0), value)
 		OpenDefaultDownloadDialog() => ComCall(91, this)
 		CloseDefaultDownloadDialog() => ComCall(92, this)
@@ -672,19 +672,19 @@ class WebView2 {
 		static IID_10 := '{b1690564-6f5a-4983-8e48-31d1143fecdb}'
 		/** @param {(sender: WebView2.Core, args: WebView2.BasicAuthenticationRequestedEventArgs) => void} eventHandler */
 		add_BasicAuthenticationRequested(eventHandler) => (ComCall(97, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2BasicAuthenticationRequestedEventHandler
-		remove_BasicAuthenticationRequested(token) => ComCall(98, this, 'int64', &token := 0)
+		remove_BasicAuthenticationRequested(token) => ComCall(98, this, 'int64', token)
 
 		static IID_11 := '{0be78e56-c193-4051-b943-23b460c08bdb}'
 		/** @returns {Promise<String>} */
 		CallDevToolsProtocolMethodForSessionAsync(sessionId, methodName, parametersAsJson) => (ComCall(99, this, 'wstr', sessionId, 'wstr', methodName, 'wstr', parametersAsJson, 'ptr', WebView2.AsyncHandler(&p, StrGet)), p)
 		/** @param {(sender: WebView2.Core, args: WebView2.ContextMenuRequestedEventArgs) => void} eventHandler */
 		add_ContextMenuRequested(eventHandler) => (ComCall(100, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2ContextMenuRequestedEventHandler
-		remove_ContextMenuRequested(token) => ComCall(101, this, 'int64', &token := 0)
+		remove_ContextMenuRequested(token) => ComCall(101, this, 'int64', token)
 
 		static IID_12 := '{35D69927-BCFA-4566-9349-6B3E0D154CAC}'
 		/** @param {(sender: WebView2.Core, args: IUnknown) => void} eventHandler */
 		add_StatusBarTextChanged(eventHandler) => (ComCall(102, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2StatusBarTextChangedEventHandler
-		remove_StatusBarTextChanged(token) => ComCall(103, this, 'int64', &token := 0)
+		remove_StatusBarTextChanged(token) => ComCall(103, this, 'int64', token)
 		StatusBarText => (ComCall(104, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 
 		static IID_13 := '{F75F09A8-667E-4983-88D6-C8773F315E84}'
@@ -693,7 +693,7 @@ class WebView2 {
 		static IID_14 := '{6DAA4F10-4A90-4753-8898-77C5DF534165}'
 		/** @param {(sender: WebView2.Core, args: WebView2.ServerCertificateErrorDetectedEventArgs) => void} eventHandler */
 		add_ServerCertificateErrorDetected(eventHandler) => (ComCall(106, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2ServerCertificateErrorDetectedEventHandler
-		remove_ServerCertificateErrorDetected(token) => ComCall(107, this, 'int64', &token := 0)
+		remove_ServerCertificateErrorDetected(token) => ComCall(107, this, 'int64', token)
 		/** @returns {Promise<void>} */
 		ClearServerCertificateErrorActionsAsync() => (ComCall(108, this, 'ptr', WebView2.AsyncHandler(&p)), p)
 
