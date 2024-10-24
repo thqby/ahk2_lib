@@ -1,9 +1,9 @@
 /************************************************************************
  * @description Use Microsoft Edge WebView2 control in ahk.
  * @author thqby
- * @date 2024/09/13
- * @version 2.0.1
- * @webview2version 1.0.2739.15
+ * @date 2024/10/24
+ * @version 2.0.2
+ * @webview2version 1.0.2849.39
  * @see {@link https://www.nuget.org/packages/Microsoft.Web.WebView2/ nuget package}
  * @see {@link https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/ API Reference}
  ***********************************************************************/
@@ -756,6 +756,11 @@ class WebView2 {
 		remove_SaveAsUIShowing(token) => ComCall(129, this, 'int64', token)
 		/** @returns {Promise<WebView2.SAVE_AS_UI_RESULT>} */
 		ShowSaveAsUIAsync() => (ComCall(130, this, 'ptr', WebView2.AsyncHandler(&p)), p)
+
+		static IID_26 := '{806268b8-f897-5685-88e5-c45fca0b1a48}'
+		/** @param {(sender: WebView2.Core, args: WebView2.SaveFileSecurityCheckStartingEventArgs) => void} eventHandler */
+		add_SaveFileSecurityCheckStarting(eventHandler) => (ComCall(131, this, 'ptr', eventHandler, 'int64*', &token := 0), token)
+		remove_SaveFileSecurityCheckStarting(token) => ComCall(132, this, 'int64', token)
 	}
 	class ClientCertificate extends WebView2.Base {
 		static IID := '{e7188076-bcc3-11eb-8529-0242ac130003}'
@@ -1751,6 +1756,21 @@ class WebView2 {
 			set => ComCall(13, this, 'int', Value)
 			get => (ComCall(14, this, 'int*', &value := 0), value)
 		}
+	}
+	class SaveFileSecurityCheckStartingEventArgs extends WebView2.Base {
+		static IID := '{cf4ff1d1-5a67-5660-8d63-ef699881ea65}'
+		CancelSave {
+			get => (ComCall(4, this, 'int*', &value := 0), value)
+			set => ComCall(5, this, 'int', Value)
+		}
+		DocumentOriginUri => (ComCall(6, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		FileExtension => (ComCall(7, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		FilePath => (ComCall(8, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		SuppressDefaultPolicy {
+			get => (ComCall(9, this, 'int*', &value := 0), value)
+			set => ComCall(10, this, 'int', Value)
+		}
+		GetDeferral() => (ComCall(11, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
 	}
 	class ScriptDialogOpeningEventArgs extends WebView2.Base {
 		static IID := '{7390bb70-abe0-4843-9529-f143b31b03d6}'
