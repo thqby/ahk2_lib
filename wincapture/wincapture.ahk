@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description Windows capture library, including `DXGI`, `DWM`, `WGC`. And some bitmap functions.
  * @author thqby
- * @date 2024/03/13
- * @version 1.2.7
+ * @date 2024/10/10
+ * @version 1.2.8
  ***********************************************************************/
 
 class wincapture {
@@ -592,34 +592,19 @@ class BitmapBuffer {
 		static guis := Map()
 		if this.bytespixel < 3
 			return this.cvtBytes(3).show(guiname)
-		if (!guis.Has(guiname)) {
-			g := guis[guiname] := Gui("AlwaysOnTop +Resize -DPIScale", guiname), g.obm := 0
-			g.hdc := { ptr: DllCall("GetDC", "ptr", g.hwnd, "ptr"), __Delete: (s) => DllCall("ReleaseDC", "ptr", g.Hwnd, "ptr", s) }
-			g.mdc := { ptr: DllCall("CreateCompatibleDC", "ptr", g.hdc, "ptr"), __Delete: (s) => DllCall("DeleteDC", "ptr", s) }
-			DllCall("SetStretchBltMode", "Ptr", g.hdc, "int", 4)
-			if this.width > 0.8 * A_ScreenWidth
-				g.Show("NA w" (w := 0.8 * A_ScreenWidth) " h" (w / this.width * this.height))
-			else if this.height > 0.8 * A_ScreenHeight
-				g.Show("NA h" (h := 0.8 * A_ScreenHeight) " w" (h / this.height * this.width))
-			else g.Show("NA w" this.width " h" this.height)
-			g.OnEvent("Close", (g, *) => (DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", g.obm, "ptr")), g.mdc := 0, g.hdc := 0, guis.Delete(guiname)))
-			g.OnEvent("Size", (g, *) => (g.GetClientPos(, , &w, &h), g.obm ? DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020) : 0))
-		} else (g := guis[guiname]).Show("NA")
-
-		hbm := getDIBitmap()
-		g.width := this.width, g.height := this.height
-		if (g.obm)
-			DllCall("DeleteObject", "ptr", DllCall("SelectObject", "ptr", g.mdc, "ptr", hbm, "ptr"))
-		else g.obm := DllCall("SelectObject", "ptr", g.mdc, "ptr", hbm, "ptr")
-		g.GetClientPos(, , &w, &h)
-		DllCall("StretchBlt", "ptr", g.hdc, "int", 0, "int", 0, "int", w, "int", h, "ptr", g.mdc, "int", 0, "int", 0, "int", g.width, "int", g.height, "uint", 0x00CC0020)
-
-		getDIBitmap() {
-			bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, ptr := this.ptr, size := this.size, linebytes := (sw * this.bytespixel + 3) & -4
-			NumPut("uint", 40, "int", this.width, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", linebytes * sh, bm)
-			if linebytes != this.pitch
-				NumPut("int", Integer(this.pitch / this.bytespixel), bm2 := ClipboardAll(bm2), 4), NumPut("uint", size, bm2, 20)
-			return DllCall("CreateDIBitmap", "ptr", g.hdc, "ptr", bm, "uint", 4, "ptr", ptr, "ptr", bm2, "int", 0, "ptr")
+		hdc := { ptr: DllCall("GetDC", "ptr", 0, "ptr"), __Delete: (s) => DllCall("ReleaseDC", "ptr", 0, "ptr", s) }
+		bm := bm2 := Buffer(40, 0), sw := this.width, sh := this.height, linebytes := (sw * this.bytespixel + 3) & -4
+		NumPut("uint", 40, "int", this.width, "int", -sh, "ushort", 1, "ushort", this.bytespixel * 8, "uint", 0, "uint", linebytes * sh, bm)
+		if linebytes != this.pitch
+			NumPut("int", Integer(this.pitch / this.bytespixel), bm2 := ClipboardAll(bm2), 4), NumPut("uint", this.size, bm2, 20)
+		if !g := guis.Get(guiname := String(guiname), 0) {
+			g := guis[guiname] := Gui("AlwaysOnTop +Resize -DPIScale", guiname)
+			g.Name := guiname, g.MarginX := g.MarginY := 0, r := Min(0.8 / Max(sw / A_ScreenWidth, sh / A_ScreenHeight), 1)
+			g.AddPicture('vpic w' Integer(sw * r) ' h' Integer(sh * r))
+			g.OnEvent("Close", (g, *) => guis.Delete(g.Name))
+			g.OnEvent("Size", (g, *) => (g.GetClientPos(, , &w, &h), pic := g["pic"], pic.Move(, , w, h), pic.Value := 'HBITMAP:*' g.hbm.ptr))
 		}
+		g.hbm := { ptr: DllCall("CreateDIBitmap", "ptr", hdc, "ptr", bm, "uint", 4, "ptr", this, "ptr", bm2, "int", 0, "ptr"), __Delete: (s) => DllCall("DeleteObject", "ptr", s) }
+		g.Show("NA")
 	}
 }
