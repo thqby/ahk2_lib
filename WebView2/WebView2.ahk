@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Use Microsoft Edge WebView2 control in ahk.
  * @author thqby
- * @date 2024/10/24
- * @version 2.0.2
+ * @date 2024/12/03
+ * @version 2.0.3
  * @webview2version 1.0.2849.39
  * @see {@link https://www.nuget.org/packages/Microsoft.Web.WebView2/ nuget package}
  * @see {@link https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/ API Reference}
@@ -159,7 +159,8 @@ class WebView2 {
 					if !ptr
 						return
 					obj := ComObjQuery(ptr, Value)
-					ObjRelease(ptr), ObjAddRef(ptr := ComObjValue(obj))
+					if ptr !== nptr := ComObjValue(obj)
+						ObjRelease(ptr), ObjAddRef(ptr := nptr)
 					this.DefineProp('Ptr', { value: ptr })
 				}
 			}
@@ -191,6 +192,18 @@ class WebView2 {
 			if HasMethod(this, 'add_' Name)
 				return { ptr: this.ptr, __Delete: this.remove_%Name%.Bind(, this.add_%Name%(Params[1])) }
 			throw MethodError('This value of type "' this.__Class '" has no method named "' Name '".', -1)
+		}
+		/**
+		 * Convert the object to another interface.
+		 * @param {Class} cls A subclass of WebView2.base
+		 * @param {String} iid
+		 */
+		as(cls, iid?) {
+			ptr := ComObjValue(obj := ComObjQuery(this, iid ?? cls.IID))
+			if ptr !== this.Ptr
+				return cls(ptr)
+			ObjSetBase(this, cls.Prototype)
+			return this
 		}
 		/**
 		 * By default, an object in webview2 can be encapsulated as multiple different ahk objects,
@@ -1395,7 +1408,7 @@ class WebView2 {
 	class ObjectCollectionView extends WebView2.List {
 		static IID := '{0f36fd87-4f69-4415-98da-888f89fb9a33}'
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
-		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr', value := ComValue(0xd, 0)), value)
+		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', value := WebView2.base()), value)
 	}
 	class PermissionRequestedEventArgs extends WebView2.Base {
 		static IID := '{973ae2ef-ff18-4894-8fb2-3c758f046810}'
