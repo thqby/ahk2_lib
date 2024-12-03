@@ -3,7 +3,7 @@
  * @author thqby
  * @date 2024/12/03
  * @version 2.0.3
- * @webview2version 1.0.2849.39
+ * @webview2version 1.0.2903.40
  * @see {@link https://www.nuget.org/packages/Microsoft.Web.WebView2/ nuget package}
  * @see {@link https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/ API Reference}
  ***********************************************************************/
@@ -200,9 +200,11 @@ class WebView2 {
 		 */
 		as(cls, iid?) {
 			ptr := ComObjValue(obj := ComObjQuery(this, iid ?? cls.IID))
-			if ptr !== this.Ptr
-				return cls(ptr)
-			ObjSetBase(this, cls.Prototype)
+			if ptr == this.Ptr
+				ObjSetBase(this, cls.Prototype)
+			else if this is cls
+				ObjRelease(this.Ptr), ObjAddRef(this.Ptr := ptr)
+			else return cls(ptr)
 			return this
 		}
 		/**
@@ -774,6 +776,11 @@ class WebView2 {
 		/** @param {(sender: WebView2.Core, args: WebView2.SaveFileSecurityCheckStartingEventArgs) => void} eventHandler */
 		add_SaveFileSecurityCheckStarting(eventHandler) => (ComCall(131, this, 'ptr', eventHandler, 'int64*', &token := 0), token)
 		remove_SaveFileSecurityCheckStarting(token) => ComCall(132, this, 'int64', token)
+
+		static IID_27 := '{00fbe33b-8c07-517c-aa23-0ddd4b5f6fa0}'
+		/** @param {(sender: WebView2.Core, args: WebView2.ScreenCaptureStartingEventArgs) => void} eventHandler */
+		add_ScreenCaptureStarting(eventHandler) => (ComCall(133, this, 'ptr', eventHandler, 'int64*', &token := 0), token)
+		remove_ScreenCaptureStarting(token) => ComCall(134, this, 'int64', token)
 	}
 	class ClientCertificate extends WebView2.Base {
 		static IID := '{e7188076-bcc3-11eb-8529-0242ac130003}'
@@ -1207,6 +1214,11 @@ class WebView2 {
 
 		static IID_5 := '{99d199c4-7305-11ee-b962-0242ac120002}'
 		FrameId => (ComCall(27, this, 'uint*', &id := 0), id)
+
+		static IID_6 := '{0de611fd-31e9-5ddc-9d71-95eda26eff32}'
+		/** @param {(sender: WebView2.Frame, args: WebView2.ScreenCaptureStartingEventArgs) => void} eventHandler */
+		add_ScreenCaptureStarting(eventHandler) => (ComCall(28, this, 'ptr', eventHandler, 'int64*', &token := 0), token)
+		remove_ScreenCaptureStarting(token) => ComCall(29, this, 'int64', token)
 	}
 	class FrameCreatedEventArgs extends WebView2.Base {
 		static IID := '{4d6e7b5e-9baa-11eb-a8b3-0242ac130003}'
@@ -1408,7 +1420,7 @@ class WebView2 {
 	class ObjectCollectionView extends WebView2.List {
 		static IID := '{0f36fd87-4f69-4415-98da-888f89fb9a33}'
 		Count => (ComCall(3, this, 'uint*', &value := 0), value)
-		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', value := WebView2.base()), value)
+		GetValueAtIndex(index) => (ComCall(4, this, 'uint', index, 'ptr*', value := WebView2.Base()), value)
 	}
 	class PermissionRequestedEventArgs extends WebView2.Base {
 		static IID := '{973ae2ef-ff18-4894-8fb2-3c758f046810}'
@@ -1773,17 +1785,30 @@ class WebView2 {
 	class SaveFileSecurityCheckStartingEventArgs extends WebView2.Base {
 		static IID := '{cf4ff1d1-5a67-5660-8d63-ef699881ea65}'
 		CancelSave {
-			get => (ComCall(4, this, 'int*', &value := 0), value)
-			set => ComCall(5, this, 'int', Value)
+			get => (ComCall(3, this, 'int*', &value := 0), value)
+			set => ComCall(4, this, 'int', Value)
 		}
-		DocumentOriginUri => (ComCall(6, this, 'ptr*', &value := 0), CoTaskMem_String(value))
-		FileExtension => (ComCall(7, this, 'ptr*', &value := 0), CoTaskMem_String(value))
-		FilePath => (ComCall(8, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		DocumentOriginUri => (ComCall(5, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		FileExtension => (ComCall(6, this, 'ptr*', &value := 0), CoTaskMem_String(value))
+		FilePath => (ComCall(7, this, 'ptr*', &value := 0), CoTaskMem_String(value))
 		SuppressDefaultPolicy {
-			get => (ComCall(9, this, 'int*', &value := 0), value)
-			set => ComCall(10, this, 'int', Value)
+			get => (ComCall(8, this, 'int*', &value := 0), value)
+			set => ComCall(9, this, 'int', Value)
 		}
-		GetDeferral() => (ComCall(11, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
+		GetDeferral() => (ComCall(10, this, 'ptr*', deferral := WebView2.Deferral()), deferral)
+	}
+	class ScreenCaptureStartingEventArgs extends WebView2.Base {
+		static IID := '{892c03fd-aee3-5eba-a1fa-6fd2f6484b2b}'
+		Cancel {
+			get => (ComCall(3, this, 'int*', &value := 0), value)
+			set => ComCall(4, this, 'int', Value)
+		}
+		Handled {
+			get => (ComCall(5, this, 'int*', &value := 0), value)
+			set => ComCall(6, this, 'int', Value)
+		}
+		OriginalSourceFrameInfo => (ComCall(7, this, 'ptr*', value := WebView2.FrameInfo()), value)
+		GetDeferral() => (ComCall(8, this, 'ptr*', value := WebView2.Deferral()), value)
 	}
 	class ScriptDialogOpeningEventArgs extends WebView2.Base {
 		static IID := '{7390bb70-abe0-4843-9529-f143b31b03d6}'
@@ -2090,7 +2115,7 @@ class WebView2 {
 	static MOUSE_EVENT_VIRTUAL_KEYS := { NONE: 0, LEFT_BUTTON: 0x1, RIGHT_BUTTON: 0x2, SHIFT: 0x4, CONTROL: 0x8, MIDDLE_BUTTON: 0x10, X_BUTTON1: 0x20, X_BUTTON2: 0x40 }
 	static MOVE_FOCUS_REASON := { PROGRAMMATIC: 0, NEXT: 1, PREVIOUS: 2 }
 	static NAVIGATION_KIND := { RELOAD: 0, BACK_OR_FORWARD: 1, NEW_DOCUMENT: 2 }
-	static NON_CLIENT_REGION_KIND := { NOWHERE: 0, CLIENT: 1, CAPTION: 2 }
+	static NON_CLIENT_REGION_KIND := { NOWHERE: 0, CLIENT: 1, CAPTION: 2, MINIMIZE: 8, MAXIMIZE: 9, LOSE: 20 }
 	static PDF_TOOLBAR_ITEMS := { ITEMS_NONE: 0, ITEMS_SAVE: 0x1, ITEMS_PRINT: 0x2, ITEMS_SAVE_AS: 0x4, ITEMS_ZOOM_IN: 0x8, ITEMS_ZOOM_OUT: 0x10, ITEMS_ROTATE: 0x20, ITEMS_FIT_PAGE: 0x40, ITEMS_PAGE_LAYOUT: 0x80, ITEMS_BOOKMARKS: 0x100, ITEMS_PAGE_SELECTOR: 0x200, ITEMS_SEARCH: 0x400, ITEMS_FULL_SCREEN: 0x800, ITEMS_MORE_SETTINGS: 0x1000 }
 	static PERMISSION_KIND := { UNKNOWN_PERMISSION: 0, MICROPHONE: 1, CAMERA: 2, GEOLOCATION: 3, NOTIFICATIONS: 4, OTHER_SENSORS: 5, CLIPBOARD_READ: 6, MULTIPLE_AUTOMATIC_DOWNLOADS: 7, FILE_READ_WRITE: 8, AUTOPLAY: 9, LOCAL_FONTS: 10, MIDI_SYSTEM_EXCLUSIVE_MESSAGES: 11, WINDOW_MANAGEMENT: 12 }
 	static PERMISSION_STATE := { DEFAULT: 0, ALLOW: 1, DENY: 2 }
