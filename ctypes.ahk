@@ -219,7 +219,7 @@ class ctypes {
 			get => ''
 			set {
 				if !this.fields
-					throw Error('struct is not initialized' )
+					throw Error('struct is not initialized')
 				val := Buffer(this.size), this.assign(this.from_ptr(val.Ptr, , val), Value)
 				this.DefineProp('defval', { get: (*) => val })
 			}
@@ -274,6 +274,7 @@ class ctypes {
 	}
 
 	class array extends Buffer {
+		;@lint-disable class-non-dynamic-member-check
 		static length := 0, size := 0
 		static name => this.Prototype.__Class
 
@@ -402,7 +403,7 @@ class ctypes {
 		for k in ['struct', 'array', 'ptr']
 			this.%k%.Prototype.DefineProp('__root', { get: (this) => this })
 
-		; add types 
+		; add types
 		(tps := this.types).Set('LPSTR', ctypes.str('cp0'), 'LPWSTR', ctypes.str())
 		wintypes := {
 			char: ['INT8', 'signed char'],
@@ -526,7 +527,7 @@ class ctypes {
 					setter := setters.Get(key, 0) || setters[key] := array_wrapper_assign
 			return { get: getter, set: setter }
 			array_wrap_num(this, index) => _ := wrapper(NumGet(this, ele_size * index, type))
-			array_wrap_ptr(this, index) => wrapper.from_ptr(get_buf_ptr(this) + ele_size * index,, this)
+			array_wrap_ptr(this, index) => wrapper.from_ptr(get_buf_ptr(this) + ele_size * index, , this)
 			array_get_num(this, index) => NumGet(this, ele_size * index, type)
 			array_put_num(this, value, index) => NumPut(type, value, this, ele_size * index)
 			array_wrapper_assign(this, value?, index := 0) {
@@ -566,7 +567,7 @@ class ctypes {
 			}
 			tp := ctypes.types.Get(t := tp, 0) ||
 				((tp := RegExReplace(tp, '\*$', , &n)) && n ? ctypes.ptr(tp) :
-				RegExMatch(tp, '^(.+)\[(\d+)\]$', &tp) && ctypes.array(tp[1], Integer(tp[2])))
+					RegExMatch(tp, '^(.+)\[(\d+)\]$', &tp) && ctypes.array(tp[1], Integer(tp[2])))
 		}
 		if HasBase(tp, ctypes.struct) || HasBase(tp, ctypes.array)
 			|| HasProp(tp, 'type') && basic_types.HasOwnProp(type := tp.type) {
@@ -580,6 +581,6 @@ class ctypes {
 			}
 			return { align: align, size: size, pack: pack, type: type, name: tp.name, wrapper: tp }
 		}
-		throw TypeError('unknown type',, t ?? tp)
+		throw TypeError('unknown type', , t ?? tp)
 	}
 }
