@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2024/09/29
- * @version 1.0.7
+ * @date 2024/12/08
+ * @version 1.0.8
  ***********************************************************************/
 
 /**
@@ -60,10 +60,6 @@ class Promise {
 	 * @returns {Promise} A Promise for the completion of which ever callback is executed.
 	 */
 	then(onfulfilled, onrejected := Promise.onRejected) {
-		if !HasMethod(onrejected, , 1)
-			throw TypeError('invalid onRejected')
-		if !HasMethod(onfulfilled, , 1)
-			throw TypeError('invalid onFulfilled')
 		this.handled := true
 		promise2 := { base: Promise.Prototype }
 		promise2.__New(executor)
