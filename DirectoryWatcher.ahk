@@ -1,7 +1,7 @@
 /************************************************************************
  * @author thqby
- * @date 2024/05/26
- * @version 1.0.0
+ * @date 2024/12/11
+ * @version 1.0.1
  ***********************************************************************/
 
 class DirectoryWatcher {
@@ -64,15 +64,14 @@ class DirectoryWatcher {
 		stop(this) => DllCall('CancelIoEx', 'ptr', this.DefineProp('Start', { call: start }), 'ptr', this._overlapped)
 	}
 	__Delete() {
-		static caches := Map()
 		if this.Ptr == -1
 			return
-		if DllCall('CancelIoEx', 'ptr', this, 'ptr', ol := this._overlapped)
-			caches[ol] := 1, ol.Call := (ol, *) => caches.Delete(ol)
+		this._overlapped.SafeDelete(this)
 		DllCall('CloseHandle', 'ptr', this)
 		this.Ptr := -1
 	}
 	Start() => 0
 	Stop() => 0
+	; @lint-disable class-non-dynamic-member-check
 }
 #Include <OVERLAPPED>
