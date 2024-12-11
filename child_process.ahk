@@ -2,8 +2,8 @@
  * @description Create a child process, and read stdout/stderr
  * asynchronously, supporting multiple stdin inputs.
  * @author thqby
- * @date 2024/09/29
- * @version 2.0.1
+ * @date 2024/12/11
+ * @version 2.0.2
  ***********************************************************************/
 
 class child_process {
@@ -224,8 +224,8 @@ class child_process {
 		__Delete() {
 			if this.Ptr == -1
 				return
-			r := DllCall('CancelIoEx', 'ptr', this, 'ptr', 0)
-			DllCall('CloseHandle', 'ptr', this), r && Sleep(200)
+			this._overlapped.SafeDelete(this)
+			DllCall('CloseHandle', 'ptr', this)
 			this.Ptr := -1
 		}
 

@@ -3,8 +3,8 @@
  * for asynchronously overlapping IO. It can be used to asynchronously read
  * and write files, pipes, http, and sockets.
  * @author thqby
- * @date 2024/07/21
- * @version 1.0.2
+ * @date 2024/12/11
+ * @version 1.0.3
  ***********************************************************************/
 
 class OVERLAPPED extends Buffer {
@@ -25,7 +25,7 @@ class OVERLAPPED extends Buffer {
 			Throw OSError()
 		init() {
 			static g := Gui(), offset := 3 * A_PtrSize + 8
-			DllCall('SetParent', 'ptr', hwnd := g.Hwnd, "ptr", -3)
+			DllCall('SetParent', 'ptr', hwnd := g.Hwnd, 'ptr', -3)
 			msg := DllCall('RegisterWindowMessage', 'str', 'AHK_Overlapped_IO_Completion', 'uint')
 			pSend := DllCall('GetProcAddress', 'ptr', DllCall('GetModuleHandle', 'str', 'user32', 'ptr'), 'astr', 'SendMessageW', 'ptr')
 			OnMessage(msg, (overlapped, err, *) => ObjFromPtrAddRef(NumGet(overlapped, offset, 'ptr'))(err, NumGet(overlapped, A_PtrSize, 'uptr')) || 1, 255)
@@ -68,10 +68,7 @@ class OVERLAPPED extends Buffer {
 			return code
 		}
 	}
-	Cancel(hFile) {
-		if !DllCall('CancelIoEx', 'ptr', hFile, 'ptr', this)
-			Throw OSError()
-	}
+	Cancel(hFile) => DllCall('CancelIoEx', 'ptr', hFile, 'ptr', this)
 	Clear() => DllCall('RtlZeroMemory', 'ptr', this, 'uptr', 2 * A_PtrSize + 8)
 	Internal => NumGet(this, 'uptr')
 	InternalHigh => NumGet(this, A_PtrSize, 'uptr')
@@ -79,4 +76,11 @@ class OVERLAPPED extends Buffer {
 	Reset() => DllCall('ResetEvent', 'ptr', this.hEvent)
 	Set() => DllCall('SetEvent', 'ptr', this.hEvent)
 	__Delete() => DllCall('CloseHandle', 'ptr', this.hEvent)
+	SafeDelete(hFile) {
+		static delay_delete := Map()
+		if !this.Cancel(hFile)
+			return
+		delay_delete[this] := true
+		this.Call := (this, *) => delay_delete.Delete(this)
+	}
 }
