@@ -103,7 +103,7 @@ class child_process {
 		}
 		escapeparam(s) {
 			s := StrReplace(s, '"', '\"', , &c)
-			return c || RegExMatch(s, '\s') ? '"' s '"' : s
+			return c || RegExMatch(s, '[\s\v]') ? '"' RegexReplace(s, '(\\*)(?=(\\"|$))', '$1$1') '"' : s
 		}
 	}
 	__Delete() => this.hProcess && (DllCall('CloseHandle', 'ptr', this.hProcess), this.hProcess := 0)

@@ -34,8 +34,7 @@ class WebSockets {
 				Throw OSError(err)
 			respond := '', this.clients[sock := {
 				_server: ObjPtr(this),
-				addr: addr, async: this.async,
-				base: this._clientType.Prototype,
+				addr: addr, base: this._clientType.Prototype,
 				onRead: ServerShakehand, ptr: ptr
 			}] := 1, sock.UpdateMonitoring()
 			ServerShakehand(self, err) {
@@ -95,7 +94,7 @@ class WebSockets {
 			ClientShakehand(this) {
 				this.UpdateMonitoring(0), response := '', endt := A_TickCount + 30000
 				(Socket.Client.Prototype.SendText)(this, request)
-				while SubStr(response .= this.RecvText(, 1000), -4) !== '`r`n`r`n'
+				while SubStr(response .= read_line(), -4) !== '`r`n`r`n'
 					if A_TickCount >= endt
 						Throw TimeoutError()
 				if RegExMatch(response, '^HTTP/1.1 101\b') &&
@@ -103,6 +102,15 @@ class WebSockets {
 					m[1] == sec_accept
 					return this.UpdateMonitoring()
 				Throw Error('fail')
+				read_line() {
+					if '' == s := this.RecvText(, 1000, 2)
+						return
+					if i := InStr(s, '`n')
+						s := SubStr(s, 1, i)
+					l := StrPut(s, 'utf-8') - 1
+					this._recv(buf := Buffer(l), l)
+					return StrGet(buf, 'utf-8')
+				}
 			}
 			sec_key() {
 				NumPut('int64', Random(0, 0xffffffffffffffff), 'int64', Random(0, 0xffffffffffffffff), buf := Buffer(16))
