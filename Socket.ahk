@@ -1,8 +1,8 @@
-﻿/************************************************************************
+/************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2024/04/21
- * @version 1.0.4
+ * @date 2024/12/21
+ * @version 1.0.5
  ***********************************************************************/
 
 /**
@@ -17,10 +17,8 @@ class Socket {
 	static AF := { UNSPEC: 0, UNIX: 1, INET: 2, IPX: 6, APPLETALK: 16, NETBIOS: 17, INET6: 23, IRDA: 26, BTH: 32 }
 	; sock protocol
 	static IPPROTO := { ICMP: 1, IGMP: 2, RFCOMM: 3, TCP: 6, UDP: 17, ICMPV6: 58, RM: 113 }
-	static EVENT := { READ: 1, WRITE: 2, OOB: 4, ACCEPT: 8, CONNECT: 16, CLOSE: 32, QOS: 64, GROUP_QOS: 128, ROUTING_INTERFACE_CHANGE: 256, ADDRESS_LIST_CHANGE: 512 }
 	; flags of send/recv
 	static MSG := { OOB: 1, PEEK: 2, DONTROUTE: 4, WAITALL: 8, INTERRUPT: 0x10, PUSH_IMMEDIATE: 0x20, PARTIAL: 0x8000 }
-	static __sockets_table := Map()
 	static __New() {
 		#DllLoad ws2_32.dll
 		if this != Socket
@@ -31,13 +29,8 @@ class Socket {
 			throw Error('Winsock version 2.2 not available')
 		this.DefineProp('__Delete', { call: (*) => DllCall('ws2_32\WSACleanup') })
 		proto := this.base.Prototype
-		for k, v in { addr: '', async: 0, Ptr: -1 }.OwnProps()
+		for k, v in { addr: '', Ptr: -1 }.OwnProps()
 			proto.DefineProp(k, { value: v })
-		for k in this.EVENT.OwnProps()
-			k := 'On' StrTitle(k), proto.DefineProp(k, { set: get_setter(k) })
-		get_setter(name) {
-			return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
-		}
 	}
 	static GetLastError() => DllCall('ws2_32\WSAGetLastError')
 
@@ -66,70 +59,118 @@ class Socket {
 	}
 
 	class base {
-		__Delete() {
+		__Delete() => this.Close()
+		Close() {
 			if this.Ptr == -1
 				return
-			this.UpdateMonitoring(false)
+			this.UpdateMonitoring(-1)
 			DllCall('ws2_32\closesocket', 'ptr', this)
 			this.Ptr := -1
 		}
 
+		GetLastError() => DllCall('ws2_32\WSAGetLastError')
+
 		; Gets the current message size of the receive buffer.
-		MsgSize() {
-			static FIONREAD := 0x4004667F
-			if DllCall('ws2_32\ioctlsocket', 'ptr', this, 'uint', FIONREAD, 'uint*', &argp := 0)
-				throw OSError(Socket.GetLastError())
-			return argp
+		MsgSize(timeout := 0) {
+			r := ObjHasOwnProp(this, '_async_select') || (timeout || timeout := 0xffffffff) && ioctl(this, 0x8004667E, 1)
+			argp := &size := 0, timeout += A_TickCount
+			loop
+				ioctl(this, 0x4004667F, argp)
+			until size || A_TickCount >= timeout || isClosed(this) || Sleep(10)
+			(r) || ioctl(this, 0x8004667E, 0)
+			return size
+			ioctl(this, cmd, arg) => DllCall('ws2_32\ioctlsocket', 'ptr', this, 'uint', cmd, 'uint*', arg)
+			isClosed(this) => DllCall('ws2_32\recv', 'ptr', this, 'int*', 0, 'int', 1, 'int', 2) <= 0
+				&& Socket.GetLastError() !== 10035
 		}
 
-		; Choose to receive the corresponding event according to the implemented method. `CONNECT` event is unimplemented
+		; Choose to receive the corresponding event according to the implemented method.
 		UpdateMonitoring(start := true) {
-			static FIONBIO := 0x8004667E, id_to_event := init_table()
 			static WM_SOCKET := DllCall('RegisterWindowMessage', 'str', 'WM_AHK_SOCKET', 'uint')
-			flags := 0
-			if start
-				for k, v in Socket.EVENT.OwnProps()
+			static EVENT := { READ: 1, OOB: 4, ACCEPT: 8, CONNECT: 16, CLOSE: 32, QOS: 64 }
+			static mapget := Map.Prototype.Get, sockets_table := Map()
+			static FIONBIO := 0x8004667E, id_to_event := init_table()
+			if start > flags := 0
+				for k, v in EVENT.OwnProps()
 					if this.HasMethod('on' k)
 						flags |= v
 			if flags {
-				Socket.__sockets_table[this.Ptr] := ObjPtr(this), this.async := 1
-				OnMessage(WM_SOCKET, On_WM_SOCKET, 255)
-				this.DefineProp('_async_select', { call: async_select })
-			} else {
-				try {
-					Socket.__sockets_table.Delete(this.Ptr)
-					if !Socket.__sockets_table.Count
-						OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
-				}
+				if !sockets_table.Count
+					OnMessage(WM_SOCKET, On_WM_SOCKET, 255)
+				sockets_table[this.Ptr] := ObjPtr(this)
+				this.DefineProp('_async_select', { call: _async_select })
+				this._define_async_methods(), _async_select(this, flags, 0)
+				return
 			}
-			if this.async {
-				DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
-				if !flags && start && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
-					this.async := 0
+			_async_select(this, 0, 0), this.DeleteProp('_async_select')
+			try sockets_table.Delete(this.Ptr), !sockets_table.Count && OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
+			if start > -1 && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
+				this.OnWrite(0)
+			_async_select(this, _flags, mode := 1) {
+				if mode && flags == _flags := mode > 0 ? flags | _flags : flags & ~_flags
+					return
+				if DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd,
+					'uint', WM_SOCKET, 'uint', flags := _flags)
+				throw OSError(Socket.GetLastError())
 			}
-			return flags
 			static On_WM_SOCKET(wp, lp, *) {
-				if !sk := Socket.__sockets_table.Get(wp, 0)
+				if !sk := mapget(sockets_table, wp, 0)
 					return
-				sk := ObjFromPtrAddRef(sk)
-				sk._async_select(ev := lp & 0xffff, false)
-				sk.On%id_to_event[ev]%((lp >> 16) & 0xffff)
-				sk._async_select(ev)
+				sk := ObjFromPtrAddRef(sk), ev := lp & 0xffff, err := (lp >> 16) & 0xffff
+				switch ev {
+					case 1: sk._async_select(1, -1), sk.OnRead(err), sk._async_select(1)
+					case 2: sk.OnWrite(err)
+					default: sk.On%id_to_event[ev]%(err)
+				}
+				return 0
 			}
-			async_select(this, _flags, add := true) {
-				if _flags=32
-					return
-				if add
-					flags |= _flags
-				else flags &= ~_flags
-				r := DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd, 'uint', WM_SOCKET, 'uint', flags)
-			}
-			init_table() {
-				m := Map()
-				for k, v in Socket.EVENT.OwnProps()
-					m[v] := k
+			static init_table() {
+				m := Map(), proto := Socket.base.Prototype
+				for k, v in EVENT.OwnProps()
+					m[v] := k, proto.DefineProp(k := 'On' StrTitle(k), { set: get_setter(k) })
 				return m
 			}
+			static get_setter(name) {
+				return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
+			}
+		}
+
+		/** @internal */
+		OnWrite(err) => 0
+
+		_define_async_methods() {
+			queue := [], index := ql := 0
+			this._define_methods(_define_async_methods, OnWrite, Send)
+			_define_async_methods(*) => 0
+			Send(this, buf, size?) {
+				if !ql {
+					if 0 > sz := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0) {
+						if 10035 !== err := Socket.GetLastError()
+							throw OSError(err)
+						this._async_select(2)
+					} else return sz
+				}
+				queue.Push(IsSet(size) ? ClipboardAll(buf, size) : buf), ql++
+				return 0
+			}
+			OnWrite(this, err) {
+				while ++index <= ql {
+					if 0 > DllCall('ws2_32\send', 'ptr', this, 'ptr', buf := queue.Delete(index),
+						'int', buf.size, 'int', 0) {
+						queue[index] := buf, err := Socket.GetLastError()
+						break
+					}
+				}
+				if --index && index >= ql >> 1
+					queue.RemoveAt(1, index), ql -= index, index := 0
+				if err && err !== 10035
+					throw OSError(err)
+			}
+		}
+
+		_define_methods(methods*) {
+			for m in methods
+				this.DefineProp(m.Name, { call: m })
 		}
 	}
 
@@ -187,24 +228,21 @@ class Socket {
 
 		/**
 		 * Sends data on a connected socket.
-		 * @param {Buffer | Integer} buf The data to be transmitted.
-		 * @param {Integer} size The size of data.
-		 * @param {Socket.MSG} flags A set of flags that specify the way in which the call is made.
-		 * This parameter is constructed by using the bitwise OR operator with any of the following values.
-		 * - DONTROUTE — Specifies that the data should not be subject to routing. A Windows Sockets service provider can choose to ignore this flag.
-		 * - OOB — Sends OOB data (stream-style socket such as SOCK_STREAM only).
+		 * @param {Buffer|Integer} buf The data to be transmitted.
+		 * @param {Integer} size The size of data. When asynchronous transmission is not completed
+		 * and this parameter is specified, a copy of the data will be created.
 		 * @returns {Integer} The total number of bytes sent.
+		 * Returns 0 when asynchronous sending is not completed.
 		 */
-		Send(buf, size?, flags := 0) {
-			if (size := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', flags)) == -1
+		Send(buf, size?) {
+			if 0 > sz := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0)
 				throw OSError(Socket.GetLastError())
-			return size
+			return sz
 		}
 
-		SendText(text, flags := 0, encoding := 'utf-8') {
-			buf := Buffer(StrPut(text, encoding) - ((encoding = 'utf-16' || encoding = 'cp1200') ? 2 : 1))
-			size := StrPut(text, buf, encoding)
-			return this.Send(buf, size, flags)
+		SendText(text, encoding := 'utf-8') {
+			StrPut(text, buf := Buffer(StrPut(text, encoding) - (encoding = 'utf-16' || encoding = 'cp1200' ? 2 : 1)), encoding)
+			return this.Send(buf)
 		}
 
 		/**
@@ -214,43 +252,36 @@ class Socket {
 		 * - PEEK — Peeks at the incoming data. The data is copied into the buffer, but is not removed from the input queue.
 		 * - WAITALL
 		 */
-		_recv(buf, size, flags := 0) => DllCall('ws2_32\recv', 'ptr', this, 'ptr', buf, 'int', size, 'int', flags)
-
-		Recv(&buf, maxsize := 0x7fffffff, flags := 0, timeout := 0) {
-			endtime := A_TickCount + timeout
-			while !(size := this.MsgSize()) && (!timeout && !this.async || A_TickCount < endtime)
-				Sleep(10)
-			if !size
-				return 0
-			buf := Buffer(size := Min(maxsize, size))
-			if (size := this._recv(buf, size, flags)) == -1
+		_recv(buf, size?, flags := 0) {
+			if 0 > sz := DllCall('ws2_32\recv', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', flags)
 				throw OSError(Socket.GetLastError())
-			return size
+			return sz
 		}
 
-		RecvText(flags := 0, timeout := 0, encoding := 'utf-8') {
-			if size := this.Recv(&buf, , flags, timeout)
-				return StrGet(buf, size, encoding)
+		Recv(timeout := 0, flags := 0) {
+			if !size := this.MsgSize(timeout)
+				return 0
+			this._recv(buf := Buffer(size), size, flags)
+			return buf
+		}
+
+		RecvText(encoding := 'utf-8', timeout := 0, flags := 0) {
+			if buf := this.Recv(timeout, flags)
+				return StrGet(buf, encoding)
 			return ''
 		}
 
-		RecvLine(flags := 0, timeout := 0, encoding := 'utf-8') {
-			static MSG_PEEK := Socket.MSG.PEEK
-			endtime := A_TickCount + timeout, buf := Buffer(1, 0), t := flags | MSG_PEEK
-			while !(pos := InStr((size := this.Recv(&buf, , t, timeout && (endtime - A_TickCount)), StrGet(buf, size, encoding)), '`n')) {
-				if this.async || timeout && A_TickCount > endtime
-					return ''
-				Sleep(10)
-			}
-			size := this.Recv(&buf, pos * (encoding = 'utf-16' || encoding = 'cp1200' ? 2 : 1), flags)
-			return StrGet(buf, size, encoding)
-		}
+		/**
+		 * Start SSL/TLS handshake, establish a secure connection.
+		 * @param {TLSAuth} tls
+		 */
+		StartTLS(tls) => tls.wrapSocket(this)
 	}
 
 	class Server extends Socket.base {
 		/**
 		 * Create a socket server to listen to the specified port or local file.
-		 * @param {Number} port Listen to the specified port, and if it is 0, listen to the pipe or file.
+		 * @param {Integer} port Listen to the specified port, and if it is 0, listen to the pipe or file.
 		 * @param {String} host The name of host, if port is 0, the value should be the path of pipe or file.
 		 * @param {Socket.TYPE} socktype The type of socket.
 		 * @param {Socket.IPPROTO} protocol The protocol of socket.
@@ -301,7 +332,7 @@ class Socket {
 		 */
 		AcceptAsClient(clientType := Socket.Client) {
 			ptr := this._accept(&addr)
-			sock := { base: clientType.Prototype, ptr: ptr, async: this.async, addr: addr }
+			sock := { base: clientType.Prototype, addr: addr, ptr: ptr }
 			sock.UpdateMonitoring()
 			return sock
 		}
