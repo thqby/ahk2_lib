@@ -1,13 +1,14 @@
 ﻿/************************************************************************
  * @description An http server implementation
  * @author thqby
- * @date 2024/10/05
- * @version 0.0.0
+ * @date 2024/12/26
+ * @version 1.0.0
  ***********************************************************************/
 
 #Include <OVERLAPPED>
 #Include <ctypes>
 #Include <compress>
+; #Include <JSON>	; https://github.com/thqby/ahk2_lib/blob/master/JSON.ahk
 
 ;@region http structs
 ;@lint-disable class-non-dynamic-member-check
@@ -137,6 +138,7 @@ class HTTP_RESPONSE extends ctypes.struct {
 ;@endregion
 
 class RequestContext extends OVERLAPPED {
+	static Prototype._requestId := 0
 	__New(request, requestQueue, root) {
 		super.__New(this.on_read_header)
 		this._root := root
@@ -150,7 +152,7 @@ class RequestContext extends OVERLAPPED {
 	}
 	cancel_request(err, *) {
 		this.Call := this.clear
-		if e := DllCall('httpapi\HttpCancelHttpRequest', 'ptr', this._requestQueue, 'int64', this._requestId, 'ptr', this)
+		if DllCall('httpapi\HttpCancelHttpRequest', 'ptr', this._requestQueue, 'int64', this._requestId, 'ptr', this)
 			this()
 		if err && err !== 0xC0000120 {
 			err := OSError(err, -1)
@@ -164,10 +166,13 @@ class RequestContext extends OVERLAPPED {
 		static chunk_size := 64 * 1024
 		hr := this._request
 		if err {
-			if err = 0x80000005 {
-				err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', this._requestQueue,
-					'int64', this._requestId := hr.RequestId, 'uint', 0, 'ptr', hr,
-					'uint', hr.Size := bytes, 'ptr', 0, 'ptr', this, 'uint')
+			if err == 0x80000005 {
+				if 997 !== err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq := this._requestQueue, 'int64', 0, 'uint', 0,
+					'ptr', this._request := HTTP_REQUEST(), 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', this)
+					try this.cancel_request(err)
+				ObjFromPtrAddRef(root := this._root)[this := RequestContext(hr, rq, root)] := 0
+				err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', this._requestId := hr.RequestId,
+					'uint', 0, 'ptr', hr, 'uint', hr.Size := bytes, 'ptr', 0, 'ptr', this)
 				if !err || err == 997
 					return
 			}
@@ -183,9 +188,9 @@ class RequestContext extends OVERLAPPED {
 		if dc.Length > 1 || !InStr('identity,gzip,zstd', m := dc.Length && dc.Pop() || 'identity')
 			this._decoding := 0
 		else this._decoding := m
-		if RegExMatch((kh[22].RawValue || '') ',' (kh[38].RawValue || ''), 'i)\b(gzip|zstd)\b', &m)
-			this._encoding := m[]
-		else this._encoding := 0
+		; if RegExMatch((kh[22].RawValue || '') ',' (kh[38].RawValue || ''), 'i)\b(gzip|zstd)\b', &m)
+		; 	this._encoding := m[]
+		; else this._encoding := 0
 		try {
 			if sz
 				this._chunk := hr.Body := chunk := Buffer(sz), chunk._used := err := 0
@@ -193,12 +198,6 @@ class RequestContext extends OVERLAPPED {
 		} catch MemoryError
 			return this.send_response(, , , 413)
 		(this.Call := this.on_read_body)(this, err, 0)
-		ObjFromPtrAddRef(root := this._root)[this := RequestContext(hr := HTTP_REQUEST(), rq := this._requestQueue, root)] := 1
-		err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', 0, 'uint', 0, 'ptr', hr, 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', this, 'uint')
-		if err == 997
-			return
-		ObjFromPtrAddRef(root).Delete(this)
-		Throw OSError(err)
 	}
 	on_read_body(err, bytes) {
 		if !err {
@@ -210,7 +209,7 @@ class RequestContext extends OVERLAPPED {
 				chunk.Size *= 2
 			}
 			err := DllCall('httpapi\HttpReceiveRequestEntityBody', 'ptr', this._requestQueue, 'int64', this._requestId,
-				'uint', 1, 'ptr', chunk.Ptr + used, 'uint', chunk.Size - used, 'ptr', 0, 'ptr', this, 'uint')
+				'uint', 1, 'ptr', chunk.Ptr + used, 'uint', chunk.Size - used, 'ptr', 0, 'ptr', this)
 			if !err || err == 997
 				return
 		}
@@ -231,7 +230,7 @@ handler:
 			}
 			ObjFromPtrAddRef(hr.UrlContext)(hr, response)
 		} catch Error as e
-			this.send_response(Map('Content-Type', 'text/plain'), e.Message '`n' e.Extra, 500)
+			this.send_error(e)
 		static split2map(ct) {
 			arr := StrSplit('type=' ct, ['=', ';'], ' `t')
 			loop arr.Length >> 1
@@ -326,7 +325,7 @@ handler:
 			data.Size := 108, n := 3
 			if body is HttpServer.File {
 				if !DllCall('GetFileSizeEx', 'ptr', body.handle, 'int64*', &sz := 0)
-					return this.cancel_request(A_LastError)
+					return this.send_error(OSError())
 				if !sz
 					return this.on_send_response(0, 0)
 				NumPut('int64', 1, 'int64', 0, 'int64', -1, 'ptr', body.handle, data, 32)
@@ -334,7 +333,7 @@ handler:
 				if !sz := body.Size
 					return this.on_send_response(0, 0)
 				NumPut('int64', 0, 'ptr', data.Ptr, 'uint', sz, data, 32)
-			} else return this.cancel_request(87)
+			} else return this.send_error(OSError(87))
 			l := StrPut(Format('{:x}`r`n', sz), p := data.Ptr + 96, 'utf-8') - 1
 			NumPut('int64', 0, 'ptr', p, 'uint', l, data)
 			NumPut('int64', 0, 'ptr', p + l - 2, 'uint', 2, p - 32)
@@ -344,14 +343,17 @@ handler:
 			NumPut('int64', 0, 'ptr', p + 32, 'uint', sz, p)
 			p += StrPut(s, p += 32, 'utf-8') - 1
 			p += StrPut(body, p, 'utf-8') - 1
-			StrPut('`r`n', p, 'utf-8')
-			s := StrGet(data.Ptr + 32, 'cp0')
+			StrPut('`r`n', p, 2, 'utf-8')
 		}
 		err := DllCall('httpapi\HttpSendResponseEntityBody', 'ptr', this._requestQueue, 'int64', this._requestId,
 			'uint', this._end ? 0 : 2, 'ushort', n, 'ptr', data, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr', this, 'ptr', 0)
 		if !err || err == 997
 			return data
 		this.cancel_request(err)
+	}
+	send_error(err) {
+		err.DeleteProp('Stack')
+		this.send_response(Map('Content-Type', 'application/json'), JSON.stringify(err), 500)
 	}
 	send_response(response_headers := Map(), body := '', code := 200, reason?) {
 		static CT := 'Content-Type'
@@ -410,16 +412,16 @@ class HttpServer {
 		500, 'Internal Server Error', 501, 'Not Implemented', 502, 'Bad Gateway', 503, 'Service Unavailable', 504, 'Gateway Timeout', 505, 'HTTP Version Not Supported'
 	)
 	__New() {
-		if err := DllCall('httpapi\HttpInitialize', 'uint', 2, 'uint', 1, 'ptr', 0, 'uint') ||
-			DllCall('httpapi\HttpCreateServerSession', 'uint', 2, 'int64*', &sessionId := 0, 'uint', 0, 'uint')
+		if err := DllCall('httpapi\HttpInitialize', 'uint', 2, 'uint', 1, 'ptr', 0) ||
+			DllCall('httpapi\HttpCreateServerSession', 'uint', 2, 'int64*', &sessionId := 0, 'uint', 0)
 			Throw OSError(err)
 		this._urlGroup := HttpServer.UrlGroup(this._id := sessionId,
 			this._requestQueue := HttpServer.RequestQueue(), 30)
 		OVERLAPPED.EnableIoCompletionCallback(rq := this._requestQueue)
 		ol := RequestContext(hr := HTTP_REQUEST(), rq.Ptr, 0)
-		ol._root := ObjPtr(this._overlappeds := Map(ol, 1))
+		ol._root := ObjPtr(this._overlappeds := Map(0, ol))
 		err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', 0, 'uint', 0,
-			'ptr', hr, 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', ol, 'uint')
+			'ptr', hr, 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', ol)
 		if err != 997
 			Throw OSError(err)
 	}
@@ -427,10 +429,12 @@ class HttpServer {
 		if !this._id
 			return
 		this._urlGroup := 0
-		for o in ols := this._overlappeds
-			o.cancel_request(0)
-		while ols.Count
-			Sleep(10)
+		if ols := this.DeleteProp('_overlappeds') {
+			ols.Delete(0).SafeDelete(rq := this._requestQueue.Ptr)
+			for o, v in ols
+				o.Call := unset, DllCall('httpapi\HttpCancelHttpRequest', 'ptr', rq, 'int64', o._requestId, 'ptr', 0) && o()
+			ols.Clear()
+		}
 		this._requestQueue := 0
 		DllCall('httpapi\HttpCloseServerSession', 'int64', this.DeleteProp('_id'))
 		DllCall('httpapi\HttpTerminate', 'uint', 1, 'ptr', 0)
@@ -491,7 +495,7 @@ class HttpServer {
 	class RequestQueue {
 		static Prototype.Ptr := 0
 		__New() {
-			if r := DllCall('httpapi\HttpCreateRequestQueue', 'uint', 2, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr*', this, 'uint')
+			if r := DllCall('httpapi\HttpCreateRequestQueue', 'uint', 2, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr*', this)
 				Throw OSError(r)
 		}
 		__Delete() {
@@ -506,11 +510,11 @@ class HttpServer {
 	class UrlGroup {
 		static Prototype._id := 0
 		__New(sessionId, requestQueue, timeout) {
-			if r := DllCall('httpapi\HttpCreateUrlGroup', 'int64', sessionId, 'int64*', &urlGroupId := 0, 'uint', 0, 'uint')
+			if r := DllCall('httpapi\HttpCreateUrlGroup', 'int64', sessionId, 'int64*', &urlGroupId := 0, 'uint', 0)
 				Throw OSError(r)
 			; HttpServerBindingProperty
 			NumPut('ptr', 1, 'ptr', requestQueue.Ptr, info := Buffer(sz := 2 * A_PtrSize))
-			if r := DllCall('httpapi\HttpSetUrlGroupProperty', 'int64', this._id := urlGroupId, 'int', 7, 'ptr', info, 'uint', sz, 'uint')
+			if r := DllCall('httpapi\HttpSetUrlGroupProperty', 'int64', this._id := urlGroupId, 'int', 7, 'ptr', info, 'uint', sz)
 				Throw OSError(r)
 			; HttpServerTimeoutsProperty
 			NumPut('uint', 1,
@@ -520,7 +524,7 @@ class HttpServer {
 				'ushort', timeout,  ; IdleConnection
 				'ushort', timeout,  ; HeaderWait
 				info := Buffer(sz := 20, 0))
-			if r := DllCall('httpapi\HttpSetUrlGroupProperty', 'int64', urlGroupId, 'int', 3, 'ptr', info, 'uint', sz, 'uint')
+			if r := DllCall('httpapi\HttpSetUrlGroupProperty', 'int64', urlGroupId, 'int', 3, 'ptr', info, 'uint', sz)
 				Throw OSError(r)
 			this._handlers := Map()
 		}
@@ -529,14 +533,14 @@ class HttpServer {
 				DllCall('httpapi\HttpCloseUrlGroup', 'int64', this.DeleteProp('_id'))
 		}
 		Add(url, handler) {
-			if r := DllCall('httpapi\HttpAddUrlToUrlGroup', 'int64', this._id, 'wstr', url, 'int64', ObjPtr(handler), 'uint', 0, 'uint')
+			if r := DllCall('httpapi\HttpAddUrlToUrlGroup', 'int64', this._id, 'wstr', url, 'int64', ObjPtr(handler), 'uint', 0)
 				Throw OSError(r, , r == 5 ? 'Listening on this URL may require administrator privileges!' : url)
 			this._handlers[url] := handler
 		}
 		Remove(url?) {
 			if !IsSet(url)
 				DllCall('httpapi\HttpRemoveUrlFromUrlGroup', 'int64', this._id, 'ptr', 0, 'uint', 1), this._handlers.Clear()
-			else if r := DllCall('httpapi\HttpRemoveUrlFromUrlGroup', 'int64', this._id, 'wstr', url, 'uint', 0, 'uint')
+			else if r := DllCall('httpapi\HttpRemoveUrlFromUrlGroup', 'int64', this._id, 'wstr', url, 'uint', 0)
 				Throw OSError(r)
 			else this._handlers.Delete(url)
 		}
