@@ -2,8 +2,8 @@
  * @description Enhanced version of MCode, which can build machine code supporting import symbol,
  * multi-function export, using strings, setting global variables and other features.
  * @author thqby
- * @date 2024/04/30
- * @version 1.0.0
+ * @date 2024/12/29
+ * @version 1.0.1
  ***********************************************************************/
 
 class MCodeLoader extends Buffer {
@@ -24,9 +24,9 @@ class MCodeLoader extends Buffer {
 	__New(configs, bits := A_PtrSize * 8, import_fn_ptrs := Map()) {
 		if !ObjHasOwnProp(configs, bits)
 			throw ValueError('No matching machine code')
-		import := prop('import'), export := prop('export'), configs := configs.%bits%
+		import := prop('import'), export_ := prop('export'), configs := configs.%bits%
 		if IsObject(configs)
-			import := prop('import') || import, export := prop('export') || export, configs := configs.code
+			import := prop('import') || import, export_ := prop('export') || export_, configs := configs.code
 		if n := RegExMatch(configs, '^[\da-f]{1,8},\K')
 			this.Size := '0x' SubStr(configs, 1, --n - 1), lz_decompress(base64_decode(StrPtr(configs) + n * 2), this)
 		else base64_decode(StrPtr(configs), this)
@@ -40,7 +40,7 @@ class MCodeLoader extends Buffer {
 			exports.Push(n)
 		} else exports.Push(bptr)
 		import_count := read_int()
-		if import_count && eptr <= import_count * 4 + import_entry := read_int() + bptr
+		if import_count && eptr < import_count * 4 + import_entry := read_int() + bptr
 			throw ValueError('unknown/corrupt code format')
 		while n := read_int()
 			if eptr <= n += bptr
@@ -78,12 +78,12 @@ class MCodeLoader extends Buffer {
 		if bits = A_PtrSize * 8 && !DllCall('VirtualProtect', 'ptr', bptr, 'uint', this.Size, 'uint', 0x40, 'uint*', 0)
 			throw OSError()
 
-		if export {
-			if export is String
-				export := StrSplit(export, ',')
+		if export_ {
+			if export_ is String
+				export_ := StrSplit(export_, ',')
 			t := exports, exports := Map()
-			loop Min(export.Length, t.Length)
-				exports[export[A_Index]] := t[A_Index]
+			loop Min(export_.Length, t.Length)
+				exports[export_[A_Index]] := t[A_Index]
 		}
 		this.DefineProp('__Item', { value: exports })
 			.DefineProp('__Enum', { call: (*) => exports.__Enum() })

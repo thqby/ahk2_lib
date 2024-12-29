@@ -507,8 +507,8 @@ next:
 		obj.import := imports, headers.Push(import_section.Symbols.Length, import_section.Offset)
 	else headers.Push(0)
 	headers.Push(relocs*), header_buf := compress_headers(headers)
-	p := basePtr + buf.Size
-	while p > basePtr && !NumGet(p - 1, 'uchar')
+	p := basePtr + buf.Size, lp := Max(p - header_buf.Size, basePtr)
+	while p > lp && !NumGet(p - 1, 'uchar')
 		p--
 	offset := p - basePtr
 	if expand := Max(header_buf.Size + offset - buf.Size, 0)
