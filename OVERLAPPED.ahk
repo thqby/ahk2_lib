@@ -78,9 +78,8 @@ class OVERLAPPED extends Buffer {
 	__Delete() => DllCall('CloseHandle', 'ptr', this.hEvent)
 	SafeDelete(hFile) {
 		static delay_delete := Map()
-		if !this.Cancel(hFile)
-			return
 		delay_delete[this] := true
 		this.Call := (this, *) => delay_delete.Delete(this)
+		this.Cancel(hFile) || this()
 	}
 }
