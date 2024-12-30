@@ -72,6 +72,28 @@ class child_process {
 			Throw OSError()
 		(handles := [stdinR]).__Delete := closehandles
 		this.stdin := FileOpen(stdinW, 'h', encoding_in)
+		this.stdin.DefineProp('Write', { call: Write_by_ControlSend })
+		Write_by_ControlSend(_, text) {
+			bak_A_DetectHiddenWindows:=A_DetectHiddenWindows
+			; bak_A_KeyDelay:=A_KeyDelay
+			A_DetectHiddenWindows:=1
+			; A_KeyDelay:=-1
+			Loop 25 {
+				if (!(hwnd:=WinExist("ahk_pid " this.pid))) {
+					Sleep 10
+				}
+			}
+			buf := {Ptr:StrPtr(text),Size:StrLen(text)<<1}
+			ptr:=buf.Ptr
+			end:=buf.Ptr + buf.Size
+			while (ptr < end) {
+				DllCall("PostMessageW","Ptr",hwnd,"Uint",0x0102,"Ptr",NumGet(ptr,"uShort"),"Ptr",0) ;WM_CHAR
+				ptr+=2
+			}
+			; ControlSend(text,,hwnd) ; Send order isn't consistent with this (it uses both WM_KEYDOWN and WM_CHAR)
+			A_DetectHiddenWindows:=bak_A_DetectHiddenWindows
+			; A_KeyDelay:=bak_A_KeyDelay
+		}
 		static mFlags_offset := (VerCompare(A_AhkVersion, '2.1-alpha.3') >= 0 ? 6 : 4) * A_PtrSize + 8, USEHANDLE := 0x10000000
 		; remove USEHANDLE flag, auto close handle
 		NumPut('uint', NumGet(p := ObjPtr(this.stdin), mFlags_offset, 'uint') & ~USEHANDLE, p, mFlags_offset)
@@ -81,15 +103,15 @@ class child_process {
 		static x64 := A_PtrSize = 8
 		STARTUPINFO := Buffer(sz := x64 ? 104 : 68, 0)
 		PROCESS_INFORMATION := Buffer(x64 ? 24 : 16, 0)
-		NumPut('uint', sz, STARTUPINFO), NumPut('uint', 0x100, STARTUPINFO, x64 ? 60 : 44)
-		NumPut('ptr', stdinR, 'ptr', stdoutW := this.stdout.DeleteProp('hPipeW'), 'ptr',
+		NumPut('uint', sz, STARTUPINFO), NumPut('uint', 0x101, STARTUPINFO, x64 ? 60 : 44)
+		NumPut('ptr', 0, 'ptr', stdoutW := this.stdout.DeleteProp('hPipeW'), 'ptr',
 			stderrW := this.stderr.DeleteProp('hPipeW'), STARTUPINFO, sz - A_PtrSize * 3)
 		handles.Push(stdoutW, stderrW)
 		for h in handles
 			DllCall('SetHandleInformation', 'ptr', h, 'int', 1, 'int', 1)
 
 		if !DllCall('CreateProcess', 'ptr', command ? StrPtr(command) : 0, 'ptr', params ? StrPtr(params) : 0, 'ptr', 0, 'int', 0,
-			'int', true, 'int', flags, 'int', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', STARTUPINFO, 'ptr', PROCESS_INFORMATION)
+			'int', true, 'int', flags | 0x10, 'int', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', STARTUPINFO, 'ptr', PROCESS_INFORMATION)
 			Throw OSError()
 		handles.Push(NumGet(PROCESS_INFORMATION, A_PtrSize, 'ptr')), handles := 0
 		this.hProcess := NumGet(PROCESS_INFORMATION, 'ptr'), this.pid := NumGet(PROCESS_INFORMATION, 2 * A_PtrSize, 'uint')
