@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Implements a javascript-like Promise
  * @author thqby
- * @date 2024/12/08
- * @version 1.0.8
+ * @date 2025/01/03
+ * @version 1.0.9
  ***********************************************************************/
 
 /**
@@ -34,16 +34,16 @@ class Promise {
 		resolve(value := '') {
 			if value is Promise
 				return value.then(resolve, reject)
-			if ObjHasOwnProp(this, 'status')
+			if !this
 				return
 			this.status := 'fulfilled'
-			SetTimer(task.Bind(this, this.value := value), this := -1)
+			SetTimer(task.Bind(this, this.value := value), -1), this := 0
 		}
 		reject(reason?) {
-			if ObjHasOwnProp(this, 'status')
+			if !this
 				return
 			this.status := 'rejected'
-			SetTimer(task.Bind(this, this.reason := reason ?? Error(, -1), 0), this := -1)
+			SetTimer(task.Bind(this, this.reason := reason ?? Error(, -1), 0), -1), this := 0
 		}
 		static task(this, val, index := -1) {
 			cbs := this.DeleteProp('callbacks')
