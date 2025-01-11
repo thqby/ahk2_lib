@@ -14,7 +14,7 @@ class Promise {
 	static Prototype.status := 'pending'
 	/** @type {T} */
 	static Prototype.result := ''
-	static Prototype.awaiting := false
+	static Prototype.thrown := false
 
 	/**
 	 * @param {(resolve [,reject]) => void} executor A callback used to initialize the promise. This callback is passed two arguments:
@@ -52,7 +52,7 @@ class Promise {
 		static task(this) {
 			for cb in this.DeleteProp('callbacks')
 				cb(this)
-			else if !ObjHasOwnProp(this, 'awaiting') && this.status == 'rejected'
+			else if !ObjHasOwnProp(this, 'thrown') && this.status == 'rejected' && this.thrown := true
 				throw this.result
 		}
 	}
@@ -115,13 +115,13 @@ class Promise {
 	 * @returns {T}
 	 */
 	await2(timeout := -1) {
-		end := A_TickCount + timeout, this.awaiting := true, old := Critical(0)
+		end := A_TickCount + timeout, old := Critical(0)
 		while (pending := !ObjHasOwnProp(this, 'status')) && (timeout < 0 || A_TickCount < end)
 			Sleep(1)
-		Critical(old), this.DeleteProp('awaiting')
+		Critical(old)
 		if !pending && this.status == 'fulfilled'
 			return this.result
-		throw pending ? TimeoutError() : this.result
+		throw pending ? TimeoutError() : (this.thrown := true) && this.result
 	}
 	/**
 	 * Waits for a promise to be completed.
@@ -132,16 +132,16 @@ class Promise {
 		static hEvent := DllCall('CreateEvent', 'ptr', 0, 'int', 1, 'int', 0, 'ptr', 0, 'ptr')
 		static __del := { Ptr: hEvent, __Delete: this => DllCall('CloseHandle', 'ptr', this) }
 		static msg := Buffer(4 * A_PtrSize + 16)
-		t := A_TickCount, r := 258, this.awaiting := true, old := Critical(0)
+		t := A_TickCount, r := 258, old := Critical(0)
 		while (pending := !ObjHasOwnProp(this, 'status')) && timeout &&
 			(DllCall('PeekMessage', 'ptr', msg, 'ptr', 0, 'uint', 0, 'uint', 0, 'uint', 0) ||
 				1 == r := DllCall('MsgWaitForMultipleObjects', 'uint', 1, 'ptr*', hEvent,
 					'int', 0, 'uint', timeout, 'uint', 7423, 'uint'))
 			Sleep(-1), (timeout < 0) || timeout := Max(timeout - A_TickCount + t, 0)
-		Critical(old), this.DeleteProp('awaiting')
+		Critical(old)
 		if !pending && this.status == 'fulfilled'
 			return this.result
-		throw pending ? r == 0xffffffff ? OSError() : TimeoutError() : this.result
+		throw pending ? r == 0xffffffff ? OSError() : TimeoutError() : (this.thrown := true) && this.result
 	}
 	static throw() {
 		throw this
