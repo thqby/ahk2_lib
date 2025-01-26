@@ -1,8 +1,8 @@
 /************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2024/12/21
- * @version 1.0.5
+ * @date 2025/01/26
+ * @version 1.0.6
  ***********************************************************************/
 
 /**
@@ -102,7 +102,7 @@ class Socket {
 				this._define_async_methods(), _async_select(this, flags, 0)
 				return
 			}
-			_async_select(this, 0, 0), this.DeleteProp('_async_select')
+			_async_select(this.DefineProp('_async_select', { call: (*) => 0 }), 0, 0)
 			try sockets_table.Delete(this.Ptr), !sockets_table.Count && OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
 			if start > -1 && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
 				this.OnWrite(0)
