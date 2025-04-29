@@ -4,6 +4,7 @@
  * Asynchronous download, you can get the download progress, and call the specified function after the download is complete
  * @param {String} URL The URL address to be downloaded, including the http(s) header
  * @param {String} Filename File path to save. If omit, download to memory
+ * @param {(whrOrErr)=>void} OnFinished Download finished callback function
  * @param {(downloaded_size, total_size)=>void} OnProgress Download progress callback function
  * @return {WinHttpRequest} A WinHttpRequest instance, can be used to terminate the download
  * @example
@@ -14,7 +15,7 @@
  *   (s, t) => ToolTip('downloading: ' s '/' t))
  */
 DownloadAsync(URL, Filename?, OnFinished := 0, OnProgress := 0) {
-	totalsize := -1, file := size := 0, err := OSError(0, -2)
+	totalsize := -1, file := size := 0, err := OSError(0, -1)
 	if IsSet(Filename) && !(file := FileOpen(Filename, 'w-wd'))
 		throw OSError()
 	req := WinHttpRequest(), req.Open('GET', URL, true)
@@ -22,6 +23,7 @@ DownloadAsync(URL, Filename?, OnFinished := 0, OnProgress := 0) {
 		req.OnResponseDataAvailable := (self, pvData, cbElements) => OnProgress(size += cbElements, totalsize)
 		req2 := WinHttpRequest()
 		req2.OnResponseFinished := (whr) => totalsize := Integer(whr.GetResponseHeader('Content-Length'))
+		req2.OnError := finished
 		req2.Open('HEAD', URL, true), req2.Send()
 	}
 	req.OnError := req.OnResponseFinished := finished, req.Send()
@@ -35,12 +37,13 @@ DownloadAsync(URL, Filename?, OnFinished := 0, OnProgress := 0) {
 			try OnFinished(err)
 		} else {
 			if file {
-				pSafeArray := ComObjValue(self.whr.ResponseBody)
+				pSafeArray := ComObjValue(body := self.whr.ResponseBody)
 				pvData := NumGet(pSafeArray + 8 + A_PtrSize, 'ptr')
 				cbElements := NumGet(pSafeArray + 8 + A_PtrSize * 2, 'uint')
 				file.RawWrite(pvData, cbElements), file.Close()
 			}
 			try OnFinished(self)
 		}
+		OnFinished := file := 0
 	}
 }
