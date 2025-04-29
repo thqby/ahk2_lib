@@ -23,7 +23,7 @@ class Socket {
 		#DllLoad ws2_32.dll
 		if this != Socket
 			throw Error('Invalid base class')
-		if err := DllCall('ws2_32\WSAStartup', 'ushort', 0x0202, 'ptr', WSAData := Buffer(394 + A_PtrSize, 0))
+		if err := DllCall('ws2_32\WSAStartup', 'ushort', 0x0202, 'ptr', WSAData := Buffer(408, 0))
 			throw OSError(err)
 		if NumGet(WSAData, 2, 'ushort') != 0x0202
 			throw Error('Winsock version 2.2 not available')
