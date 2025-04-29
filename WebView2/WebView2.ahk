@@ -1,16 +1,16 @@
 /************************************************************************
  * @description Use Microsoft Edge WebView2 control in ahk.
  * @author thqby
- * @date 2025/01/09
- * @version 2.0.4
+ * @date 2025/04/29
+ * @version 2.0.5
  * @webview2version 1.0.2903.40
  * @see {@link https://www.nuget.org/packages/Microsoft.Web.WebView2/ nuget package}
  * @see {@link https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/ API Reference}
  ***********************************************************************/
 class WebView2 {
-	static create(hwnd := -3, callback?, createdEnvironment := 0, dataDir := '', edgeRuntime := '', options := 0, dllPath := 'WebView2Loader.dll') {
+	static create(hwnd := -3, callback?, createdEnvironment := 0, dataDir := '', edgeRuntime := '', options := 0, dllPathOrFuncPtr := 'WebView2Loader.dll') {
 		p := createdEnvironment ? createdEnvironment.CreateCoreWebView2ControllerAsync(hwnd) :
-			this.CreateControllerAsync(hwnd, options, dataDir, edgeRuntime, dllPath)
+			this.CreateControllerAsync(hwnd, options, dataDir, edgeRuntime, dllPathOrFuncPtr)
 		if !IsSet(callback)
 			return p.await()
 		p.then(callback)
@@ -21,11 +21,11 @@ class WebView2 {
 	 * @param {$DirPath} dataDir User data folder.
 	 * @param {$DirPath} edgeRuntime The path of Edge Runtime or Edge(dev..) Bin.
 	 * @param {WebView2.EnvironmentOptions} options The environment options of Edge.
-	 * @param {$FilePath} dllPath The path of `WebView2Loader.dll`.
+	 * @param {$FilePath | Integer} dllPathOrFuncPtr The path of `WebView2Loader.dll` or function address of `CreateCoreWebView2EnvironmentWithOptions`.
 	 * @returns {Promise<WebView2.Controller>}
 	 */
-	static CreateControllerAsync(hwnd := -3, options := 0, dataDir := '', edgeRuntime := '', dllPath := 'WebView2Loader.dll') {
-		return this.CreateEnvironmentAsync(options, dataDir, edgeRuntime, dllPath)
+	static CreateControllerAsync(hwnd := -3, options := 0, dataDir := '', edgeRuntime := '', dllPathOrFuncPtr := 'WebView2Loader.dll') {
+		return this.CreateEnvironmentAsync(options, dataDir, edgeRuntime, dllPathOrFuncPtr)
 			.then(r => r.CreateCoreWebView2ControllerAsync(hwnd))
 	}
 
@@ -34,12 +34,15 @@ class WebView2 {
 	 * @param {WebView2.EnvironmentOptions} options The environment options of Edge.
 	 * @param {$DirPath} dataDir User data folder.
 	 * @param {$DirPath} edgeRuntime The path of Edge Runtime or Edge(dev..) Bin.
-	 * @param {$FilePath} dllPath The path of `WebView2Loader.dll`.
+	 * @param {$FilePath | Integer} dllPathOrFuncPtr The path of `WebView2Loader.dll` or function address of `CreateCoreWebView2EnvironmentWithOptions`.
 	 * @returns {Promise<WebView2.Environment>}
 	 */
-	static CreateEnvironmentAsync(options := 0, dataDir := '', edgeRuntime := '', dllPath := 'WebView2Loader.dll') {
-		if !FileExist(dllPath) && FileExist(t := A_LineFile '\..\' (A_PtrSize * 8) 'bit\WebView2Loader.dll')
-			dllPath := t
+	static CreateEnvironmentAsync(options := 0, dataDir := '', edgeRuntime := '', dllPathOrFuncPtr := 'WebView2Loader.dll') {
+		if !(dllPathOrFuncPtr is Integer) {
+			if !FileExist(dllPathOrFuncPtr) && FileExist(t := A_LineFile '\..\' (A_PtrSize * 8) 'bit\WebView2Loader.dll')
+				dllPathOrFuncPtr := t
+			dllPathOrFuncPtr .= '\CreateCoreWebView2EnvironmentWithOptions'
+		}
 		if !edgeRuntime {
 			ver := '0.0.0.0'
 			for root in [EnvGet('ProgramFiles(x86)'), A_AppData '\..\Local']
@@ -52,7 +55,7 @@ class WebView2 {
 				options.TargetCompatibleBrowserVersion := ver
 			options := this.EnvironmentOptions(options)
 		}
-		DllCall(dllPath '\CreateCoreWebView2EnvironmentWithOptions', 'str', edgeRuntime,
+		DllCall(dllPathOrFuncPtr, 'str', edgeRuntime,
 			'str', dataDir || RegExReplace(A_AppData, 'Roaming$', 'Local\Microsoft\Edge\User Data'), 'ptr', options,
 			'ptr', this.AsyncHandler(&p, this.Environment), 'hresult')
 		return p
@@ -104,8 +107,8 @@ class WebView2 {
 		p := Promise(executor.Bind(&ret, wrapper))
 		return ret
 		static executor(&ret, type, resolve, reject) {
-			(ret := WebView2.Handler(handler)).reject := reject
-			ret.resolve := type ? r => resolve(type(r)) : resolve
+			(ret := WebView2.Handler(handler, 3 - !type)).reject := reject
+			ret.resolve := type && type !== Integer ? r => resolve(type(r)) : resolve
 		}
 		static handler(this, err, result := '') {
 			this := ObjFromPtrAddRef(NumGet(this, A_PtrSize, 'ptr'))
@@ -716,7 +719,7 @@ class WebView2 {
 
 		static IID_3 := '{A0D6DF20-3B92-416D-AA0C-437A9C727857}'
 		/** @returns {Promise<Integer>} */
-		TrySuspendAsync() => (ComCall(68, this, 'ptr', WebView2.AsyncHandler(&p)), p)
+		TrySuspendAsync() => (ComCall(68, this, 'ptr', WebView2.AsyncHandler(&p, Integer)), p)
 		Resume() => ComCall(69, this)
 		IsSuspended => (ComCall(70, this, 'int*', &isSuspended := 0), isSuspended)
 		SetVirtualHostNameToFolderMapping(hostName, folderPath, accessKind) => ComCall(71, this, 'wstr', hostName, 'wstr', folderPath, 'int', accessKind)
@@ -740,7 +743,7 @@ class WebView2 {
 
 		static IID_7 := '{79c24d83-09a3-45ae-9418-487f32a58740}'
 		/** @returns {Promise<Integer>} */
-		PrintToPdfAsync(resultFilePath, printSettings) => (ComCall(80, this, 'wstr', resultFilePath, 'ptr', printSettings, 'ptr', WebView2.AsyncHandler(&p)), p)
+		PrintToPdfAsync(resultFilePath, printSettings) => (ComCall(80, this, 'wstr', resultFilePath, 'ptr', printSettings, 'ptr', WebView2.AsyncHandler(&p, Integer)), p)
 
 		static IID_8 := '{E9632730-6E1E-43AB-B7B8-7B2C9E62E094}'
 		/** @param {(sender: WebView2.Core, args: IUnknown) => void} eventHandler */
@@ -809,7 +812,7 @@ class WebView2 {
 
 		static IID_16 := '{0EB34DC9-9F91-41E1-8639-95CD5943906B}'
 		/** @returns {Promise<WebView2.PRINT_STATUS>} */
-		PrintAsync(printSettings) => (ComCall(113, this, 'ptr', printSettings, 'ptr', WebView2.AsyncHandler(&p)), p)
+		PrintAsync(printSettings) => (ComCall(113, this, 'ptr', printSettings, 'ptr', WebView2.AsyncHandler(&p, Integer)), p)
 		ShowPrintUI(printDialogKind) => ComCall(114, this, 'int', printDialogKind)
 		/** @returns {Promise<WebView2.Stream>} */
 		PrintToPdfStreamAsync(printSettings) => (ComCall(115, this, 'ptr', printSettings, 'ptr', WebView2.AsyncHandler(&p, WebView2.Stream)), p)
@@ -857,7 +860,7 @@ class WebView2 {
 		add_SaveAsUIShowing(eventHandler) => (ComCall(128, this, 'ptr', eventHandler, 'int64*', &token := 0), token)	; ICoreWebView2LaunchingExternalUriSchemeEventHandler
 		remove_SaveAsUIShowing(token) => ComCall(129, this, 'int64', token)
 		/** @returns {Promise<WebView2.SAVE_AS_UI_RESULT>} */
-		ShowSaveAsUIAsync() => (ComCall(130, this, 'ptr', WebView2.AsyncHandler(&p)), p)
+		ShowSaveAsUIAsync() => (ComCall(130, this, 'ptr', WebView2.AsyncHandler(&p, Integer)), p)
 
 		static IID_26 := '{806268b8-f897-5685-88e5-c45fca0b1a48}'
 		/** @param {(sender: WebView2.Core, args: WebView2.SaveFileSecurityCheckStartingEventArgs) => void} eventHandler */
@@ -1338,14 +1341,14 @@ class WebView2 {
 		 * The first parameter of the callback function is the event interface pointer.
 		 * @see https://learn.microsoft.com/en-us/microsoft-edge/webview2/reference/win32/#delegates
 		 */
-		static Call(invoke) {
+		static Call(invoke, numParams := 3) {
 			static pfns := [CallbackCreate(QueryInterface), CallbackCreate(AddRef), CallbackCreate(Release)]
 				.DefineProp('__Delete', { call: __Delete })
 			if HasMethod(invoke) {
 				handler := super(6 * A_PtrSize)
 				NumPut('ptr', handler.Ptr + 2 * A_PtrSize, 'ptr', ObjPtr(handler),
 					'ptr', pfns[1], 'ptr', pfns[2], 'ptr', pfns[3],
-					'ptr', CallbackCreate(invoke, , 3), handler)
+					'ptr', CallbackCreate(invoke, , numParams), handler)
 				handler.__Delete := (this) => CallbackFree(NumGet(this, 5 * A_PtrSize, 'ptr'))
 				return handler
 			}
