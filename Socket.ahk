@@ -1,8 +1,8 @@
 /************************************************************************
  * @description simple implementation of a socket Server and Client.
  * @author thqby
- * @date 2025/02/15
- * @version 1.0.7
+ * @date 2025/05/29
+ * @version 1.0.8
  ***********************************************************************/
 
 /**
@@ -31,14 +31,22 @@ class Socket {
 		proto := this.base.Prototype
 		for k, v in { addr: '', Ptr: -1 }.OwnProps()
 			proto.DefineProp(k, { value: v })
+		for , k in this.Events := Map(1, 'Read', 4, 'OOB', 8, 'Accept', 16, 'Connect', 32, 'Close', 64, 'QOS')
+			proto.DefineProp(k := 'On' k, { set: get_setter(k) })
+		static get_setter(name) {
+			return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
+		}
 	}
 	static GetLastError() => DllCall('ws2_32\WSAGetLastError')
 
 	class AddrInfo {
 		static Prototype.size := 48
-		static Call(host, port := 0) {
-			if port {
-				if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', 0, 'ptr*', &addr := 0)
+		static Call(host, port := 0, family := 0) {
+			if family !== 1 {
+				if family
+					NumPut('int', family, hints := Buffer(48, 0), 4)
+				else hints := 0
+				if err := DllCall('ws2_32\GetAddrInfoW', 'str', host, 'str', String(port), 'ptr', hints, 'ptr*', &addr := 0)
 					throw OSError(err, -1)
 				return { base: this.Prototype, ptr: addr, __Delete: this => DllCall('ws2_32\FreeAddrInfoW', 'ptr', this) }
 			}
@@ -59,6 +67,12 @@ class Socket {
 	}
 
 	class base {
+		__New(family, socktype, protocol) {
+			if this.Ptr != -1
+				this.__Delete()
+			if -1 == this.Ptr := DllCall('ws2_32\socket', 'int', family, 'int', socktype, 'int', protocol, 'ptr')
+				throw OSError(Socket.GetLastError())
+		}
 		__Delete() => this.Close()
 		Close() {
 			if this.Ptr == -1
@@ -66,6 +80,19 @@ class Socket {
 			this.UpdateMonitoring(-1)
 			DllCall('ws2_32\closesocket', 'ptr', this)
 			this.Ptr := -1
+		}
+
+		_send(addrInfo, buf, size?) => DllCall('ws2_32\sendto', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0, 'ptr', addrInfo.addr, 'int', addrInfo.addrlen)
+		Send(addrInfo, buf, size?) {
+			if 0 > sz := this._send(addrInfo, buf, size?)
+				throw OSError(Socket.GetLastError())
+			return sz
+		}
+		_recv(buf, size?, flags := 0, from := 0, &len?) {
+			if 0 > sz := DllCall('ws2_32\recvfrom', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', flags,
+				'ptr', from, from ? 'int*' : 'ptr', from ? &len : 0)
+				throw OSError(Socket.GetLastError())
+			return sz
 		}
 
 		GetLastError() => DllCall('ws2_32\WSAGetLastError')
@@ -87,11 +114,10 @@ class Socket {
 		; Choose to receive the corresponding event according to the implemented method.
 		UpdateMonitoring(start := true) {
 			static WM_SOCKET := DllCall('RegisterWindowMessage', 'str', 'WM_AHK_SOCKET', 'uint')
-			static EVENT := { READ: 1, OOB: 4, ACCEPT: 8, CONNECT: 16, CLOSE: 32, QOS: 64 }
 			static mapget := Map.Prototype.Get, sockets_table := Map()
-			static FIONBIO := 0x8004667E, id_to_event := init_table()
+			static FIONBIO := 0x8004667E, id_to_event := Socket.DeleteProp('Events')
 			if start > flags := 0
-				for k, v in EVENT.OwnProps()
+				for v, k in id_to_event
 					if this.HasMethod('on' k)
 						flags |= v
 			if flags {
@@ -113,7 +139,7 @@ class Socket {
 					return
 				if DllCall('ws2_32\WSAAsyncSelect', 'ptr', this, 'ptr', A_ScriptHwnd,
 					'uint', WM_SOCKET, 'uint', flags := _flags)
-				throw OSError(Socket.GetLastError())
+					throw OSError(Socket.GetLastError())
 			}
 			static On_WM_SOCKET(wp, lp, *) {
 				if !sk := mapget(sockets_table, wp, 0)
@@ -126,50 +152,24 @@ class Socket {
 				}
 				return 0
 			}
-			static init_table() {
-				m := Map(), proto := Socket.base.Prototype
-				for k, v in EVENT.OwnProps()
-					m[v] := k, proto.DefineProp(k := 'On' StrTitle(k), { set: get_setter(k) })
-				return m
-			}
-			static get_setter(name) {
-				return (self, value) => (self.DefineProp(name, { call: value }), self.UpdateMonitoring())
-			}
 		}
 
 		/** @internal */
-		OnWrite(err) => 0
-
-		_define_async_methods() {
-			queue := [], index := ql := 0
-			this._define_methods(_define_async_methods, OnWrite, Send)
-			_define_async_methods(*) => 0
-			Send(this, buf, size?) {
-				if !ql {
-					if 0 > sz := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0) {
-						if 10035 !== err := Socket.GetLastError()
-							throw OSError(err)
-						this._async_select(2)
-					} else return sz
+		OnWrite(err) {
+			queue := this._queue, index := queue.index
+			while ++index <= queue.Length {
+				if 0 > this._send((params := queue.Delete(index))*) {
+					queue[index] := params, err := Socket.GetLastError()
+					break
 				}
-				queue.Push(IsSet(size) ? ClipboardAll(buf, size) : buf), ql++
-				return 0
 			}
-			OnWrite(this, err) {
-				while ++index <= ql {
-					if 0 > DllCall('ws2_32\send', 'ptr', this, 'ptr', buf := queue.Delete(index),
-						'int', buf.size, 'int', 0) {
-						queue[index] := buf, err := Socket.GetLastError()
-						break
-					}
-				}
-				if --index && index >= ql >> 1
-					queue.RemoveAt(1, index), ql -= index, index := 0
-				if err && err !== 10035
-					throw OSError(err)
-			}
+			if --index && index >= queue.Length >> 1
+				queue.RemoveAt(1, index), queue.index := 0
+			else queue.index := index
+			if err && err !== 10035
+				throw OSError(err)
 		}
-
+		_define_async_methods() => 0
 		_define_methods(methods*) {
 			for m in methods
 				this.DefineProp(m.Name, { call: m })
@@ -180,14 +180,14 @@ class Socket {
 		static Prototype.isConnected := 1
 		/**
 		 * Create a socket client to connect to the specified server.
-		 * @param {String} host The name of host, if port is 0, the value should be the path of pipe or file.
-		 * @param {Number} port Listen to the specified port, and if it is 0, listen to the pipe or file.
+		 * @param {String} host The name of host, if port is unset, the value should be the path of pipe or file.
+		 * @param {Number} port Listen to the specified port, and if it is unset, listen to the pipe or file.
 		 * @param {Socket.TYPE} socktype The type of socket.
 		 * @param {Socket.IPPROTO} protocol The protocol of socket.
 		 * @example <caption>https://github.com/thqby/ahk2_lib/issues/27</caption>
 		 */
 		__New(host, port?, socktype := Socket.TYPE.STREAM, protocol := 0) {
-			this.addrinfo := host is Socket.AddrInfo ? host : Socket.AddrInfo(host, port?)
+			this.addrinfo := host is Socket.AddrInfo ? host : Socket.AddrInfo(host, port?, !IsSet(port))
 			last_family := -1, err := ai := 0
 			loop {
 				if !connect(this, A_Index > 1) || err == 10035
@@ -205,9 +205,9 @@ class Socket {
 					}
 				if last_family != ai.family && this.Ptr != -1
 					this.__Delete()
-				while this.Ptr == -1 {
+				if this.Ptr == -1 {
 					if -1 == this.Ptr := DllCall('ws2_32\socket', 'int', ai.family, 'int', socktype, 'int', protocol, 'ptr')
-						return (err := Socket.GetLastError(), connect(this, 1), err)
+						return err := Socket.GetLastError()
 					last_family := ai.family
 				}
 				this.addr := ai.addrstr, this.HasMethod('onConnect') && this.UpdateMonitoring()
@@ -225,9 +225,28 @@ class Socket {
 			else throw OSError(err)
 		}
 
+		_define_async_methods() {
+			if ObjHasOwnProp(this, 'Send')
+				return
+			(this._queue := []).index := 0
+			this._define_methods(Send)
+			Send(this, buf, size?) {
+				if !(queue := this._queue).Length {
+					if 0 > sz := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0) {
+						if 10035 !== err := Socket.GetLastError()
+							throw OSError(err)
+						this._async_select(2)
+					} else return sz
+				}
+				queue.Push([buf, size?])
+				return 0
+			}
+		}
+
 		; When it is a client, it is used to reconnect after disconnecting from the server.
 		ReConnect(next := false) => 10061
 
+		_send(buf, size?) => DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0)
 		/**
 		 * Sends data on a connected socket.
 		 * @param {Buffer|Integer} buf The data to be transmitted.
@@ -237,7 +256,7 @@ class Socket {
 		 * Returns 0 when asynchronous sending is not completed.
 		 */
 		Send(buf, size?) {
-			if 0 > sz := DllCall('ws2_32\send', 'ptr', this, 'ptr', buf, 'int', size ?? buf.Size, 'int', 0)
+			if 0 > sz := this._send(buf, size?)
 				throw OSError(Socket.GetLastError())
 			return sz
 		}
@@ -283,15 +302,15 @@ class Socket {
 	class Server extends Socket.base {
 		/**
 		 * Create a socket server to listen to the specified port or local file.
-		 * @param {Integer} port Listen to the specified port, and if it is 0, listen to the pipe or file.
-		 * @param {String} host The name of host, if port is 0, the value should be the path of pipe or file.
+		 * @param {Integer} port Listen to the specified port, and if it is unset, listen to the pipe or file.
+		 * @param {String} host The name of host, if port is unset, the value should be the path of pipe or file.
 		 * @param {Socket.TYPE} socktype The type of socket.
 		 * @param {Socket.IPPROTO} protocol The protocol of socket.
 		 * @param {Integer} backlog The maximum length of the queue of pending connections.
 		 * @example <caption>https://github.com/thqby/ahk2_lib/issues/27</caption>
 		 */
-		__New(port := 0, host := '0.0.0.0', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
-			_ := ai := Socket.AddrInfo(host, port), ptr := last_family := -1
+		__New(port?, host := '0.0.0.0', socktype := Socket.TYPE.STREAM, protocol := 0, backlog := 4) {
+			_ := ai := Socket.AddrInfo(host, port?, !IsSet(port)), ptr := last_family := -1
 			if ai.family == 1
 				this.file := make_del_token(ai.addrstr)
 			loop {
