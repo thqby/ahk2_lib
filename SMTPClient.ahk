@@ -1,8 +1,8 @@
 /************************************************************************
  * @description A simple smtp client implementation for sending emails.
  * @author thqby
- * @date 2024/12/21
- * @version 0.0.0
+ * @date 2025/06/06
+ * @version 0.0.1
  ***********************************************************************/
 
 #Include <Socket>
@@ -26,9 +26,9 @@ class SMTPClient extends Socket.Client {
 	}
 
 	login(user, pwd) {
-		this._send('AUTH LOGIN', 334)
-		this._send(b64(user), 334)
-		this._send(b64(pwd), 235)
+		this.sendMsg('AUTH LOGIN', 334)
+		this.sendMsg(b64(user), 334)
+		this.sendMsg(b64(pwd), 235)
 		return this
 		b64(str) {
 			StrPut(str, bin := Buffer(StrPut(str, 'utf-8') - 1), 'utf-8'), chars := Ceil(bin.Size * 4 / 3) + 3
@@ -38,15 +38,15 @@ class SMTPClient extends Socket.Client {
 	}
 
 	mail(from, to, subject, body) {
-		this._send('MAIL FROM: <' from '>', 250)
-		this._send('RCPT TO: <' to '>', 250)
-		this._send('DATA', 354)
-		this._send('from: ' from '`r`nto: ' to '`r`nsubject: ' subject '`r`n`r`n' body '`r`n.', 250)
+		this.sendMsg('MAIL FROM: <' from '>', 250)
+		this.sendMsg('RCPT TO: <' to '>', 250)
+		this.sendMsg('DATA', 354)
+		this.sendMsg('from: ' from '`r`nto: ' to '`r`nsubject: ' subject '`r`n`r`n' body '`r`n.', 250)
 		return this
 	}
 
 	quit() {
-		this._send('QUIT', 221)
+		this.sendMsg('QUIT', 221)
 	}
 
 	_expect(code) {
@@ -59,7 +59,7 @@ class SMTPClient extends Socket.Client {
 		return str
 	}
 
-	_send(str, code?) {
+	sendMsg(str, code?) {
 		this.SendText(str '`r`n')
 		IsSet(code) && this._expect(code)
 	}

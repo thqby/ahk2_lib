@@ -132,8 +132,7 @@ class Socket {
 				this.DefineProp('_async_select', { call: (*) => 0 })
 			_async_select(this, 0, 0)
 			try sockets_table.Delete(this.Ptr), !sockets_table.Count && OnMessage(WM_SOCKET, On_WM_SOCKET, 0)
-			if start > -1 && !DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
-				this.OnWrite(0)
+			(start > -1) && DllCall('ws2_32\ioctlsocket', 'ptr', this, 'int', FIONBIO, 'uint*', 0)
 			_async_select(this, _flags, mode := 1) {
 				if mode && flags == _flags := mode > 0 ? flags | _flags : flags & ~_flags
 					return
