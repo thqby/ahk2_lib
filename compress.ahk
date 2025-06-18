@@ -1,8 +1,8 @@
 /************************************************************************
  * @description Read and write gzip/zstd data using libarchive
  * @author thqby
- * @date 2024/07/11
- * @version 1.0.1
+ * @date 2025/06/18
+ * @version 1.0.2
  ***********************************************************************/
 
 class compress {
@@ -50,8 +50,6 @@ class compress {
 	static __New() {
 		#DllLoad archiveint.dll
 		mod := DllCall('GetModuleHandle', 'str', 'archiveint', 'ptr'), is_32bit := A_PtrSize = 4
-		get_proc_addr := !is_32bit ? (name, *) => DllCall('GetProcAddress', 'ptr', mod, 'astr', 'archive_' name, 'ptr')
-			: (name, argsize) => DllCall('GetProcAddress', 'ptr', mod, 'astr', '_archive_' name '@' argsize, 'ptr')
 		base_reader := this.DeleteProp('Prototype'), base_writer := base_reader.Clone(), base_entry := base_reader.Clone()
 		read_new := write_new := entry_new := 0
 		for k, v in Map('reader', 'read', 'writer', 'write', 'entry', 'entry') {
@@ -86,6 +84,8 @@ class compress {
 		base := base_entry
 		load('entry_set_filetype', 'ptr', , 'ushort', unset)
 
+		get_proc_addr(name, argsize) => DllCall('GetProcAddress', 'ptr', mod, 'astr',
+			!is_32bit ? 'archive_' name : '_archive_' name '@' argsize, 'ptr')
 		load(name, args*) {
 			argsize := 0
 			loop is_32bit && (args.Length >> 1)
