@@ -1,8 +1,8 @@
 /************************************************************************
  * @description The Websocket server and client realized by Socket, do not support wss protocol.
  * @author thqby
- * @date 2024/04/22
- * @version 1.0.0
+ * @date 2025/06/27
+ * @version 1.0.1
  ***********************************************************************/
 
 #Include <Socket>
@@ -192,8 +192,8 @@ payload:
 						return this.onClose(0)
 					case 0x9:	; ping
 						if head & 0x8000
-							DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x89, 'int', 2, 'int', 0)
-						else DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x8089, 'int', 6, 'int', 0)
+							DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x8a, 'int', 2, 'int', 0)
+						else DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x808a, 'int', 6, 'int', 0)
 				}
 			goto head
 		}
@@ -236,7 +236,7 @@ payload:
 		SendData(data, size?) => super.Send(this._create_data_frame(data, size ?? data.size))
 		SendText(str) => super.Send(this._create_data_frame(str))
 		; Sends a close frame
-		close() {
+		WsClose() {
 			if ObjHasOwnProp(this, '_server')
 				DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x88, 'int', 2, 'int', 0)
 			else DllCall('ws2_32\send', 'ptr', this, 'ushort*', 0x8088, 'int', 6, 'int', 0)
