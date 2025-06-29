@@ -1,13 +1,13 @@
 ﻿/************************************************************************
- * @description An http server implementation
+ * @description An http/websocket server implementation.
  * @author thqby
- * @date 2024/12/26
- * @version 1.0.0
+ * @date 2025/06/28
+ * @version 2.0.0
  ***********************************************************************/
 
 #Include <OVERLAPPED>
 #Include <ctypes>
-#Include <compress>
+; #Include <compress>	; Used to support gzip/zstd compression and decompression
 ; #Include <JSON>	; https://github.com/thqby/ahk2_lib/blob/master/JSON.ahk
 
 ;@region http structs
@@ -128,7 +128,9 @@ class HTTP_RESPONSE extends ctypes.struct {
 		static init_header_indexes() {
 			m := Map(), m.CaseSense := 0, h := HTTP_REQUEST.KnownHeaders
 			loop 20
-				m[h[A_Index]] := A_Index - 1
+				; http.sys won't send the Connection header if set as a known header
+				if A_Index !== 2
+					m[h[A_Index]] := A_Index - 1
 			for k in ['Accept-Ranges', 'Age', 'Etag', 'Location', 'Proxy-Authenticate', 'Retry-After', 'Server', 'Set-Cookie', 'Vary', 'Www-Authenticate']
 				m[k] := 19 + A_Index
 			return m
@@ -146,21 +148,19 @@ class RequestContext extends OVERLAPPED {
 		this._requestQueue := requestQueue
 	}
 	clear(*) {
-		this.DeleteProp('_request')
-		this.DeleteProp('_cb')
-		ObjFromPtrAddRef(this._root).Delete(this)
+		try ObjFromPtrAddRef(this._root).Delete(ObjPtr(this))
+		for k in ['call', '_request', '_cb']
+			this.DeleteProp(k)
 	}
 	cancel_request(err, *) {
 		this.Call := this.clear
 		if DllCall('httpapi\HttpCancelHttpRequest', 'ptr', this._requestQueue, 'int64', this._requestId, 'ptr', this)
 			this()
-		if err && err !== 0xC0000120 {
-			err := OSError(err, -1)
-			SetTimer(ReThrow, -5)
-		}
-		ReThrow() {
-			throw(err)
-		}
+		; ERROR_CONNECTION_INVALID, STATUS_END_OF_FILE, STATUS_CANCELLED
+		if !err || err == 1229 || err == 0xc0000011 || err == 0xc0000120
+			return
+		err := OSError(err, -1)
+		OutputDebug(JSON.stringify(err))
 	}
 	on_read_header(err, bytes) {
 		static chunk_size := 64 * 1024
@@ -170,13 +170,13 @@ class RequestContext extends OVERLAPPED {
 				if 997 !== err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq := this._requestQueue, 'int64', 0, 'uint', 0,
 					'ptr', this._request := HTTP_REQUEST(), 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', this)
 					try this.cancel_request(err)
-				ObjFromPtrAddRef(root := this._root)[this := RequestContext(hr, rq, root)] := 0
+				ObjFromPtrAddRef(root := this._root)[ObjPtr(this := RequestContext(hr, rq, root))] := this
 				err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', this._requestId := hr.RequestId,
 					'uint', 0, 'ptr', hr, 'uint', hr.Size := bytes, 'ptr', 0, 'ptr', this)
 				if !err || err == 997
 					return
 			}
-			return this.send_response(, , , 500)
+			return this.cancel_request(err)
 		}
 		kh := hr.KnownHeaders
 		dc := (h := kh[13]).RawValueLength ? StrSplit(h.RawValue, ',', ' `t') : []
@@ -217,41 +217,204 @@ class RequestContext extends OVERLAPPED {
 			return this.cancel_request(err)
 handler:
 		IsSet(chunk) && chunk.Size := chunk.DeleteProp('_used')
-		hr := this.DeleteProp('_request')
+		hr := this.DeleteProp('_request'), this.Version := hr.Version
 		response := Map()
 		response.CaseSense := 0
 		response.Call := ObjBindMethod(this, 'send_response')
 		try {
-			if (body := hr.Body) && (dc := this._decoding) {
-				if StrLen(dc) == 4
+			if (body := hr.Body) && (dc := this._decoding) &&
+				(StrLen(dc) == 4 ? IsSet(compress) : !dc := 0) {
+				if dc
 					body := compress.decode(body, , dc)
 				ct := Trim(hr.KnownHeaders[12].RawValue || '')
-				hr.Content := ct && !InStr(ct, ',') ? parse_data(ct, body, 'cp1252') : body
+				hr.Content := ct && !InStr(ct, ',') ? HttpServer.parse_body(ct, body) : body
 			}
 			ObjFromPtrAddRef(hr.UrlContext)(hr, response)
 		} catch Error as e
 			this.send_error(e)
-		static split2map(ct) {
-			arr := StrSplit('type=' ct, ['=', ';'], ' `t')
-			loop arr.Length >> 1
-				i := A_Index << 1, arr[i] := Trim(arr[i], '"')
-			return Map(arr*)
+	}
+	on_send_response(err, bytes) {
+		if err
+			this.cancel_request(err)
+		else if this._end
+			this.clear()
+		else if (res := this._res).Length <= i := ++this._i
+			res.Length := this._i := 0, (this._cb)()
+		else res[i] := this.send_body(res[++i])
+	}
+	send_body(body) {
+		data := Buffer()
+		if IsObject(body) {
+			data.Size := 108, n := 3
+			try {
+				if !sz := body.Size
+					return this.on_send_response(0, 0)
+				if body is HttpServer.File
+					NumPut('int64', 1, 'int64', 0, 'int64', -1, 'ptr', body.handle, data, 32)
+				else NumPut('int64', 0, 'ptr', data.Ptr, 'uint', sz, data, 32)
+			} catch Error as e
+				return this.send_error(e)
+			l := StrPut(Format('{:x}`r`n', sz), p := data.Ptr + 96, 'utf-8') - 1
+			NumPut('int64', 0, 'ptr', p, 'uint', l, data)
+			NumPut('int64', 0, 'ptr', p + l - 2, 'uint', 2, p - 32)
+			data._data := body
+		} else {
+			sz := StrPut(body, 'utf-8'), sz += StrPut(s := Format('{:x}`r`n', sz - 1), 'utf-8')
+			data.Size := sz + 32, n := 1, p := data.Ptr, sz == 5 && this._end := 1
+			NumPut('int64', 0, 'ptr', p + 32, 'uint', sz, p)
+			p += StrPut(s, p += 32, 'utf-8') - 1
+			p += StrPut(body, p, 'utf-8') - 1
+			StrPut('`r`n', p, 2, 'utf-8')
 		}
-		static parse_data(header, data, charset) {
-			header := split2map(header)
-			charset := header.Get('charset', charset)
-			switch type := header['type'] {
-				case 'application/x-www-form-urlencoded':
-					return HttpServer.parse_urlencoded(StrGet(data, charset))
-				case 'application/json':
-					return JSON.parse(StrGet(data, charset))
-				case 'multipart/form-data':
-					return parse_multipart(data, '--' header['boundary'])
-				default:
-					if SubStr(type, 1, 5) == 'text/'
-						return StrGet(data, charset)
-					return data
+		err := DllCall('httpapi\HttpSendResponseEntityBody', 'ptr', this._requestQueue, 'int64', this._requestId,
+			'uint', this._end ? 0 : 2, 'ushort', n, 'ptr', data, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr', this, 'ptr', 0)
+		if !err || err == 997
+			return data
+		this.cancel_request(err)
+	}
+	send_error(err) {
+		err.DeleteProp('Stack')
+		status := err.DeleteProp('status') || 500
+		this.send_response(Map('Content-Type', 'application/json'), JSON.stringify(err), status)
+	}
+	send(params) {
+		(res := this._res).Push(res.Length ? params : this.send_body(params))
+	}
+	send_response(response_headers := Map(), body := '', status := 200, reason?) {
+		static CT := 'Content-Type', file := HttpServer.File
+		static base := file.Prototype.Base := HttpServer.Protocol.Prototype.Base := {}
+		this.Call := this.on_send_response
+		this._res := [hsp := HTTP_RESPONSE()], this._i := 0
+		flags := sz := 0, response_headers.Call := this._cb := (*) => 0
+		hsp.Version := this.DeleteProp('Version')
+		if body == ''
+			goto set_header
+		if (isobj := IsObject(body)) && HasMethod(body) {
+			te := Trim(response_headers.Get('Transfer-Encoding', ''))
+			if !RegExMatch(te, 'i)(^|,)\s*chunked$')
+				response_headers['Transfer-Encoding'] := (te && te ',') 'chunked'
+			flags |= 2, this._cb := ObjBindMethod(body, , response_headers)
+			response_headers.Call := (_, body := '') => this.send(body)
+			goto set_header
+		}
+		ctv := response_headers.Get(CT, ''), data := Buffer(32)
+set_body:
+		if !isobj {
+			response_headers[CT] := (ctv || 'text/html') ';charset=' charset := 'utf-8'
+			StrPut(body, buf := Buffer(n := StrPut(body, charset) - 1), charset), body := buf
+			NumPut('int64', 0, 'ptr', body.Ptr, 'uint', n, data)
+		} else if HasBase(body, base) {
+			if body is file {
+				response_headers.Get(CT, 0) || response_headers[CT] := HttpServer.FindMime(body.path ||
+					(buf := Buffer(256), buf.Size := body.file.RawRead(buf), buf))
+				NumPut('int64', 1, 'int64', 0, 'int64', -1, 'ptr', body.handle, data)
+			} else {
+				flags |= 0x42, status := 101, body.CompleteUpgrade(this)
+				goto set_header
 			}
+		} else if HasProp(body, 'Ptr') && HasProp(body, 'Size') {
+			(!ctv) && response_headers[CT] := HttpServer.FindMime(body) || 'application/octet-stream'
+			NumPut('int64', 0, 'ptr', body.Ptr, 'uint', body.Size, data)
+		} else {
+			isobj := false, !ctv && ctv := 'application/json', body := JSON.stringify(body)
+			goto set_body
+		}
+		hsp._body := body, hsp._data := data, hsp.EntityChunkCount := 1, hsp.pEntityChunks := data.Ptr
+set_header:
+		hsp.set_headers(response_headers), hsp.StatusCode := status
+		if reason ?? reason := HttpServer.StatusCodeReasons.Get(status, '')
+			hsp.Reason := reason, hsp.ReasonLength := StrPut(reason, 'cp0') - 1
+		this._end := !(flags & 2)
+		err := DllCall('httpapi\HttpSendHttpResponse', 'ptr', this._requestQueue, 'int64', this._requestId,
+			'uint', flags, 'ptr', hsp, 'ptr', 0, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr', this, 'ptr', 0)
+		if err && err !== 997
+			this.cancel_request(err)
+	}
+}
+
+class HttpServer {
+	#DllLoad httpapi.dll
+	static Prototype._id := 0
+	static StatusCodeReasons := Map(
+		100, 'Continue', 101, 'Switching Protocols',
+		200, 'OK', 201, 'Created', 202, 'Accepted', 203, 'Non-Authoritative Information', 204, 'No Content', 205, 'Reset Content', 206, 'Partial Content',
+		300, 'Multiple Choices', 301, 'Moved Permanently', 302, 'Found', 303, 'See Other', 304, 'Not Modified', 305, 'Use Proxy', 306, '(Unused)', 307, 'Temporary Redirect',
+		400, 'Bad Request', 401, 'Unauthorized', 402, 'Payment Required', 403, 'Forbidden', 404, 'Not Found', 405, 'Method Not Allowed', 406, 'Not Acceptable', 407, 'Proxy Authentication Required', 408, 'Request Timeout', 409, 'Conflict', 410, 'Gone', 411, 'Length Required', 412, 'Precondition Failed', 413, 'Request Entity Too Large', 414, 'Request-URI Too Long', 415, 'Unsupported Media Type', 416, 'Requested Range Not Satisfiable', 417, 'Expectation Failed',
+		500, 'Internal Server Error', 501, 'Not Implemented', 502, 'Bad Gateway', 503, 'Service Unavailable', 504, 'Gateway Timeout', 505, 'HTTP Version Not Supported'
+	)
+	__New() {
+		if err := DllCall('httpapi\HttpInitialize', 'uint', 2, 'uint', 1, 'ptr', 0) ||
+			DllCall('httpapi\HttpCreateServerSession', 'uint', 2, 'int64*', &sessionId := 0, 'uint', 0)
+			Throw OSError(err)
+		this._urlGroup := HttpServer.UrlGroup(this._id := sessionId,
+			this._requestQueue := HttpServer.RequestQueue(), 30)
+		OVERLAPPED.EnableIoCompletionCallback(rq := this._requestQueue)
+		ols := this._requestQueue._overlappeds
+		ol := RequestContext(hr := HTTP_REQUEST(), rq.Ptr, ObjPtr(ols))
+		ols[ObjPtr(ol)] := ol
+		err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', 0, 'uint', 0,
+			'ptr', hr, 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', ol)
+		if err != 997
+			Throw OSError(err)
+	}
+	__Delete() {
+		if !this._id
+			return
+		this._urlGroup := 0
+		this._requestQueue := 0
+		DllCall('httpapi\HttpCloseServerSession', 'int64', this.DeleteProp('_id'))
+		DllCall('httpapi\HttpTerminate', 'uint', 1, 'ptr', 0)
+	}
+
+	/**
+	 * Adds the specified URL's handler.
+	 * @param {String} url Url string that contains a properly formed
+	 * {@link https://learn.microsoft.com/en-us/windows/desktop/Http/urlprefix-strings UrlPrefix String}
+	 * that identifies the URL to be registered.
+	 * If you are not running as an administrator, specify a port number greater than 1024,
+	 * otherwise you may get an `ERROR_ACCESS_DENIED` error.
+	 * The url format is `http(s)://host(:port)/(path)`, when host is `+`, matches all addresses or domain names.
+	 * @param {(req: HTTP_REQUEST, rsp: Response)=>void} handler Handler of http request
+	 * @typedef {Buffer|Object|HttpServer.File|String|WebSocketSession|(rsp: Response)=>void} ResponseBody
+	 * The types supported by the response body, they will have these conversions:
+	 * - `BufferLike`, `HttpServer.File`: No conversion.
+	 * - `Object`: Converted to json strings.
+	 * - `String`: Encoded as utf-8.
+	 * - `WebSocketSession`: Current connection is upgraded to websocket.
+	 * - `(rsp: Response)=>void`: A callback function that fires when buffered data has been sent.
+	 *   Can be used to persistently send data to the client, and the session ends when empty data is sent.
+	 * @typedef {Map} Response Set the items of the Map as the response headers and call it to send the response body.
+	 * @property {(body?:ResponseBody, status?:Integer, reason?:String)=>void} Call
+	 * By calling it to send the response body to the client, you can specify the http status code and reason on the first call.
+	 * @returns {this}
+	 */
+	Add(url, handler) => (this._urlGroup.Add(url, handler), this)
+	; Removes the specified URL's handler or all handlers.
+	Remove(url?) => this._urlGroup.Remove(url?)
+	; Detect mime of file or data
+	static FindMime(PathOrData) {
+		pPath := pBuf := size := 0
+		if IsObject(PathOrData)
+			pBuf := PathOrData, size := PathOrData.Size
+		else if (pPath := StrPtr(PathOrData), !size := (pBuf := FileRead(PathOrData, 'raw m256')).Size)
+			pBuf := 0
+		loop 2
+			hr := DllCall('urlmon\FindMimeFromData', 'ptr', 0, 'ptr', pPath, 'ptr', pBuf, 'uint', size, 'ptr', 0, 'uint', 0x20, 'ptr*', &pmime := 0, 'uint', 0)
+		until !pBuf || !pPath || (pBuf := size := 0)
+		if hr
+			return
+		mime := StrGet(pmime), DllCall('ole32\CoTaskMemFree', 'ptr', pmime)
+		return mime
+	}
+
+	static parse_body(type, data, charset := 'cp1252') {
+		header := split2map(type)
+		charset := header.Get('charset', charset)
+		switch type := header['type'] {
+			case 'application/x-www-form-urlencoded': return this.parse_urlencoded(StrGet(data, charset))
+			case 'application/json': return JSON.parse(StrGet(data, charset))
+			case 'multipart/form-data': return parse_multipart(data, '--' header['boundary'])
+			default: return SubStr(type, 1, 5) == 'text/' ? StrGet(data, charset) : data
 		}
 		static parse_multipart(buf, boundary) {
 			lb := StrLen(boundary), datas := []
@@ -289,7 +452,7 @@ handler:
 					data.key := cd.Get('name', ''), (fn := cd.Get('filename', 0)) && data.filename := fn
 				else data.name := ''
 				if ct
-					data.value := parse_data(data.type := ct, { ptr: data_start, size: data_end - data_start }, 'utf-8')
+					data.value := HttpServer.parse_body(data.type := ct, { ptr: data_start, size: data_end - data_start }, 'utf-8')
 				else data.value := StrGet(data_start, data_end - data_start, 'cp0')
 			} until t == 2
 			return datas
@@ -309,165 +472,12 @@ handler:
 				return 0
 			}
 		}
-	}
-	on_send_response(err, bytes) {
-		if err
-			this.cancel_request(err)
-		else if this._end
-			this.clear()
-		else if (res := this._res).Length == i := ++this._i
-			res.Length := this._i := 0, (this._cb)()
-		else res[i] := this.send_chunked_body(res[++i])
-	}
-	send_chunked_body(body) {
-		data := Buffer()
-		if IsObject(body) {
-			data.Size := 108, n := 3
-			if body is HttpServer.File {
-				if !DllCall('GetFileSizeEx', 'ptr', body.handle, 'int64*', &sz := 0)
-					return this.send_error(OSError())
-				if !sz
-					return this.on_send_response(0, 0)
-				NumPut('int64', 1, 'int64', 0, 'int64', -1, 'ptr', body.handle, data, 32)
-			} else if HasProp(body, 'Ptr') {
-				if !sz := body.Size
-					return this.on_send_response(0, 0)
-				NumPut('int64', 0, 'ptr', data.Ptr, 'uint', sz, data, 32)
-			} else return this.send_error(OSError(87))
-			l := StrPut(Format('{:x}`r`n', sz), p := data.Ptr + 96, 'utf-8') - 1
-			NumPut('int64', 0, 'ptr', p, 'uint', l, data)
-			NumPut('int64', 0, 'ptr', p + l - 2, 'uint', 2, p - 32)
-		} else {
-			sz := StrPut(body, 'utf-8'), sz += StrPut(s := Format('{:x}`r`n', sz - 1), 'utf-8')
-			data.Size := sz + 32, n := 1, p := data.Ptr, sz == 5 && this._end := 1
-			NumPut('int64', 0, 'ptr', p + 32, 'uint', sz, p)
-			p += StrPut(s, p += 32, 'utf-8') - 1
-			p += StrPut(body, p, 'utf-8') - 1
-			StrPut('`r`n', p, 2, 'utf-8')
+		static split2map(ct) {
+			arr := StrSplit('type=' ct, ['=', ';'], ' `t')
+			loop arr.Length >> 1
+				i := A_Index << 1, arr[i] := Trim(arr[i], '"')
+			return Map(arr*)
 		}
-		err := DllCall('httpapi\HttpSendResponseEntityBody', 'ptr', this._requestQueue, 'int64', this._requestId,
-			'uint', this._end ? 0 : 2, 'ushort', n, 'ptr', data, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr', this, 'ptr', 0)
-		if !err || err == 997
-			return data
-		this.cancel_request(err)
-	}
-	send_error(err) {
-		err.DeleteProp('Stack')
-		this.send_response(Map('Content-Type', 'application/json'), JSON.stringify(err), 500)
-	}
-	send_response(response_headers := Map(), body := '', code := 200, reason?) {
-		static CT := 'Content-Type'
-		this.Call := this.on_send_response
-		this._res := [hsp := HTTP_RESPONSE()], this._i := 0
-		is_end := 1, sz := 0, response_headers.Call := this._cb := (*) => 0
-		if body == ''
-			goto set_header
-		if (isobj := IsObject(body)) && HasMethod(body) {
-			te := Trim(response_headers.Get('Transfer-Encoding', ''))
-			if !RegExMatch(te, 'i)(^|,)\s*chunked$')
-				response_headers['Transfer-Encoding'] := (te && te ',') 'chunked'
-			is_end := 0, this._cb := ObjBindMethod(body, , response_headers)
-			response_headers.Call := (_, body := '') =>
-				(res := this._res).Push(res.Length ? body : this.send_chunked_body(body))
-			goto set_header
-		}
-		ctv := response_headers.Get(CT, ''), data := Buffer(32)
-set_body:
-		if !isobj {
-			response_headers[CT] := (ctv || 'text/html') ';charset=' charset := 'utf-8'
-			StrPut(body, buf := Buffer(n := StrPut(body, charset) - 1), charset), body := buf
-			NumPut('int64', 0, 'ptr', body.Ptr, 'uint', n, data)
-		} else if body is HttpServer.File {
-			response_headers.Get(CT, 0) || response_headers[CT] := HttpServer.FindMime(body.path ||
-				(buf := Buffer(256), buf.Size := body.file.RawRead(buf), buf))
-			NumPut('int64', 1, 'int64', 0, 'int64', -1, 'ptr', body.handle, data)
-		} else if HasProp(body, 'Ptr') {
-			(!ctv) && response_headers[CT] := HttpServer.FindMime(body) || 'application/octet-stream'
-			NumPut('int64', 0, 'ptr', body.Ptr, 'uint', body.Size, data)
-		} else {
-			isobj := false, !ctv && ctv := 'application/json', body := JSON.stringify(body)
-			goto set_body
-		}
-		hsp._body := body, hsp._data := data, hsp.EntityChunkCount := 1, hsp.pEntityChunks := data.Ptr
-set_header:
-		hsp.set_headers(response_headers)
-		hsp.Version := 65537, hsp.StatusCode := code
-		if reason ?? reason := HttpServer.StatusCodeReasons.Get(code, '')
-			hsp.Reason := reason, hsp.ReasonLength := StrPut(reason, 'cp0') - 1
-		err := DllCall('httpapi\HttpSendHttpResponse', 'ptr', this._requestQueue, 'int64', this._requestId,
-			'uint', (this._end := is_end) ? 0 : 2, 'ptr', hsp, 'ptr', 0, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr', this, 'ptr', 0)
-		if err && err !== 997
-			this.cancel_request(err)
-	}
-}
-
-class HttpServer {
-	#DllLoad httpapi.dll
-	static Prototype._id := 0
-	static StatusCodeReasons := Map(
-		100, 'Continue', 101, 'Switching Protocols',
-		200, 'OK', 201, 'Created', 202, 'Accepted', 203, 'Non-Authoritative Information', 204, 'No Content', 205, 'Reset Content', 206, 'Partial Content',
-		300, 'Multiple Choices', 301, 'Moved Permanently', 302, 'Found', 303, 'See Other', 304, 'Not Modified', 305, 'Use Proxy', 306, '(Unused)', 307, 'Temporary Redirect',
-		400, 'Bad Request', 401, 'Unauthorized', 402, 'Payment Required', 403, 'Forbidden', 404, 'Not Found', 405, 'Method Not Allowed', 406, 'Not Acceptable', 407, 'Proxy Authentication Required', 408, 'Request Timeout', 409, 'Conflict', 410, 'Gone', 411, 'Length Required', 412, 'Precondition Failed', 413, 'Request Entity Too Large', 414, 'Request-URI Too Long', 415, 'Unsupported Media Type', 416, 'Requested Range Not Satisfiable', 417, 'Expectation Failed',
-		500, 'Internal Server Error', 501, 'Not Implemented', 502, 'Bad Gateway', 503, 'Service Unavailable', 504, 'Gateway Timeout', 505, 'HTTP Version Not Supported'
-	)
-	__New() {
-		if err := DllCall('httpapi\HttpInitialize', 'uint', 2, 'uint', 1, 'ptr', 0) ||
-			DllCall('httpapi\HttpCreateServerSession', 'uint', 2, 'int64*', &sessionId := 0, 'uint', 0)
-			Throw OSError(err)
-		this._urlGroup := HttpServer.UrlGroup(this._id := sessionId,
-			this._requestQueue := HttpServer.RequestQueue(), 30)
-		OVERLAPPED.EnableIoCompletionCallback(rq := this._requestQueue)
-		ol := RequestContext(hr := HTTP_REQUEST(), rq.Ptr, 0)
-		ol._root := ObjPtr(this._overlappeds := Map(0, ol))
-		err := DllCall('httpapi\HttpReceiveHttpRequest', 'ptr', rq, 'int64', 0, 'uint', 0,
-			'ptr', hr, 'uint', HTTP_REQUEST.size, 'ptr', 0, 'ptr', ol)
-		if err != 997
-			Throw OSError(err)
-	}
-	__Delete() {
-		if !this._id
-			return
-		this._urlGroup := 0
-		if ols := this.DeleteProp('_overlappeds') {
-			ols.Delete(0).SafeDelete(rq := this._requestQueue.Ptr)
-			for o, v in ols
-				o.Call := unset, DllCall('httpapi\HttpCancelHttpRequest', 'ptr', rq, 'int64', o._requestId, 'ptr', 0) && o()
-			ols.Clear()
-		}
-		this._requestQueue := 0
-		DllCall('httpapi\HttpCloseServerSession', 'int64', this.DeleteProp('_id'))
-		DllCall('httpapi\HttpTerminate', 'uint', 1, 'ptr', 0)
-	}
-
-	/**
-	 * Adds the specified URL's handler.
-	 * @param {String} url Url string that contains a properly formed
-	 * {@link https://learn.microsoft.com/en-us/windows/desktop/Http/urlprefix-strings UrlPrefix String}
-	 * that identifies the URL to be registered.
-	 * If you are not running as an administrator, specify a port number greater than 1024,
-	 * otherwise you may get an ERROR_ACCESS_DENIED error.
-	 * @param {(req: HTTP_REQUEST, rsp: Response)=>void} handler Handler of http request
-	 * @typedef {Map} Response
-	 * @property {(body?:String|Buffer|Object, code?:Integer, reason?:String)=>void} Response.Call
-	 */
-	Add(url, handler) => this._urlGroup.Add(url, handler)
-	; Removes the specified URL's handler or all handlers.
-	Remove(url?) => this._urlGroup.Remove(url?)
-	; Detect mime of file or data
-	static FindMime(PathOrData) {
-		pPath := pBuf := size := 0
-		if IsObject(PathOrData)
-			pBuf := PathOrData, size := PathOrData.Size
-		else if (pPath := StrPtr(PathOrData), !size := (pBuf := FileRead(PathOrData, 'raw m256')).Size)
-			pBuf := 0
-		loop 2
-			hr := DllCall('urlmon\FindMimeFromData', 'ptr', 0, 'ptr', pPath, 'ptr', pBuf, 'uint', size, 'ptr', 0, 'uint', 0x20, 'ptr*', &pmime := 0, 'uint', 0)
-		until !pBuf || !pPath || (pBuf := size := 0)
-		if hr
-			return
-		mime := StrGet(pmime), DllCall('ole32\CoTaskMemFree', 'ptr', pmime)
-		return mime
 	}
 
 	static parse_urlencoded(url) {
@@ -489,6 +499,19 @@ class HttpServer {
 				this.file := FileOpen(this.handle := handle, 'h'), this.path := path ?? ''
 			else this.handle := (this.file := FileOpen(this.path := path, 'r')).Handle
 		}
+		size {
+			get {
+				if !DllCall('GetFileSizeEx', 'ptr', this.handle, 'int64*', &sz := 0)
+					throw OSError()
+				return sz
+			}
+		}
+	}
+
+	class Protocol {
+		CompleteUpgrade(ctx) {
+			throw Error('not implemented')
+		}
 	}
 
 	;@region internal classes
@@ -497,13 +520,18 @@ class HttpServer {
 		__New() {
 			if r := DllCall('httpapi\HttpCreateRequestQueue', 'uint', 2, 'ptr', 0, 'ptr', 0, 'uint', 0, 'ptr*', this)
 				Throw OSError(r)
+			this._overlappeds := Map()
 		}
 		__Delete() {
 			if !this.Ptr
 				return
+			ols := this.DeleteProp('_overlappeds')
 			DllCall('httpapi\HttpShutdownRequestQueue', 'ptr', this)
-			DllCall('httpapi\HttpCloseRequestQueue', 'ptr', this)
-			this.Ptr := 0
+			prev := Critical(0), t := A_TickCount + 500
+			while ols.Count && A_TickCount < t
+				Sleep(-1)
+			Critical(prev)
+			DllCall('httpapi\HttpCloseRequestQueue', 'ptr', this.DeleteProp('Ptr'))
 		}
 	}
 
@@ -530,7 +558,7 @@ class HttpServer {
 		}
 		__Delete() {
 			if this._id
-				DllCall('httpapi\HttpCloseUrlGroup', 'int64', this.DeleteProp('_id'))
+				this.Remove(), DllCall('httpapi\HttpCloseUrlGroup', 'int64', this.DeleteProp('_id'))
 		}
 		Add(url, handler) {
 			if r := DllCall('httpapi\HttpAddUrlToUrlGroup', 'int64', this._id, 'wstr', url, 'int64', ObjPtr(handler), 'uint', 0)
@@ -556,6 +584,7 @@ class HttpServer {
 ; handler(req, rsp) {
 ; 	switch req.rawurl {
 ; 		case '/upload': rsp['Content-Type'] := 'application/json', rsp(req.Content)
+;		case '/ws': WebSocketSession(req, rsp).OnMessage := (this, data) => this.Send(data)
 ; 		case '/': rsp('<body><form action="/upload" method="POST" enctype="multipart/form-data"><div>username<input type="text" name="username"></div><div>password<input type="text" name="password"></div><div><button type="submit">submit</button></div></form></body>')
 ; 		default: rsp(, 404)
 ; 	}
