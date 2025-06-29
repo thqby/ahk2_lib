@@ -18,8 +18,10 @@ class JSON {
 	static parse(text, keepbooltype := false, as_map := true) {
 		keepbooltype ? (_true := this.true, _false := this.false, _null := this.null) : (_true := true, _false := false, _null := "")
 		as_map ? (map_set := (maptype := Map).Prototype.Set) : (map_set := (obj, key, val) => obj.%key% := val, maptype := Object)
-		NQ := "", LF := "", LP := 0, P := "", R := ""
-		D := [C := (A := InStr(text := LTrim(text, " `t`r`n"), "[") = 1) ? [] : maptype()], text := LTrim(SubStr(text, 2), " `t`r`n"), L := 1, N := 0, V := K := "", J := C, !(Q := InStr(text, '"') != 1) ? text := LTrim(text, '"') : ""
+		NQ := "", LF := "", LP := 0, P := "", R := "", text := LTrim(text, " `t`r`n")
+		if !text || !InStr('{[', SubStr(text, 1, 1))
+			throw Error("Malformed JSON - unrecognized character.", 0, SubStr(text, 1, 1))
+		D := [C := (A := InStr(text, "[") = 1) ? [] : maptype()], text := LTrim(SubStr(text, 2), " `t`r`n"), L := 1, N := 0, V := K := "", J := C, !(Q := InStr(text, '"') != 1) ? text := SubStr(text, 2) : ""
 		Loop Parse text, '"' {
 			Q := NQ ? 1 : !Q
 			NQ := Q && RegExMatch(A_LoopField, '(^|[^\\])(\\\\)*\\$')
