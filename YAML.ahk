@@ -2,8 +2,8 @@
  * @description: YAML/JSON格式字符串序列化和反序列化, 修改自[HotKeyIt/Yaml](https://github.com/HotKeyIt/Yaml)
  * 修复了一些YAML解析的bug, 增加了对true/false/null类型的支持, 保留了数值的类型
  * @author thqby, HotKeyIt
- * @date 2023/07/31
- * @version 1.0.8
+ * @date 2025/08/22
+ * @version 1.0.9
  ***********************************************************************/
 
 class YAML {
@@ -375,7 +375,7 @@ class YAML {
 						return '"' v '"'
 					} else if (K = 2 && (IsNumber(S) || RegExMatch(S, "i)^(true|false|null)$")))
 						return '"' S '"'
-					return S || '""'
+					return S == '' ? '""' : S
 				default:
 					return S == YAML.true ? "true" : S == YAML.false ? "false" : "null"
 			}
