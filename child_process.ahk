@@ -2,8 +2,8 @@
  * @description Create a child process, and read stdout/stderr
  * asynchronously, supporting multiple stdin inputs.
  * @author thqby
- * @date 2025/01/02
- * @version 2.0.4
+ * @date 2025/10/13
+ * @version 2.0.5
  ***********************************************************************/
 
 class child_process {
@@ -30,7 +30,8 @@ class child_process {
 	 * @param {Integer} [options.hide=true] Hide the subprocess window that would normally be created on Windows systems.
 	 * @param {Integer} [options.flags] The defval equal to `DllCall('GetPriorityClass', 'ptr', -1, 'uint')`,
 	 * the flags that control the priority class and the creation of the process.
-	 * 
+	 * @param {Integer} [options.token] Start the child process using the token.
+	 * Usually, the token of `explorer.exe` has standard permissions and the token of `winlogon.exe` has system permissions.
 	 * @example <caption>Wait for the subprocess to exit and read stdout.</caption>
 	 * ping := child_process('ping -n 1 autohotkey.com')
 	 * ping.wait()
@@ -54,16 +55,16 @@ class child_process {
 	__New(command, args?, options?) {
 		local input, stderr, stdin, stdout := unset
 		hide := true, flags := DllCall('GetPriorityClass', 'ptr', -1, 'uint')
-		encoding := 'cp0', cwd := params := ''
+		encoding := 'cp0', cwd := params := token := ''
 		if IsSet(options)
 			for k, v in options.OwnProps()
-				InStr('input,stdin,stdout,stderr,flags,encoding,cwd,hide', k) && %k% := v
+				InStr('input,stdin,stdout,stderr,flags,encoding,cwd,hide,token', k) && %k% := v
 		ge := encoding is Array ? (e, i) => e.Has(i) ? e[i] : 'cp0' : (e, i) => e
 		if IsSet(args) {
 			if args is Array {
 				for v in args
 					params .= ' ' escapeparam(v)
-			} else params := args
+			} else params := ' ' args
 		} else if SubStr(command, 1, 1) = '"' || !FileExist(command)
 			params := command, command := ''
 
@@ -88,8 +89,10 @@ class child_process {
 		si := Buffer(sz := x64 ? 104 : 68, 0), pi := Buffer(x64 ? 24 : 16, 0)
 		NumPut('uint', sz, si), NumPut('int64', 0x101 | !hide << 32, si, x64 ? 60 : 44)
 		NumPut('ptr', stdin, 'ptr', stdout, 'ptr', stderr, si, sz - A_PtrSize * 3)
-		if !DllCall('CreateProcess', 'ptr', command ? StrPtr(command) : 0, 'ptr', params ? StrPtr(params) : 0, 'ptr', 0, 'int', 0,
-			'int', true, 'int', flags, 'int', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', si, 'ptr', pi)
+		if token ? !DllCall('advapi32\CreateProcessWithTokenW', 'ptr', token, 'uint', 0, 'ptr', command ? StrPtr(command) : 0,
+			'ptr', params ? StrPtr(params) : 0, 'uint', flags, 'ptr', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', si, 'ptr', pi) :
+			!DllCall('CreateProcessW', 'ptr', command ? StrPtr(command) : 0, 'ptr', params ? StrPtr(params) : 0, 'ptr', 0, 'int', 0,
+				'int', true, 'uint', flags, 'ptr', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', si, 'ptr', pi)
 			Throw OSError()
 		handles.Push(NumGet(pi, A_PtrSize, 'ptr')), handles := 0
 		this.hProcess := NumGet(pi, 'ptr'), this.pid := NumGet(pi, 2 * A_PtrSize, 'uint')
@@ -214,6 +217,19 @@ class child_process {
 		read() => this.DeleteProp('data')
 
 		setEncoding(encoding) => 0
+	}
+	class Handle {
+		__New(ptr := 0) => this.ptr := ptr
+		__Delete() => (ptr := this.DeleteProp('ptr')) && DllCall('CloseHandle', 'ptr', ptr)
+	}
+	/** @note This requires administrator permissions. */
+	static getProcessToken(pidOrName) {
+		static h := child_process.Handle
+		if (!hProcess := DllCall('OpenProcess', 'uint', 0x1000, 'int', 0, 'uint', ProcessExist(pidOrName))) ||
+			!DllCall('OpenProcessToken', 'ptr', h(hProcess), 'uint', 2, 'ptr*', hToken := h()) ||
+			!DllCall('advapi32\DuplicateTokenEx', 'ptr', hToken, 'uint', 0x18b, 'ptr', 0, 'uint', 2, 'uint', 1, 'ptr*', tk := h())
+			Throw OSError()
+		return tk
 	}
 }
 #Include <OVERLAPPED>
