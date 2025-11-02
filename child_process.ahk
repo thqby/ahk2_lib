@@ -2,8 +2,8 @@
  * @description Create a child process, and read stdout/stderr
  * asynchronously, supporting multiple stdin inputs.
  * @author thqby
- * @date 2025/10/13
- * @version 2.0.5
+ * @date 2025/11/02
+ * @version 2.0.6
  ***********************************************************************/
 
 class child_process {
@@ -27,6 +27,7 @@ class child_process {
 	 * @param {Integer} [options.stdout] The stdout handle passed to child process.
 	 * @param {Integer|'stdout'} [options.stderr] The stderr handle passed to child process.
 	 * @param {String|Array<String>} [options.encoding='cp0'] The encoding(s) of stdin/stdout/stderr.
+	 * @param {'hide'|'max'|'min'} [options.show] launch maximized/minimized/hidden.
 	 * @param {Integer} [options.hide=true] Hide the subprocess window that would normally be created on Windows systems.
 	 * @param {Integer} [options.flags] The defval equal to `DllCall('GetPriorityClass', 'ptr', -1, 'uint')`,
 	 * the flags that control the priority class and the creation of the process.
@@ -53,12 +54,12 @@ class child_process {
 	 * cmd.terminate()
 	 */
 	__New(command, args?, options?) {
-		local input, stderr, stdin, stdout := unset
-		hide := true, flags := DllCall('GetPriorityClass', 'ptr', -1, 'uint')
-		encoding := 'cp0', cwd := params := token := ''
+		local hide, input, stderr, stdin, stdout := unset
+		flags := DllCall('GetPriorityClass', 'ptr', -1, 'uint')
+		encoding := 'cp0', cwd := params := token := '', show := 0
 		if IsSet(options)
 			for k, v in options.OwnProps()
-				InStr('input,stdin,stdout,stderr,flags,encoding,cwd,hide,token', k) && %k% := v
+				InStr('input,stdin,stdout,stderr,flags,encoding,cwd,hide,token,show', k) && %k% := v
 		ge := encoding is Array ? (e, i) => e.Has(i) ? e[i] : 'cp0' : (e, i) => e
 		if IsSet(args) {
 			if args is Array {
@@ -67,6 +68,15 @@ class child_process {
 			} else params := ' ' args
 		} else if SubStr(command, 1, 1) = '"' || !FileExist(command)
 			params := command, command := ''
+		if IsSet(hide)
+			show := !hide
+		else switch show, 0 {
+			case 0, 1, 2, 3:
+			case 'hide': show := 0
+			case 'min': show := 2
+			case 'max': show := 3
+			default: show := 1
+		}
 
 		static mFlags_offset := (VerCompare(A_AhkVersion, '2.1-alpha.3') >= 0 ? 6 : 4) * A_PtrSize + 8, USEHANDLE := 0x10000000
 		(handles := []).__Delete := closehandles
@@ -87,7 +97,7 @@ class child_process {
 
 		static x64 := A_PtrSize = 8
 		si := Buffer(sz := x64 ? 104 : 68, 0), pi := Buffer(x64 ? 24 : 16, 0)
-		NumPut('uint', sz, si), NumPut('int64', 0x101 | !hide << 32, si, x64 ? 60 : 44)
+		NumPut('uint', sz, si), NumPut('int', 0x101, 'int', show, si, x64 ? 60 : 44)
 		NumPut('ptr', stdin, 'ptr', stdout, 'ptr', stderr, si, sz - A_PtrSize * 3)
 		if token ? !DllCall('advapi32\CreateProcessWithTokenW', 'ptr', token, 'uint', 0, 'ptr', command ? StrPtr(command) : 0,
 			'ptr', params ? StrPtr(params) : 0, 'uint', flags, 'ptr', 0, 'ptr', cwd ? StrPtr(cwd) : 0, 'ptr', si, 'ptr', pi) :
