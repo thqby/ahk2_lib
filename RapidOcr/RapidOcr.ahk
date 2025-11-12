@@ -2,8 +2,8 @@
  * @description [RapidOcrOnnx](https://github.com/RapidAI/RapidOcrOnnx)
  * A cross platform OCR Library based on PaddleOCR & OnnxRuntime
  * @author thqby, RapidAI
- * @date 2024/08/07
- * @version 1.0.2
+ * @date 2025/11/11
+ * @version 1.0.3
  * @license Apache-2.0
  ***********************************************************************/
 
@@ -25,12 +25,14 @@ class RapidOcr {
 	 * MsgBox ocr.ocr_from_file('1.jpg', param)
 	 */
 	__New(config?, dllpath?) {
-		static init := 0
+		static init := DllCall('GetModuleHandleW', 'str', 'RapidOcrOnnx.dll', 'ptr')
 		if (!init) {
 			init := DllCall('LoadLibrary', 'str', dllpath ?? A_LineFile '\..\' (A_PtrSize * 8) 'bit\RapidOcrOnnx.dll', 'ptr')
 			if (!init)
 				Throw OSError()
 		}
+		if !DllCall('GetProcAddress', 'ptr', init, 'astr', 'OcrGetLastError', 'ptr')
+			this.DefineProp('throw', { call: _ => '' })
 		if !IsSet(config)
 			config := { models: A_LineFile '\..\models' }
 		else if !HasProp(config, 'models')
@@ -65,9 +67,15 @@ class RapidOcr {
 					Throw ValueError('No value is specified: ' k)
 			} else if !FileExist(%k%)
 				Throw TargetError('file "' k '" does not exist')
-		this.ptr := DllCall('RapidOcrOnnx\OcrInit', 'str', det_model, 'str', cls_model, 'str', rec_model, 'str', keys_dict, 'int', numThread, 'ptr')
+		if this.ptr := DllCall('RapidOcrOnnx\OcrInit', 'str', det_model, 'str', cls_model, 'str', rec_model, 'str', keys_dict, 'int', numThread, 'ptr')
+			this.throw()
+		else throw MemoryError()
 	}
 	__Delete() => this.ptr && DllCall('RapidOcrOnnx\OcrDestroy', 'ptr', this)
+	throw() {
+		if err := DllCall('RapidOcrOnnx\OcrGetLastError', 'ptr', this, 'astr')
+			throw Error(err, -2)
+	}
 
 	static __cb(i) {
 		static cbs := [
@@ -84,16 +92,16 @@ class RapidOcr {
 	}
 
 	; opencv4.8.0 Mat
-	ocr_from_mat(mat, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectMat', 'ptr', this, 'ptr', mat, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
+	ocr_from_mat(mat, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectMat', 'ptr', this, 'ptr', mat, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : this.throw()
 
 	; path of pic
-	ocr_from_file(picpath, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectFile', 'ptr', this, 'astr', picpath, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
+	ocr_from_file(picpath, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectFile', 'ptr', this, 'astr', picpath, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : this.throw()
 
 	; Image binary data
-	ocr_from_binary(data, size, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBinary', 'ptr', this, 'ptr', data, 'uptr', size, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
+	ocr_from_binary(data, size, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBinary', 'ptr', this, 'ptr', data, 'uptr', size, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : this.throw()
 
 	; `struct BITMAP_DATA { void *bits; uint pitch; int width, height, bytespixel;};`
-	ocr_from_bitmapdata(data, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBitmapData', 'ptr', this, 'ptr', data, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : ''
+	ocr_from_bitmapdata(data, param := 0, allresult := false) => DllCall('RapidOcrOnnx\OcrDetectBitmapData', 'ptr', this, 'ptr', data, 'ptr', param, 'ptr', RapidOcr.__cb(2 - !allresult), 'ptr', ObjPtr(&res)) ? res : this.throw()
 
 	class OcrParam extends Buffer {
 		__New(param?) {
@@ -110,7 +118,7 @@ class RapidOcr {
 			get => NumGet(this, 0, 'int')
 			set => NumPut('int', Value, this, 0)
 		}
-		; default: 1024
+		; default: 0
 		maxSideLen {
 			get => NumGet(this, 4, 'int')
 			set => NumPut('int', Value, this, 4)

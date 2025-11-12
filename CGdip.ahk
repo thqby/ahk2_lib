@@ -740,8 +740,8 @@ class CGdip
 			if (BlockSize > Width || BlockSize > Height)
 				return -2
 
-			E1 := this.LockBits(0, 0, Width, Height, Stride1 := 0, Scan01 := 0, BitmapData1 := "")
-			E2 := cBO.LockBits(0, 0, Width, Height, Stride2 := 0, Scan02 := 0, BitmapData2 := "")
+			E1 := this.LockBits(0, 0, Width, Height, &Stride1 := 0, &Scan01 := 0, &BitmapData1 := "")
+			E2 := cBO.LockBits(0, 0, Width, Height, &Stride2 := 0, &Scan02 := 0, &BitmapData2 := "")
 			if (E1 || E2)
 				return -3
 

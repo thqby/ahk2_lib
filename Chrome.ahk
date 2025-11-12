@@ -45,7 +45,7 @@ class Chrome {
 		if instance := Chrome.FindInstance(exename, DebugPort) {
 			this.PID := instance.PID, http := Chrome._http
 			for url in URLs
-				http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+				http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' UrlEncode(url)), http.Send()
 			return
 		}
 
@@ -108,7 +108,7 @@ class Chrome {
 
 	NewPage(url := 'about:blank', fnCallback?) {
 		http := Chrome._http
-		http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' url), http.Send()
+		http.Open('PUT', 'http://127.0.0.1:' this.DebugPort '/json/new?' UrlEncode(url)), http.Send()
 		if ((PageData := JSON.parse(http.responseText)).Has('webSocketDebuggerUrl'))
 			return Chrome.Page(StrReplace(PageData['webSocketDebuggerUrl'], 'localhost', '127.0.0.1'), fnCallback?)
 	}
@@ -270,5 +270,6 @@ class Chrome {
 	}
 }
 
-; #Include 'JSON.ahk'
-#Include 'WebSocket.ahk'
+; #Include JSON.ahk
+#Include WebSocket.ahk
+#Include UrlEncode.ahk
