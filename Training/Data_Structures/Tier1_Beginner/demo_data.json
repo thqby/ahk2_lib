@@ -1,0 +1,23 @@
+{
+  "filename": "demo_data.ahk",
+  "category": "Data_Structures",
+  "tier": "Tier1_Beginner",
+  "concepts": [
+    "Array Operations",
+    "Map Data Structure"
+  ],
+  "dependencies": [],
+  "key_functions": [
+    "DemoArrays",
+    "DemoMaps",
+    "DemoArrayFiltering",
+    "ArrayToString"
+  ],
+  "classes": [],
+  "has_gui": false,
+  "has_oop": false,
+  "has_com": false,
+  "has_hotkeys": false,
+  "line_count": 50,
+  "complexity_score": 14
+}
