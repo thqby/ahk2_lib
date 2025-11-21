@@ -1,0 +1,228 @@
+{
+  "categories": {
+    "GUI_Applications": {
+      "description": "GUI design patterns, window management, and interactive controls",
+      "keywords": ["gui", "window", "button", "control", "listview", "menu", "dialog", "form", "tab", "treeview"],
+      "patterns": {
+        "GUI_001": "Basic GUI controls and event handling",
+        "GUI_028": "Complex UI components (Calculator, ColorPicker, ContextMenu)",
+        "GUI_030": "Advanced components (DataGrid, DynamicControls, MultiMonitor)",
+        "GUI_035": "Visual components (ProgressBar, SplashScreen, TabControl)",
+        "GUI_037": "State-based UI (TodoList, StateManagement, EventDriven)",
+        "GUI_04X": "Control patterns and GUI methods",
+        "GUI_06X": "Dark mode and theming",
+        "GUI_10X": "ListControl implementations",
+        "GUI_13X": "Complex dashboard UIs",
+        "GUI_15X": "Window management, HUD, overlays"
+      }
+    },
+    "Data_Structures": {
+      "description": "Collection manipulation, data transformation, and storage patterns",
+      "keywords": ["array", "map", "object", "collection", "stack", "queue", "tree", "graph", "hash"],
+      "patterns": {
+        "Data_001": "Media handling, array/map utilities",
+        "Data_004": "Array operations (Chunk, Compact, DepthOf, Difference)",
+        "Data_010": "Destructive operations (Drop, Fill, Flatten)",
+        "Data_015": "Array navigation (Head, IndexOf, Intersection)",
+        "Data_020": "More array ops (Join, Last, Nth)",
+        "Data_025": "Sorting and uniqueness operations",
+        "Data_030": "Set operations (Union, Uniq, Zip)",
+        "Data_053": "Complete working examples",
+        "Data_086": "Advanced structures (Stack, Queue, Best Practices)",
+        "Data_088": "Functional methods (Average, Filter, Find, Range)"
+      }
+    },
+    "Utility_Libraries": {
+      "description": "Practical tools, design patterns, and advanced techniques",
+      "keywords": ["utility", "helper", "tool", "pattern", "hotkey", "clipboard", "file"],
+      "subcategories": {
+        "File_IO": {
+          "range": "Util_001-025",
+          "description": "File and I/O operations"
+        },
+        "Design_Patterns": {
+          "range": "Util_030-080",
+          "description": "OOP patterns (Factory, Singleton, Observer, etc.)"
+        },
+        "Input_Handling": {
+          "range": "Util_047-191",
+          "description": "Hotkeys, hotstrings, input handling"
+        },
+        "Advanced_Language": {
+          "range": "Util_200-310",
+          "description": "COM, .NET, WinRT, Buffer operations"
+        },
+        "OOP_Architecture": {
+          "range": "Util_306-400",
+          "description": "Object-oriented design and architecture"
+        },
+        "Concurrency": {
+          "range": "Util_340-350",
+          "description": "Event-driven, async, message patterns"
+        },
+        "GoF_Patterns": {
+          "range": "Util_351-395",
+          "description": "Gang of Four design patterns"
+        },
+        "Built_In_Functions": {
+          "range": "Util_399-500",
+          "description": "AHK v2 built-in function reference"
+        },
+        "Extensions": {
+          "range": "Util_495-533",
+          "description": "Utilities and helper extensions"
+        }
+      }
+    }
+  },
+  "tier_definitions": {
+    "Tier1_Beginner": {
+      "complexity_range": [0, 30],
+      "topics": [
+        "Hello World GUI",
+        "Button clicks and events",
+        "Basic array operations",
+        "File reading/writing",
+        "Single hotkey binding",
+        "String concatenation",
+        "Basic math operations"
+      ],
+      "examples": [
+        "GUI_01*",
+        "Data_001-010",
+        "Util_001-025",
+        "Util_110-130",
+        "Util_419-440"
+      ]
+    },
+    "Tier2_Intermediate": {
+      "complexity_range": [31, 60],
+      "topics": [
+        "Multi-pane GUIs with tabs",
+        "Event-driven architecture",
+        "Higher-order functions",
+        "Hotkey context sensitivity",
+        "Class inheritance",
+        "Property getters/setters",
+        "Data structure manipulation"
+      ],
+      "examples": [
+        "GUI_028-040",
+        "Data_020-040",
+        "Util_030-080",
+        "Util_131-191",
+        "Util_306-365"
+      ]
+    },
+    "Tier3_Advanced": {
+      "complexity_range": [61, 100],
+      "topics": [
+        "Multi-window applications",
+        ".NET/COM interop",
+        "Concurrency and async",
+        "Design pattern implementations",
+        "Full MVC applications",
+        "Custom event systems",
+        "Buffer manipulation",
+        "DllCall and WinAPI"
+      ],
+      "examples": [
+        "GUI_13X-167",
+        "Util_200-250",
+        "Util_315-350",
+        "Util_372-395"
+      ]
+    }
+  },
+  "concept_mappings": {
+    "GUI Creation": {
+      "patterns": ["Gui()", ".Show()", ".Add*()"],
+      "tier": 1,
+      "category": "GUI_Applications"
+    },
+    "Object-Oriented Programming": {
+      "patterns": ["class", "extends", "super", "__New", "__Delete"],
+      "tier": 2,
+      "category": "All"
+    },
+    "COM Automation": {
+      "patterns": ["ComObject()", "ComObjActive()", "ComObjGet()"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    "Hotkeys": {
+      "patterns": ["Hotkey()", "::", "HotIf"],
+      "tier": 1,
+      "category": "Utility_Libraries"
+    },
+    "Event Handling": {
+      "patterns": [".OnEvent()", "OnMessage()", "OnExit()"],
+      "tier": 2,
+      "category": "All"
+    },
+    "Factory Pattern": {
+      "patterns": ["Factory", "Create*", "Make*"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    "Observer Pattern": {
+      "patterns": ["Observer", "Subscribe", "Notify", "Attach", "Detach"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    "Map Data Structure": {
+      "patterns": ["Map()", ".Set()", ".Get()", ".Has()"],
+      "tier": 1,
+      "category": "Data_Structures"
+    },
+    "Array Operations": {
+      "patterns": ["Array()", ".Push()", ".Pop()", "for...in"],
+      "tier": 1,
+      "category": "Data_Structures"
+    },
+    "Buffer Manipulation": {
+      "patterns": ["Buffer()", "NumPut()", "NumGet()", "StrPut()", "StrGet()"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    "DllCall/WinAPI": {
+      "patterns": ["DllCall()", "user32.dll", "kernel32.dll"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    ".NET Interop": {
+      "patterns": ["CLR_", "System.", "mscorlib"],
+      "tier": 3,
+      "category": "Utility_Libraries"
+    },
+    "Regular Expressions": {
+      "patterns": ["RegExMatch()", "RegExReplace()"],
+      "tier": 2,
+      "category": "All"
+    },
+    "Properties": {
+      "patterns": ["get {", "set {", "[]"],
+      "tier": 2,
+      "category": "All"
+    },
+    "Static Methods": {
+      "patterns": ["static "],
+      "tier": 2,
+      "category": "All"
+    },
+    "Callbacks": {
+      "patterns": ["ObjBindMethod()", "CallbackCreate()", "Func()"],
+      "tier": 2,
+      "category": "Utility_Libraries"
+    }
+  },
+  "quality_criteria": {
+    "syntax_correctness": "Must be valid AHK v2 syntax",
+    "v2_compliance": "Uses modern v2 syntax (not v1 compatibility)",
+    "pattern_clarity": "Clear, focused purpose",
+    "oop_practices": "Proper class structure when applicable",
+    "documentation": "Comments explaining key concepts",
+    "reusability": "Patterns applicable to other projects",
+    "error_handling": "Edge cases and validation present"
+  }
+}

@@ -1,0 +1,34 @@
+; Demo GUI Application
+; A simple example demonstrating basic GUI creation and event handling
+
+#Requires AutoHotkey v2.0
+
+; Create a simple GUI window
+CreateDemoGUI() {
+    ; Initialize GUI
+    myGui := Gui("+Resize", "Demo Application")
+    myGui.SetFont("s10", "Segoe UI")
+
+    ; Add controls
+    myGui.Add("Text", "x10 y10 w200", "Enter your name:")
+    nameEdit := myGui.Add("Edit", "x10 y35 w200", "")
+
+    ; Add button with event handler
+    submitBtn := myGui.Add("Button", "x10 y65 w100", "Submit")
+    submitBtn.OnEvent("Click", (*) => ShowGreeting(nameEdit.Value))
+
+    ; Show the GUI
+    myGui.Show("w220 h120")
+}
+
+; Event handler for button click
+ShowGreeting(name) {
+    if (name = "") {
+        MsgBox("Please enter your name!", "Warning", "Icon!")
+    } else {
+        MsgBox("Hello, " . name . "!", "Greeting", "Icon64")
+    }
+}
+
+; Run the application
+CreateDemoGUI()

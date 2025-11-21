@@ -1,0 +1,22 @@
+{
+  "filename": "demo_gui.ahk",
+  "category": "GUI_Applications",
+  "tier": "Tier2_Intermediate",
+  "concepts": [
+    "GUI Creation",
+    "Event Handling"
+  ],
+  "dependencies": [],
+  "key_functions": [
+    "CreateDemoGUI",
+    "ShowGreeting",
+    "if"
+  ],
+  "classes": [],
+  "has_gui": true,
+  "has_oop": false,
+  "has_com": false,
+  "has_hotkeys": false,
+  "line_count": 18,
+  "complexity_score": 13
+}

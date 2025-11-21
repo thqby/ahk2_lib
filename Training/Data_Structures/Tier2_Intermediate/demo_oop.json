@@ -1,0 +1,31 @@
+{
+  "filename": "demo_oop.ahk",
+  "category": "Data_Structures",
+  "tier": "Tier2_Intermediate",
+  "concepts": [
+    "Array Operations",
+    "Object-Oriented Programming"
+  ],
+  "dependencies": [],
+  "key_functions": [
+    "__New",
+    "GetArea",
+    "Describe",
+    "__New",
+    "GetArea",
+    "__New",
+    "GetArea",
+    "DemoOOP"
+  ],
+  "classes": [
+    "Shape",
+    "Rectangle",
+    "Circle"
+  ],
+  "has_gui": false,
+  "has_oop": true,
+  "has_com": false,
+  "has_hotkeys": false,
+  "line_count": 43,
+  "complexity_score": 36
+}
