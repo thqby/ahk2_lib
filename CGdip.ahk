@@ -2,8 +2,8 @@
  * @description Gdip类
  * @file CGdip.ahk
  * @author thqby
- * @date 2023/02/05
- * @version 1.0.8
+ * @date 2025/11/21
+ * @version 1.0.9
  ***********************************************************************/
 
 #Requires AutoHotkey v2.0-beta
@@ -429,17 +429,17 @@ class CGdip
 			return CGdip.Bitmap(pBitmap)
 		}
 
-		static FromScreen(Screen := 0, Raster := "") {
-			if (Screen = 0) {
-				x := SySGet(76)
-				y := SySGet(77)
-				w := SySGet(78)
-				h := SySGet(79)
+		static FromScreen(Screen := -1, Raster := "") {
+			if (Screen = -1) {
+				x := SysGet(76)
+				y := SysGet(77)
+				w := SysGet(78)
+				h := SysGet(79)
 			} else if (SubStr(Screen, 1, 5) = "hwnd:") {
 				Screen := SubStr(Screen, 6)
 				if !WinExist("ahk_id " Screen)
 					return -2
-				WinGetPos(, , &w, &h, "ahk_id" Screen)
+				WinGetPos(, , &w, &h, "ahk_id " Screen)
 				x := y := 0
 				hhdc := GetDCEx(Screen, 3)
 			} else if (Screen is Integer) {
