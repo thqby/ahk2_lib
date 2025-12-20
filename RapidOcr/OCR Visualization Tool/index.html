@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>OCR Visualization Tool</title>
+	<!-- <script src="https://cdn.tailwindcss.com"></script> -->
+	<link href="style.css" rel="stylesheet">
+</head>
+
+<body class="bg-white" style="min-height: 100vh;">
+	<!-- Header -->
+	<header class="bg-gradient-blue text-white shadow-md">
+		<div class="container mx-auto px-4 py-4 flex justify-between items-center">
+			<div class="flex items-center space-x-2">
+				<i class="fa fa-eye text-2xl"></i>
+				<h1 class="text-xl font-bold">OCR Visualization Tool</h1>
+			</div>
+		</div>
+	</header>
+	<!-- Main Content -->
+	<main class="container">
+		<div class="grid md:grid-cols-[minmax(280px,1fr)_3fr] gap-6">
+			<!-- Left Panel - Parameters (narrower) -->
+			<div class="col-1 px-4 py-4 bg-gray-100">
+				<div class="card h-full">
+					<h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+						<i class="fa fa-sliders mr-2 text-primary"></i>Parameters
+					</h2>
+					<form id="ocrParamsForm" class="space-y-6" onsubmit="handleFormSubmit()">
+						<!-- Action Buttons -->
+						<div class="border-b border-gray-200 pb-4">
+							<div class="flex gap-6">
+								<button type="reset" onclick="resetForm()" class="btn flex-grow">
+									<i class="fa fa-refresh mr-1"></i>Reset
+								</button>
+								<button type="submit" class="btn flex-grow">
+									<i class="fa fa-play mr-1"></i>Process
+								</button>
+							</div>
+						</div>
+						<!-- Image Input -->
+						<div class="border-b border-gray-200 pb-4">
+							<h3 class="font-medium text-gray-700 mb-4">Image Input</h3>
+							<div class="grid gap-2">
+								<div class="grid grid-cols-[60px_1fr] gap-2">
+									<label class="param-label" for="picPath">
+										<div class="tooltip-container">
+											pic
+											<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+											<span class="tooltip-text">Image URL or upload image</span>
+										</div>
+									</label>
+									<div class="param-field-container">
+										<input type="text" id="picPath" class="param-input" onchange="handlePicInput()"
+											placeholder="https://example.com/image.jpg" required>
+										<label for="picBtn" class="btn cursor-pointer">
+											<i class="fa fa-folder-open"></i>
+										</label>
+										<input type="file" id="picBtn" class="hidden" accept="image/*"
+											onchange="handlePicSelection()">
+									</div>
+								</div>
+								<div class="grid grid-cols-[1fr_80px] gap-2">
+									<div class="tooltip-container">
+										preprocess
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Preprocess the image using custom script</span>
+									</div>
+									<div class="flex gap-4">
+										<label>
+											<input type="checkbox" id="preProcess" class="sr-only peer"
+												onchange="initWorker()">
+											<div class="toggle"></div>
+										</label>
+										<button type="button" class="btn" onclick="toggleEditor()">
+											<i class="fa fa-edit"></i>
+										</button>
+									</div>
+								</div>
+							</div>
+
+							<div class="flex space-x-1 mt-6">
+								<button type="button" class="btn flex-grow" onclick="loadSampleImage(0)">
+									<i class="fa fa-image mr-1"></i>Sample1
+								</button>
+								<button type="button" class="btn flex-grow" onclick="loadSampleImage(1)">
+									<i class="fa fa-image mr-1"></i>Sample2
+								</button>
+								<button type="button" class="btn flex-grow" onclick="loadSampleImage(2)">
+									<i class="fa fa-image mr-1"></i>Sample3
+								</button>
+							</div>
+						</div>
+						<!-- Model Settings - Vertical layout with same-line labels and inputs -->
+						<div class="border-b border-gray-200 pb-4">
+							<h3 class="font-medium text-gray-700 mb-4">Model Settings</h3>
+							<div class="grid grid-cols-[60px_1fr] grid-rows-5 gap-2">
+								<div>folder</div>
+								<div class="folder-input-group">
+									<input type="text" id="modelFolderPath" name="folder" class="param-input"
+										placeholder="Select model folder" readonly>
+									<button type="button" class="btn flex-grow" onclick="handleFolderSelection()">
+										<i class="fa fa-folder-open"></i>
+									</button>
+								</div>
+								<label class="param-label" for="detSelect">
+									<div class="tooltip-container">
+										det
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Detection model file</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<select id="detSelect" name="det" class="param-input" required>
+										<!-- Options will be populated dynamically -->
+									</select>
+								</div>
+								<label class="param-label" for="recSelect">
+									<div class="tooltip-container">
+										rec
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Recognition model file</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<select id="recSelect" name="rec" class="param-input" required>
+										<!-- Options will be populated dynamically -->
+									</select>
+								</div>
+								<label class="param-label" for="clsSelect">
+									<div class="tooltip-container">
+										cls
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Classification model file (optional)</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<select id="clsSelect" name="cls" class="param-input">
+										<!-- Options will be populated dynamically -->
+									</select>
+								</div>
+								<label class="param-label" for="dictSelect">
+									<div class="tooltip-container">
+										dict
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Dictionary file</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<select id="dictSelect" name="dict" class="param-input" required>
+										<!-- Options will be populated dynamically -->
+									</select>
+								</div>
+							</div>
+						</div>
+						<!-- OCR Parameters - Same line layout -->
+						<div class="border-b border-gray-200 pb-4">
+							<h3 class="font-medium text-gray-700 mb-4">OCR Parameters</h3>
+							<div class="grid grid-cols-[1fr_80px] grid-rows-7 gap-2">
+								<label class="param-label" for="padding">
+									<div class="tooltip-container">
+										padding
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Padding around text regions</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<input type="number" name="padding" class="param-input" value="2" min="0" max="50">
+								</div>
+								<label class="param-label" for="maxSideLen">
+									<div class="tooltip-container">
+										maxSideLen
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Max side length (0 = no resizing)</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<input type="number" name="maxSideLen" class="param-input" value="0" min="0"
+										max="2048">
+								</div>
+								<label class="param-label" for="boxScoreThresh">
+									<div class="tooltip-container">
+										boxScoreThresh
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Score threshold for boxes</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<input type="number" name="boxScoreThresh" class="param-input" value="0.4" min="0"
+										max="1" step="0.01">
+								</div>
+								<label class="param-label" for="boxThresh">
+									<div class="tooltip-container">
+										boxThresh
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Threshold for detection</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<input type="number" name="boxThresh" class="param-input" value="0.3" min="0"
+										max="1" step="0.01">
+								</div>
+								<label class="param-label" for="unClipRatio">
+									<div class="tooltip-container">
+										unClipRatio
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Unclip ratio for boxes</span>
+									</div>
+								</label>
+								<div class="param-field-container">
+									<input type="number" name="unClipRatio" class="param-input" value="1.6" min="1"
+										max="5" step="0.1">
+								</div>
+								<label class="param-label" for="doAngle">
+									<div class="tooltip-container">
+										doAngle
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Perform angle detection</span>
+									</div>
+								</label>
+								<label class="param-field-container">
+									<input type="checkbox" name="doAngle" value="1" class="sr-only peer">
+									<div class="toggle"></div>
+								</label>
+								<label class="param-label" for="mostAngle">
+									<div class="tooltip-container">
+										mostAngle
+										<span class="tooltip-icon"><i class="fa fa-info-circle"></i></span>
+										<span class="tooltip-text">Use most likely angle</span>
+									</div>
+								</label>
+								<label class="param-field-container">
+									<input type="checkbox" name="mostAngle" value="1" class="sr-only peer">
+									<div class="toggle"></div>
+								</label>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+			<!-- Right Panel - Results (wider) -->
+			<div class="col-2 px-4 py-4 overflow-x-auto">
+				<div class="card h-full flex flex-col">
+					<h2 class="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+						<i class="fa fa-image mr-2 text-primary"></i>Results
+					</h2>
+					<!-- Results Container -->
+					<div class="flex-grow flex flex-col">
+						<!-- Initial State -->
+						<div id="initialState" class="flex flex-col items-center justify-center h-full">
+							<div class="bg-gray-100 rounded-full p-6 mb-4">
+								<i class="fa fa-file-image text-5xl text-gray-400"></i>
+							</div>
+							<h3 class="text-xl font-medium text-gray-700 mb-2">No Image Processed</h3>
+							<p class="text-gray-500 mb-6">
+								Please provide an image URL or upload an image and click "Process"</p>
+						</div>
+						<!-- Loading State -->
+						<div id="loadingState" class="hidden flex flex-col items-center justify-center h-full">
+							<div class="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary mb-4">
+							</div>
+							<h3 class="text-xl font-medium text-gray-700 mb-2"></h3>
+							<p class="text-gray-500">This may take a few seconds</p>
+						</div>
+						<!-- Results State -->
+						<div id="resultsState" class="hidden flex flex-col">
+							<!-- Image with Detection Boxes -->
+							<div class="justify-between mb-4">
+								<div id="canvasContainer" class="canvas-container bg-gray-100 p-4 rounded-lg"
+									onmousedown="startDrag()" onmousemove="drag()" onmouseup="endDrag()"
+									onmousewheel="handleWheel()">
+									<div class="flex gap-6" style="transform-origin: left top;">
+										<img id="rawImage" class="hidden">
+										<div class="relative">
+											<canvas id="resultCanvas"></canvas>
+											<div id="detLayer" class="absolute top-0 left-0 pointer-events-none">
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+							<!-- Controls -->
+							<div class="flex justify-between items-center mb-4">
+								<div class="flex space-x-2">
+									<button class="btn" onclick="changeZoom(0.1)">
+										<i class="fa fa-search-plus"></i>
+									</button>
+									<button class="btn" onclick="changeZoom(-0.1)">
+										<i class="fa fa-search-minus"></i>
+									</button>
+									<button class="btn" onclick="resetZoom()">
+										<i class="fa fa-arrows-alt"></i>
+									</button>
+								</div>
+								<div class="flex items-center space-x-2">
+									<label class="inline-flex items-center cursor-pointer">
+										<input type="checkbox" id="showRaw" class="sr-only peer">
+										<div class="toggle"></div>
+										<span class="ml-2 text-sm font-medium text-gray-700">Show Raw Image</span>
+									</label>
+									<label class="inline-flex items-center cursor-pointer">
+										<input type="checkbox" id="showBoxes" class="sr-only peer" checked>
+										<div class="toggle"></div>
+										<span class="ml-2 text-sm font-medium text-gray-700">Show Boxes</span>
+									</label>
+									<label class="inline-flex items-center cursor-pointer">
+										<input type="checkbox" id="showText" class="sr-only peer" checked>
+										<div class="toggle"></div>
+										<span class="ml-2 text-sm font-medium text-gray-700">Show Text</span>
+									</label>
+								</div>
+								<div>
+									<button class="btn px-2" onclick="saveImage()">
+										<i class="fa fa-download mr-1"></i>Save Image
+									</button>
+								</div>
+							</div>
+							<!-- Detection Results Table -->
+							<div class="border-t border-gray-200 pt-4">
+								<h3 class="font-medium text-gray-700 mb-3">Detection Results</h3>
+								<div class="overflow-x-auto">
+									<table class="w-full divide-y divide-gray-200">
+										<thead class="bg-gray-50">
+											<tr>
+												<th scope="col">Text</th>
+												<th scope="col">Box Point</th>
+												<th scope="col">Char Scores</th>
+												<th scope="col">Box Score</th>
+												<th scope="col">Time</th>
+											</tr>
+										</thead>
+										<tbody id="resultsTableBody" class="bg-white divide-y divide-gray-200">
+											<!-- Results will be inserted here -->
+										</tbody>
+									</table>
+								</div>
+							</div>
+						</div>
+						<!-- Error State -->
+						<div id="errorState" class="hidden flex flex-col items-center justify-center h-full">
+							<div class="bg-red-50 rounded-full p-6 mb-4">
+								<i class="fa fa-exclamation-triangle text-5xl text-red-500"></i>
+							</div>
+							<h3 class="text-xl font-medium text-gray-700 mb-2"></h3>
+							<p class="text-gray-500 mb-6"></p>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</main>
+
+	<div id="scriptEditor" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+		<div class="bg-gray-100 rounded-lg w-full max-w-4xl max-h-[90vh] flex flex-col">
+			<div class="p-4 border-b flex justify-between items-center">
+				<h3 class="text-lg font-semibold text-gray-800">Script Editor</h3>
+				<button class="text-gray-500 hover:text-gray-700" onclick="toggleEditor()">
+					<i class="fa fa-close text-xl"></i>
+				</button>
+			</div>
+			<div class="p-4 flex-1 overflow-auto">
+				<div class="mb-4 flex gap-6">
+					<button class="btn flex-grow" onclick="loadScript()">
+						<i class="fa fa-upload mr-2"></i>Load
+					</button>
+					<button class="btn flex-grow" onclick="saveScript()">
+						<i class="fa fa-save mr-2"></i>Save
+					</button>
+					<button class="btn flex-grow" onclick="setDefaultScript()">
+						<i class="fa fa-refresh mr-2"></i>Reset
+					</button>
+					<button class="btn flex-grow" onclick="runScript()">
+						<i class="fa fa-play mr-2"></i>Run
+					</button>
+				</div>
+				<div class="mb-4">
+					<div class="border border-gray-300 rounded-lg overflow-hidden">
+						<textarea id="script" style="min-height: 50vh;"
+							class="w-full h-80 p-4 font-mono text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"></textarea>
+					</div>
+				</div>
+				<div class="bg-blue-50 p-4 rounded-lg">
+					<h4 class="font-medium text-gray-800 mb-2">Note</h4>
+					<ul class="text-sm text-gray-600 space-y-1">
+						<li>• The cv module can be used in the script.
+							Please refer to <a href="https://docs.opencv.org/4.5.5/d5/d10/tutorial_js_root.html"
+								style="text-decoration: underline; color: royalblue;" target="_blank">OpenCV
+								document</a> for details.</li>
+						<li>• You have to call <code>.delete()</code>
+							method of some objects (cv.Mat, etc) in the cv module to free memory allocated.</li>
+						<li>• The script must return a <code>(src: cv.Mat) => cv.Mat</code> function, the function will
+							be used to process images.</li>
+					</ul>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+		/** @type {Record<string, HTMLElement>} */
+		const eles = new Proxy({}, { get: (target, p) => Reflect.get(target, p) ?? (target[p] = document.getElementById(p)) });
+		const { rawImage: img, ocrParamsForm: form, resultCanvas: canvas,
+			modelFolderPath, detSelect, recSelect, clsSelect, dictSelect,
+			picBtn, picPath, canvasContainer, resultsTableBody,
+			initialState, loadingState, resultsState, errorState, } = eles;
+		/** @type {CanvasRenderingContext2D} */const ctx = canvas.getContext('2d', { willReadFrequently: true });
+		const tasks = new Map();
+		const sampleImages = [
+			'https://i-blog.csdnimg.cn/blog_migrate/730e0487a17a0ef65f5f3d38fcfc67cf.png',
+			'https://c-ssl.dtstatic.com/uploads/blog/202407/23/LySlPgZDfqNBw37.thumb.1000_0.jpg',
+			'https://img1.baidu.com/it/u=1142237783,2321784543&fm=253&app=138&f=JPEG?w=1021&h=800'
+		];
+		/** @type {Worker} */let worker, fileHandle, currentTask, currentTaskId = 0;
+		let currentResults = [], currentState = initialState;
+		let currentZoom = 1, translateX = 0, translateY = 0;
+		let isDragging = false, dragStartX = 0, dragStartY = 0;
+		init();
+		function init() {
+			img.crossOrigin = 'Anonymous';
+			img.onload = async function () {
+				img.style.height = `${img.naturalHeight}px`;
+				img.style.width = `${img.naturalWidth}px`;
+				picPath.value = img.src;
+				try {
+					clearResults();
+					drawImage();
+					await processImage();
+					showState(resultsState);
+				} catch (err) {
+					showError(err.message);
+				}
+			};
+			img.onerror = function () {
+				let url = img.src;
+				if (url.startsWith('data:'))
+					url = url.substring(0, url.indexOf(';'));
+				showError(`Failed to load image from URL: ${url}`);
+			};
+			setDefaultScript(true);
+			setDefaultFormValues();
+			const icons = {
+				"arrows-alt": ["512 512", "M278.6 9.4c-12.5-12.5-32.8-12.5-45.3 0l-64 64c-9.2 9.2-11.9 22.9-6.9 34.9S179.1 128 192 128l32 0 0 96-96 0 0-32c0-12.9-7.8-24.6-19.8-29.6s-25.7-2.2-34.9 6.9l-64 64c-12.5 12.5-12.5 32.8 0 45.3l64 64c9.2 9.2 22.9 11.9 34.9 6.9S128 332.9 128 320l0-32 96 0 0 96-32 0c-12.9 0-24.6 7.8-29.6 19.8s-2.2 25.7 6.9 34.9l64 64c12.5 12.5 32.8 12.5 45.3 0l64-64c9.2-9.2 11.9-22.9 6.9-34.9S332.9 384 320 384l-32 0 0-96 96 0 0 32c0 12.9 7.8 24.6 19.8 29.6s25.7 2.2 34.9-6.9l64-64c12.5-12.5 12.5-32.8 0-45.3l-64-64c-9.2-9.2-22.9-11.9-34.9-6.9S384 179.1 384 192l0 32-96 0 0-96 32 0c12.9 0 24.6-7.8 29.6-19.8s2.2-25.7-6.9-34.9l-64-64z"],
+				"close": ["384 512", "M55.1 73.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3L147.2 256 9.9 393.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L192.5 301.3 329.9 438.6c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L237.8 256 375.1 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L192.5 210.7 55.1 73.4z"],
+				"download": ["448 512", "M256 32c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 210.7-41.4-41.4c-12.5-12.5-32.8-12.5-45.3 0s-12.5 32.8 0 45.3l96 96c12.5 12.5 32.8 12.5 45.3 0l96-96c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0L256 242.7 256 32zM64 320c-35.3 0-64 28.7-64 64l0 32c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-32c0-35.3-28.7-64-64-64l-46.9 0-56.6 56.6c-31.2 31.2-81.9 31.2-113.1 0L110.9 320 64 320zm304 56a24 24 0 1 1 0 48 24 24 0 1 1 0-48z"],
+				"edit": ["512 512", "M441 58.9L453.1 71c9.4 9.4 9.4 24.6 0 33.9L424 134.1 377.9 88 407 58.9c9.4-9.4 24.6-9.4 33.9 0zM209.8 256.2L344 121.9 390.1 168 255.8 302.2c-2.9 2.9-6.5 5-10.4 6.1l-58.5 16.7 16.7-58.5c1.1-3.9 3.2-7.5 6.1-10.4zM373.1 25L175.8 222.2c-8.7 8.7-15 19.4-18.3 31.1l-28.6 100c-2.4 8.4-.1 17.4 6.1 23.6s15.2 8.5 23.6 6.1l100-28.6c11.8-3.4 22.5-9.7 31.1-18.3L487 138.9c28.1-28.1 28.1-73.7 0-101.8L474.9 25C446.8-3.1 401.2-3.1 373.1 25zM88 64C39.4 64 0 103.4 0 152L0 424c0 48.6 39.4 88 88 88l272 0c48.6 0 88-39.4 88-88l0-112c0-13.3-10.7-24-24-24s-24 10.7-24 24l0 112c0 22.1-17.9 40-40 40L88 464c-22.1 0-40-17.9-40-40l0-272c0-22.1 17.9-40 40-40l112 0c13.3 0 24-10.7 24-24s-10.7-24-24-24L88 64z"],
+				"exclamation-triangle": ["512 512", "M256 0c14.7 0 28.2 8.1 35.2 21l216 400c6.7 12.4 6.4 27.4-.8 39.5S486.1 480 472 480L40 480c-14.1 0-27.2-7.4-34.4-19.5s-7.5-27.1-.8-39.5l216-400c7-12.9 20.5-21 35.2-21zm0 352a32 32 0 1 0 0 64 32 32 0 1 0 0-64zm0-192c-18.2 0-32.7 15.5-31.4 33.7l7.4 104c.9 12.5 11.4 22.3 23.9 22.3 12.6 0 23-9.7 23.9-22.3l7.4-104c1.3-18.2-13.1-33.7-31.4-33.7z"],
+				"eye": ["576 512", "M288 32c-80.8 0-145.5 36.8-192.6 80.6-46.8 43.5-78.1 95.4-93 131.1-3.3 7.9-3.3 16.7 0 24.6 14.9 35.7 46.2 87.7 93 131.1 47.1 43.7 111.8 80.6 192.6 80.6s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1 3.3-7.9 3.3-16.7 0-24.6-14.9-35.7-46.2-87.7-93-131.1-47.1-43.7-111.8-80.6-192.6-80.6zM144 256a144 144 0 1 1 288 0 144 144 0 1 1 -288 0zm144-64c0 35.3-28.7 64-64 64-11.5 0-22.3-3-31.7-8.4-1 10.9-.1 22.1 2.9 33.2 13.7 51.2 66.4 81.6 117.6 67.9s81.6-66.4 67.9-117.6c-12.2-45.7-55.5-74.8-101.1-70.8 5.3 9.3 8.4 20.1 8.4 31.7z"],
+				"file-image": ["384 512", "M0 64C0 28.7 28.7 0 64 0L213.5 0c17 0 33.3 6.7 45.3 18.7L365.3 125.3c12 12 18.7 28.3 18.7 45.3L384 448c0 35.3-28.7 64-64 64L64 512c-35.3 0-64-28.7-64-64L0 64zm208-5.5l0 93.5c0 13.3 10.7 24 24 24L325.5 176 208 58.5zM128 256a32 32 0 1 0 -64 0 32 32 0 1 0 64 0zM92.6 448l198.8 0c15.8 0 28.6-12.8 28.6-28.6 0-7.3-2.8-14.4-7.9-19.7L215.3 297.9c-6-6.3-14.4-9.9-23.2-9.9l-.3 0c-8.8 0-17.1 3.6-23.2 9.9L71.9 399.7C66.8 405 64 412.1 64 419.4 64 435.2 76.8 448 92.6 448z"],
+				"folder-open": ["576 512", "M56 225.6L32.4 296.2 32.4 96c0-35.3 28.7-64 64-64l138.7 0c13.8 0 27.3 4.5 38.4 12.8l38.4 28.8c5.5 4.2 12.3 6.4 19.2 6.4l117.3 0c35.3 0 64 28.7 64 64l0 16-365.4 0c-41.3 0-78 26.4-91.1 65.6zM477.8 448L99 448c-32.8 0-55.9-32.1-45.5-63.2l48-144C108 221.2 126.4 208 147 208l378.8 0c32.8 0 55.9 32.1 45.5 63.2l-48 144c-6.5 19.6-24.9 32.8-45.5 32.8z"],
+				"image": ["448 512", "M64 80c-8.8 0-16 7.2-16 16l0 320c0 8.8 7.2 16 16 16l320 0c8.8 0 16-7.2 16-16l0-320c0-8.8-7.2-16-16-16L64 80zM0 96C0 60.7 28.7 32 64 32l320 0c35.3 0 64 28.7 64 64l0 320c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64L0 96zm128 32a32 32 0 1 1 0 64 32 32 0 1 1 0-64zm136 72c8.5 0 16.4 4.5 20.7 11.8l80 136c4.4 7.4 4.4 16.6 .1 24.1S352.6 384 344 384l-240 0c-8.9 0-17.2-5-21.3-12.9s-3.5-17.5 1.6-24.8l56-80c4.5-6.4 11.8-10.2 19.7-10.2s15.2 3.8 19.7 10.2l17.2 24.6 46.5-79c4.3-7.3 12.2-11.8 20.7-11.8z"],
+				"info-circle": ["512 512", "M256 512a256 256 0 1 0 0-512 256 256 0 1 0 0 512zM224 160a32 32 0 1 1 64 0 32 32 0 1 1 -64 0zm-8 64l48 0c13.3 0 24 10.7 24 24l0 88 8 0c13.3 0 24 10.7 24 24s-10.7 24-24 24l-80 0c-13.3 0-24-10.7-24-24s10.7-24 24-24l24 0 0-64-24 0c-13.3 0-24-10.7-24-24s10.7-24 24-24z"],
+				"play": ["448 512", "M91.2 36.9c-12.4-6.8-27.4-6.5-39.6 .7S32 57.9 32 72l0 368c0 14.1 7.5 27.2 19.6 34.4s27.2 7.5 39.6 .7l336-184c12.8-7 20.8-20.5 20.8-35.1s-8-28.1-20.8-35.1l-336-184z"],
+				"refresh": ["512 512", "M65.9 228.5c13.3-93 93.4-164.5 190.1-164.5 53 0 101 21.5 135.8 56.2 .2 .2 .4 .4 .6 .6l7.6 7.2-47.9 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l128 0c17.7 0 32-14.3 32-32l0-128c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 53.4-11.3-10.7C390.5 28.6 326.5 0 256 0 127 0 20.3 95.4 2.6 219.5 .1 237 12.2 253.2 29.7 255.7s33.7-9.7 36.2-27.1zm443.5 64c2.5-17.5-9.7-33.7-27.1-36.2s-33.7 9.7-36.2 27.1c-13.3 93-93.4 164.5-190.1 164.5-53 0-101-21.5-135.8-56.2-.2-.2-.4-.4-.6-.6l-7.6-7.2 47.9 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L32 320c-8.5 0-16.7 3.4-22.7 9.5S-.1 343.7 0 352.3l1 127c.1 17.7 14.6 31.9 32.3 31.7S65.2 496.4 65 478.7l-.4-51.5 10.7 10.1c46.3 46.1 110.2 74.7 180.7 74.7 129 0 235.7-95.4 253.4-219.5z"],
+				"save": ["448 512", "M64 32C28.7 32 0 60.7 0 96L0 416c0 35.3 28.7 64 64 64l320 0c35.3 0 64-28.7 64-64l0-242.7c0-17-6.7-33.3-18.7-45.3L352 50.7C340 38.7 323.7 32 306.7 32L64 32zm32 96c0-17.7 14.3-32 32-32l160 0c17.7 0 32 14.3 32 32l0 64c0 17.7-14.3 32-32 32l-160 0c-17.7 0-32-14.3-32-32l0-64zM224 288a64 64 0 1 1 0 128 64 64 0 1 1 0-128z"],
+				"search-minus": ["512 512", "M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM136 184c-13.3 0-24 10.7-24 24s10.7 24 24 24l144 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-144 0z"],
+				"search-plus": ["512 512", "M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376C296.3 401.1 253.9 416 208 416 93.1 416 0 322.9 0 208S93.1 0 208 0 416 93.1 416 208zM208 112c-13.3 0-24 10.7-24 24l0 48-48 0c-13.3 0-24 10.7-24 24s10.7 24 24 24l48 0 0 48c0 13.3 10.7 24 24 24s24-10.7 24-24l0-48 48 0c13.3 0 24-10.7 24-24s-10.7-24-24-24l-48 0 0-48c0-13.3-10.7-24-24-24z"],
+				"sliders": ["512 512", "M32 64C14.3 64 0 78.3 0 96s14.3 32 32 32l86.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 128c17.7 0 32-14.3 32-32s-14.3-32-32-32L265.3 64C253 35.7 224.8 16 192 16s-61 19.7-73.3 48L32 64zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l246.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48l54.7 0c17.7 0 32-14.3 32-32s-14.3-32-32-32l-54.7 0c-12.3-28.3-40.5-48-73.3-48s-61 19.7-73.3 48L32 224zm0 160c-17.7 0-32 14.3-32 32s14.3 32 32 32l54.7 0c12.3 28.3 40.5 48 73.3 48s61-19.7 73.3-48L480 448c17.7 0 32-14.3 32-32s-14.3-32-32-32l-246.7 0c-12.3-28.3-40.5-48-73.3-48s-61 19.7-73.3 48L32 384z"],
+				"upload": ["448 512", "M256 109.3L256 320c0 17.7-14.3 32-32 32s-32-14.3-32-32l0-210.7-41.4 41.4c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3l96-96c12.5-12.5 32.8-12.5 45.3 0l96 96c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L256 109.3zM224 400c44.2 0 80-35.8 80-80l80 0c35.3 0 64 28.7 64 64l0 32c0 35.3-28.7 64-64 64L64 480c-35.3 0-64-28.7-64-64l0-32c0-35.3 28.7-64 64-64l80 0c0 44.2 35.8 80 80 80zm144 24a24 24 0 1 0 0-48 24 24 0 1 0 0 48z"],
+			};
+			for (const node of document.querySelectorAll('.fa')) {
+				const icon = icons[node.className.match(/fa-(\S+)/)?.[1]];
+				if (!icon) {
+					console.log(node.className);
+				}
+				const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+				svg.innerHTML = `<path fill="currentColor" d="${icon[1]}"></path>`;
+				svg.setAttribute('class', node.className);
+				svg.setAttribute('viewBox', `0 0 ${icon[0]}`);
+				node.parentNode.replaceChild(svg, node);
+			}
+		}
+		function initWorker() {
+			if (!eles.preProcess.checked) return false;
+			if (worker) return worker;
+			const state = currentState;
+			showLoading('Initing Worker...');
+			const url = URL.createObjectURL(new Blob([`
+const __dirname = "${document.baseURI.replace(/[^/]+$/, '')}", cache = [];
+(function makeExceptionReadable() {
+	const inst = WebAssembly.instantiate;
+	WebAssembly.instantiate = function (bytes, obj) {
+		const env = obj.env, r = env._embind_register_value_object;
+		const { HEAPU8, HEAPU32, stackRestore } = Module;
+		let dector, tid;
+		env._embind_register_value_object = function (...params) {
+			if (HEAPU32[params[1] >> 2] === 1701017669) {	// (Exce)ption
+				tid = params[0], env._embind_register_value_object = r;
+				dector = Module.dynCall_vi.bind(null, params.at(-1));
+			}
+			return r(...params);
+		}
+		env.__cxa_throw = function (ptr, type, destructor) {
+			let s = Module.exceptionFromPtr(ptr).msg;
+			dector(ptr);
+			throw new Error(s.substring(s.indexOf(' error: ') + 1));
+		}
+		WebAssembly.instantiate = inst;
+		return inst(bytes, obj);
+	}
+})();
+try { importScripts(new URL('./opencv.js', __dirname).href); }
+catch { try { importScripts('https://docs.opencv.org/4.5.5/opencv.js'); } catch (err) { postMessage(err); close(); } }
+cv.then(() => postMessage(true));
+self.onmessage = async function (ev) {
+	const { id, data, script } = ev.data, mats = new Set();
+	try {
+		if (cache[0] !== script) {
+			if (typeof (cache[1] = (new Function('cv', script))(cv)) === 'function')
+				cache[0] = script;
+			else {
+				cache[0] = null;
+				throw new Error("Please return the function with '(src: cv.Mat) => cv.Mat'.");
+			}
+		}
+		const src = cv.matFromImageData(data);
+		mats.add(src);
+		const dst = await cache[1](src);
+		if (!(dst instanceof cv.Mat))
+			throw new Error("Please return the valid cv.Mat instance.");
+		mats.add(dst);
+		const depth = dst.type() % 8;
+		const scale = depth <= cv.CV_8S ? 1 : depth <= cv.CV_32S ? 1 / 256 : 255;
+		const shift = depth === cv.CV_8S || depth === cv.CV_16S ? 128 : 0;
+		dst.convertTo(dst, cv.CV_8U, scale, shift);
+		switch (dst.type()) {
+			case cv.CV_8UC1: cv.cvtColor(dst, dst, cv.COLOR_GRAY2RGBA); break;
+			case cv.CV_8UC3: cv.cvtColor(dst, dst, cv.COLOR_RGB2RGBA); break;
+			case cv.CV_8UC4: break;
+			default: throw new Error("Bad number of channels (Source image must have 1, 3 or 4 channels)");
+		}
+		const u8 = new Uint8ClampedArray(dst.data);
+		postMessage({ id, data: new ImageData(u8, dst.cols, dst.rows) }, [u8.buffer]);
+	} catch (err) { postMessage({ err, id }); } finally { mats.forEach(m => { try { m.delete(); } catch { } }); }
+}`
+			], {}));
+			let title = 'Error Initing Worker';
+			const w = new Worker(url);
+			return worker = new Promise((resolve) => {
+				w.onmessage = async function () {
+					if (event.data !== true) {
+						eles.preProcess.checked = false;
+						event.target.terminate();
+						resolve(worker = null);
+						return showError(event.data.message, title);
+					}
+					resolve(worker = event.target);
+					worker.onmessage = function (ev) {
+						const { data, err, id } = ev.data;
+						const p = tasks.get(id);
+						tasks.delete(id);
+						if (p.promise !== currentTask)
+							return;
+						if (err)
+							return p.reject(err);
+						ctx.clearRect(0, 0, canvas.width, canvas.height);
+						canvas.width = data.width;
+						canvas.height = data.height;
+						ctx.putImageData(data, 0, 0);
+						p.resolve(currentTask = true);
+					};
+					if (currentState === loadingState &&
+						loadingState.querySelector('h3').textContent.includes('Worker')) {
+						try {
+							if (state === resultsState)
+								await processImage();
+							showState(state);
+						} catch (err) {
+							showError(err.message);
+						}
+					}
+				}
+				w.onerror = function () {
+					resolve(worker = null);
+					event.target.terminate();
+					showError(event.message, title);
+				}
+			}).finally(() => URL.revokeObjectURL(url));
+		}
+		function setDefaultScript() {
+			const s = `function inHSVRanges(hsvRanges, binaryzation, src) {
+  const dst = new cv.Mat;
+  cv.cvtColor(src, dst, cv.COLOR_RGBA2RGB);
+  cv.cvtColor(dst, dst, cv.COLOR_RGB2HSV);
+  const mask = inRanges(hsvRanges, true, dst);
+  if (binaryzation) {
+    dst.delete();
+    return mask;
+  }
+  src.copyTo(dst, mask);
+  mask.delete();
+  return dst;
+}
+function inRanges(ranges, binaryzation, src) {
+  const rct = [src.rows, src.cols, src.type()];
+  const masks = ranges.map(range => {
+    range = range.map(r => new cv.Mat(...rct, r));
+    const dst = new cv.Mat;
+    cv.inRange(src, ...range, dst);
+    range.forEach(r => r.delete());
+    return dst;
+  });
+  const mask = masks.pop();
+  masks.forEach(m => (cv.bitwise_or(mask, m, mask), m.delete()));
+  if (binaryzation)
+    return mask;
+  const dst = new cv.Mat;
+  src.copyTo(dst, mask);
+  mask.delete();
+  return dst;
+}
+function threshold(thresh, type, src) {
+  const dst = new cv.Mat;
+  cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
+  cv.threshold(dst, dst, thresh, 255, type);
+  return dst;
+}
+// gray+threshold
+return threshold.bind(null, 120, cv.THRESH_OTSU);
+// Extract green pixels
+// return inHSVRanges.bind(null, [[[35,80,70,255],[99,255,255,255]]], false);`;
+			const t = eles.script;
+			fileHandle = undefined;
+			if (t.value)
+				t.focus(), t.select(), document.execCommand('insertText', false, s);
+			else t.value = s;
+		}
+		function runScript() {
+			eles.preProcess.checked = true;
+			currentTask = null;
+			toggleEditor();
+			clearResults();
+			drawImage();
+			processImage().then(r => r && showState(resultsState), err => showError(err.message));
+		}
+		async function processImage() {
+			if (!eles.preProcess.checked) {
+				if (currentTask === true)
+					drawImage();
+				return currentTask = null;
+			}
+			if (currentTask)
+				return currentTask;
+			if (!(await initWorker()))
+				return;
+			showLoading('Processing Image...');
+			const p = Promise.withResolvers();
+			const id = tasks.size ? ++currentTaskId : (currentTaskId = 0);
+			const script = eles.script.value;
+			const data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+			tasks.set(id, p);
+			worker.postMessage({ id, data, script }, [data.data.buffer]);
+			return currentTask = p.promise;
+		}
+		function toggleEditor() {
+			eles.scriptEditor.classList.toggle('hidden');
+		}
+		function setDefaultFormValues() {
+			for (const v of [detSelect, recSelect, clsSelect])
+				populateDropdown(v, [], 'Select model');
+			populateDropdown(dictSelect, [], 'Select dict file');
+		}
+		async function handleFormSubmit() {
+			event.preventDefault();
+			try {
+				const data = new FormData(event.target);
+				await processImage();
+				data.set('pic', canvas.toDataURL("image/png").substring(22));
+				showLoading('Processing Image...');
+				const results = await fetch('./ocr', {
+					method: 'POST',
+					body: JSON.stringify(Object.fromEntries(data)),
+					headers: {
+						'Content-Type': 'application/json'
+					}
+				}).then(r => r.json());
+				if (!results || results.error)
+					throw new Error(results?.error);
+				displayResults(results);
+				showState(resultsState);
+			} catch (err) {
+				showError(err.message, 'Error Processing Image');
+			}
+		}
+		async function handleFolderSelection() {
+			let r = await fetch('./dirSelect').then(r => r.json(), e => showError(e.message, 'Error Selecting Folder'));
+			const modelFiles = { det: [], rec: [], cls: [], dict: [] };
+			const dir = r?.dir;
+			if (!dir) return;
+			modelFolderPath.value = dir;
+			for (const file of r.files) {
+				const fileName = file.toLowerCase();
+				if (fileName.endsWith('.onnx')) {
+					if (fileName.includes('det')) {
+						modelFiles.det.push(file);
+					} else if (fileName.includes('rec')) {
+						modelFiles.rec.push(file);
+					} else if (fileName.includes('cls')) {
+						modelFiles.cls.push(file);
+					}
+				} else if (fileName.endsWith('.txt') || fileName.endsWith('.dict')) {
+					modelFiles.dict.push(file);
+				}
+			}
+			populateDropdown(detSelect, modelFiles.det, 'Select model');
+			populateDropdown(recSelect, modelFiles.rec, 'Select model');
+			populateDropdown(clsSelect, modelFiles.cls, 'Select model');
+			populateDropdown(dictSelect, modelFiles.dict, 'Select dict file');
+		}
+		function populateDropdown(dropdown, files, defaultText) {
+			dropdown.innerHTML = '';
+			files.forEach(name => {
+				const option = document.createElement('option');
+				option.value = name;
+				option.textContent = name;
+				dropdown.appendChild(option);
+			});
+			if (dropdown !== clsSelect && files.length)
+				return;
+			const defaultOption = document.createElement('option');
+			defaultOption.value = '';
+			defaultOption.textContent = defaultText;
+			dropdown.appendChild(defaultOption);
+		}
+		function handlePicSelection() {
+			const file = event.target.files[0];
+			picPath.value = '';
+			if (!file) return;
+			const reader = new FileReader();
+			reader.onload = (e) => loadImage(e.target.result);
+			reader.readAsDataURL(file);
+		}
+		function handlePicInput() {
+			const imageUrl = event.target.value.trim();
+			picBtn.value = picPath.value = '';
+			if (imageUrl) {
+				loadImage(imageUrl);
+			} else {
+				clearResults();
+				showState(initialState);
+			}
+		}
+		function loadImage(imageUrl) {
+			showLoading('Loading image...');
+			currentTask = null;
+			img.src = imageUrl;
+		}
+		function loadSampleImage(index) {
+			picBtn.value = picPath.value = '';
+			loadImage(sampleImages[index]);
+		}
+		function nop(err) { }
+		function loadScript() {
+			window.showOpenFilePicker({ startIn: fileHandle, types: [{ accept: { 'text/javascript': ['.js'] } }] })
+				.then(([handle]) => {
+					fileHandle = handle;
+					const t1 = eles.script, t2 = t1.cloneNode(false);
+					t1.parentNode.replaceChild(t2, t1);
+					delete eles.script;
+					handle.getFile().then(p => p.text()).then(p => t2.value = p, alert);
+				}, nop);
+		}
+		async function saveScript() {
+			try {
+				fileHandle ??= await window.showSaveFilePicker({ startIn: fileHandle, types: [{ accept: { 'text/javascript': ['.js'] } }] });
+				await writeFile(fileHandle, eles.script.value);
+			} catch (err) { alert(err); }
+		}
+		async function writeFile(fileHandle, contents) {
+			const writable = await fileHandle.createWritable();
+			await writable.write(contents);
+			await writable.close();
+		}
+		function displayResults(results) {
+			currentResults = results;
+			populateResultsTable();
+			drawDetectionBoxes();
+		}
+		function drawImage() {
+			ctx.clearRect(0, 0, canvas.width = img.naturalWidth, canvas.height = img.naturalHeight);
+			ctx.drawImage(img, 0, 0);
+		}
+		function drawDetectionBoxes() {
+			const { detLayer } = eles;
+			detLayer.innerHTML = '';
+			currentResults.forEach(result => {
+				const { boxPoint, text } = result;
+				const minX = Math.min(...boxPoint.map(p => p.x));
+				const minY = Math.min(...boxPoint.map(p => p.y));
+				const maxX = Math.max(...boxPoint.map(p => p.x));
+				const maxY = Math.max(...boxPoint.map(p => p.y));
+				const svgNS = "http://www.w3.org/2000/svg";
+				const svgElement = document.createElementNS(svgNS, "svg");
+				svgElement.classList.add('detection-box');
+				svgElement.style.left = `${minX}px`;
+				svgElement.style.top = `${minY}px`;
+				svgElement.style.width = `${maxX - minX}px`;
+				svgElement.style.height = `${maxY - minY}px`;
+				svgElement.style.overflow = 'visible';
+				svgElement.innerHTML = `<path fill="rgba(220, 38, 38, 0.1)" stroke="#dc2626" stroke-width="2" d="M ${boxPoint.map(p => `${p.x - minX}, ${p.y - minY}`).join(' L ')} Z"></path>`;
+				const textElement = document.createElement('div');
+				textElement.className = 'detection-text';
+				textElement.textContent = text;
+				textElement.style.left = `${minX}px`;
+				textElement.style.top = `${minY - 20}px`;
+				detLayer.append(svgElement, textElement);
+			});
+		}
+		function populateResultsTable() {
+			resultsTableBody.innerHTML = '';
+			if (currentResults.at(-1)?.boxScore === '')
+				tableAddRow(currentResults.pop());
+			currentResults.forEach(tableAddRow);
+		}
+		function tableAddRow(result) {
+			const { text, boxPoint, charScores, boxScore, blockTime } = result;
+			const row = document.createElement('tr');
+			const textCell = document.createElement('td');
+			const cls = 'px-6 py-4 text-sm text-gray-900';
+			row.append(cell(text),
+				cell(boxPoint.map(p => `(${p.x}, ${p.y})`).join(' - ')),
+				cell(charScores.map(p => p.toFixed(2)).join(', ')),
+				cell(boxScore && boxScore.toFixed(2)), cell(blockTime.toFixed(2)));
+			resultsTableBody.appendChild(row);
+			function cell(text) {
+				const cell = document.createElement('td');
+				cell.className = cls;
+				cell.textContent = text;
+				return cell;
+			}
+		}
+		function clearResults() {
+			currentResults = [];
+			eles.detLayer.innerHTML = '';
+			resultsTableBody.innerHTML = '';
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+		}
+		function resetForm() {
+			form.reset();
+			resetZoom();
+			clearResults();
+			setDefaultFormValues();
+			showState(initialState);
+		}
+		function showError(message, title) {
+			if (!title && currentState === loadingState)
+				title = `Error ${loadingState.querySelector('h3').textContent.slice(0, -3)}`;
+			errorState.querySelector('h3').textContent = title;
+			errorState.querySelector('p').textContent = message;
+			showState(errorState);
+		}
+		function showLoading(title) {
+			loadingState.querySelector('h3').textContent = title;
+			showState(loadingState);
+		}
+		function showState(state) {
+			currentState.classList.add('hidden');
+			(currentState = state).classList.remove('hidden');
+		}
+		function startDrag() {
+			isDragging = true;
+			dragStartX = event.clientX - translateX;
+			dragStartY = event.clientY - translateY;
+			canvasContainer.style.cursor = 'grabbing';
+			event.preventDefault();
+		}
+		function drag() {
+			if (!isDragging) return;
+			translateX = event.clientX - dragStartX;
+			translateY = event.clientY - dragStartY;
+			updateTransform();
+		}
+		function endDrag() {
+			isDragging = false;
+			canvasContainer.style.cursor = 'grab';
+		}
+		function handleWheel() {
+			event.preventDefault();
+			const zoomFactor = event.deltaY > 0 ? -0.1 : 0.1;
+			changeZoom(zoomFactor);
+		}
+		function changeZoom(factor) {
+			const newZoom = currentZoom + factor;
+			if (newZoom >= 0.1 && newZoom <= 5) {
+				setZoom(newZoom);
+			}
+		}
+		function resetZoom() {
+			translateX = 0;
+			translateY = 0;
+			setZoom(1);
+		}
+		function setZoom(zoom) {
+			currentZoom = zoom;
+			updateTransform();
+			canvasContainer.style.height = `${canvas.height * currentZoom + 32}px`;
+		}
+		function updateTransform() {
+			const scale = `scale(${currentZoom}) translate(${translateX / currentZoom}px, ${translateY / currentZoom}px)`;
+			img.parentElement.style.height = `${canvas.height * currentZoom}px`;
+			img.parentElement.style.transform = scale;
+		}
+		function updateVisibility(ele) {
+			ele.style.display = event.target.checked ? 'block' : 'none';
+		}
+		function saveImage() {
+			if (!picPath.value || !currentResults.length) return;
+			const tempCanvas = document.createElement('canvas');
+			const tempCtx = tempCanvas.getContext('2d');
+			tempCanvas.width = canvas.width;
+			tempCanvas.height = canvas.height;
+			tempCtx.drawImage(canvas, 0, 0);
+			tempCtx.strokeStyle = '#dc2626';
+			tempCtx.lineWidth = 2;
+			currentResults.forEach(result => {
+				const { boxPoint, text } = result;
+				tempCtx.beginPath();
+				tempCtx.moveTo(boxPoint[0].x, boxPoint[0].y);
+				for (let i = 1; i < boxPoint.length; i++) {
+					tempCtx.lineTo(boxPoint[i].x, boxPoint[i].y);
+				}
+				tempCtx.closePath();
+				tempCtx.stroke();
+				tempCtx.fillStyle = 'rgba(220, 38, 38, 0.8)';
+				tempCtx.font = '12px Arial';
+				const textWidth = tempCtx.measureText(text).width;
+				tempCtx.fillRect(boxPoint[0].x, boxPoint[0].y - 20, textWidth + 12, 20);
+				tempCtx.fillStyle = 'white';
+				tempCtx.fillText(text, boxPoint[0].x + 6, boxPoint[0].y - 6);
+			});
+			const link = document.createElement('a');
+			link.download = 'ocr_result.png';
+			link.href = tempCanvas.toDataURL('image/png');
+			link.click();
+		}
+	</script>
+</body>
+
+</html>
