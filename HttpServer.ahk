@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description An http/websocket server implementation.
  * @author thqby
- * @date 2025/06/28
- * @version 2.0.0
+ * @date 2025/12/22
+ * @version 2.0.1
  ***********************************************************************/
 
 #Include <OVERLAPPED>
@@ -80,9 +80,7 @@ class HTTP_REQUEST extends ctypes.struct {
 	}
 	Queries {
 		get {
-			if !s := this.QueryString
-				return
-			que := HttpServer.parse_urlencoded(SubStr(s, 2))
+			que := (s := this.QueryString) ? HttpServer.parse_urlencoded(SubStr(s, 2)) : Map()
 			this.DefineProp('Queries', { value: que })
 			return que
 		}
