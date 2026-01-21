@@ -1,8 +1,8 @@
 ﻿/************************************************************************
  * @description An http/websocket server implementation.
  * @author thqby
- * @date 2025/12/22
- * @version 2.0.1
+ * @date 2026/01/21
+ * @version 2.0.2
  ***********************************************************************/
 
 #Include <OVERLAPPED>
@@ -373,12 +373,12 @@ class HttpServer {
 	 * otherwise you may get an `ERROR_ACCESS_DENIED` error.
 	 * The url format is `http(s)://host(:port)/(path)`, when host is `+`, matches all addresses or domain names.
 	 * @param {(req: HTTP_REQUEST, rsp: Response)=>void} handler Handler of http request
-	 * @typedef {Buffer|Object|HttpServer.File|String|WebSocketSession|(rsp: Response)=>void} ResponseBody
+	 * @typedef {Buffer|Object|HttpServer.File|HttpServer.Protocol|String|(rsp: Response)=>void} ResponseBody
 	 * The types supported by the response body, they will have these conversions:
 	 * - `BufferLike`, `HttpServer.File`: No conversion.
 	 * - `Object`: Converted to json strings.
 	 * - `String`: Encoded as utf-8.
-	 * - `WebSocketSession`: Current connection is upgraded to websocket.
+	 * - `HttpServer.Protocol`: Current connection is upgraded to special protocol.
 	 * - `(rsp: Response)=>void`: A callback function that fires when buffered data has been sent.
 	 *   Can be used to persistently send data to the client, and the session ends when empty data is sent.
 	 * @typedef {Map} Response Set the items of the Map as the response headers and call it to send the response body.
@@ -405,9 +405,9 @@ class HttpServer {
 		return mime
 	}
 
-	static parse_body(type, data, charset := 'cp1252') {
+	static parse_body(type, data) {
 		header := split2map(type)
-		charset := header.Get('charset', charset)
+		charset := header.Get('charset', 'utf-8')
 		switch type := header['type'] {
 			case 'application/x-www-form-urlencoded': return this.parse_urlencoded(StrGet(data, charset))
 			case 'application/json': return JSON.parse(StrGet(data, charset))
@@ -450,7 +450,7 @@ class HttpServer {
 					data.key := cd.Get('name', ''), (fn := cd.Get('filename', 0)) && data.filename := fn
 				else data.name := ''
 				if ct
-					data.value := HttpServer.parse_body(data.type := ct, { ptr: data_start, size: data_end - data_start }, 'utf-8')
+					data.value := HttpServer.parse_body(data.type := ct, { ptr: data_start, size: data_end - data_start })
 				else data.value := StrGet(data_start, data_end - data_start, 'cp0')
 			} until t == 2
 			return datas
