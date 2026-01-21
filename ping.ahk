@@ -1,5 +1,5 @@
-﻿#Include <Socket>
-#Include <Promise>
+﻿#Include Socket.ahk
+#Include Promise.ahk
 
 /**
  * Send an icmp echo request to test whether the target host is accessible (no requested time).

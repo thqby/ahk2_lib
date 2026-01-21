@@ -5,10 +5,10 @@
  * @version 2.0.2
  ***********************************************************************/
 
-#Include <OVERLAPPED>
-#Include <ctypes>
-; #Include <compress>	; Used to support gzip/zstd compression and decompression
-; #Include <JSON>	; https://github.com/thqby/ahk2_lib/blob/master/JSON.ahk
+#Include OVERLAPPED.ahk
+#Include ctypes.ahk
+; #Include compress.ahk	; Used to support gzip/zstd compression and decompression
+; #Include JSON.ahk		; https://github.com/thqby/ahk2_lib/blob/master/JSON.ahk
 
 ;@region http structs
 ;@lint-disable class-non-dynamic-member-check

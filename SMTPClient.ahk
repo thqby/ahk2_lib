@@ -5,8 +5,8 @@
  * @version 0.0.1
  ***********************************************************************/
 
-#Include <Socket>
-#Include <TLSAuth>
+#Include Socket.ahk
+#Include TLSAuth.ahk
 
 class SMTPClient extends Socket.Client {
 	__New(host, port := 587) {

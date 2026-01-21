@@ -33,7 +33,7 @@ char *new_char_array_and_set_val() {
 ; Compiler command line:  cl.exe /c /std:c++20 /permissive /O2 /Gz /GS- cpp.cpp
 ; Extract the mcode from obj and link it
 ;
-; #Include <MCode\COFFReader>
+; #Include COFFReader.ahk
 ; configs := ExtractMCode(COFFReader('cpp.obj'), ['user32', 'msvcrt'])
 configs := {
 	32: {
@@ -47,7 +47,7 @@ configs := {
 	export: "Map,call_msgbox_and_return_item,new_char_array_and_set_val"
 }
 
-#Include <MCode\MCodeLoader>
+#Include MCodeLoader.ahk
 ; load mcode
 m := MCodeLoader(configs)
 ; call function

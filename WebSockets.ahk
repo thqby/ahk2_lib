@@ -5,7 +5,7 @@
  * @version 1.0.1
  ***********************************************************************/
 
-#Include <Socket>
+#Include Socket.ahk
 class WebSockets {
 	class Server extends Socket.Server {
 		clients := Map()

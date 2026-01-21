@@ -1,5 +1,5 @@
-#Include <WebView2\WebView2>
-#Include <RapidOcr\RapidOcr>
+#Include ..\..\WebView2\WebView2.ahk
+#Include ..\RapidOcr.ahk
 
 g := Gui('+Resize +MinSize640x480')
 g.OnEvent('Size', (g, minMax, *) => minMax >= 0 && IsSet(wv) && wvc.Fill())

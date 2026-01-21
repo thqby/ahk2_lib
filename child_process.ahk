@@ -242,5 +242,5 @@ class child_process {
 		return tk
 	}
 }
-#Include <OVERLAPPED>
-#Include <TextStreamDecoder>
+#Include OVERLAPPED.ahk
+#Include TextStreamDecoder.ahk

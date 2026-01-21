@@ -2238,5 +2238,5 @@ CoTaskMem_String(ptr) {
 	s := StrGet(ptr), DllCall('ole32\CoTaskMemFree', 'ptr', ptr)
 	return s
 }
-#Include <ComVar>
-#Include <Promise>
+#Include ..\ComVar.ahk
+#Include ..\Promise.ahk

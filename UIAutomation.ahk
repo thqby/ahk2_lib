@@ -1,13 +1,12 @@
 /************************************************************************
  * @description UI Automation class wrapper, based on https://github.com/neptercn/UIAutomation/blob/master/UIA2.ahk
- * @file UIAutomation.ahk
  * @author thqby, neptercn(v1 version)
  * @date 2021/10/21
  * @version 1.0.12
  ***********************************************************************/
 
-#Include <BSTR>
-#Include <ComVar>
+#Include BSTR.ahk
+#Include ComVar.ahk
 
 ; NativeArray is C style array, zero-based index, it has `__Item` and `__Enum` property
 class NativeArray {

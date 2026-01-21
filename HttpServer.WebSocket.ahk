@@ -5,7 +5,7 @@
  * @version 1.0.0
  ***********************************************************************/
 
-#Include <HttpServer>
+#Include HttpServer.ahk
 #DllLoad Websocket.dll
 class WebSocketSession extends HttpServer.Protocol {
 	/**

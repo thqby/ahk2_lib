@@ -1749,7 +1749,7 @@ class ID2DBase {
 	}
 }
 
-#Include <ctypes>
+#Include ctypes.ahk
 class D2D1_COLOR_F extends ctypes.struct {
 	static fields := [['float', 'r'], ['float', 'g'], ['float', 'b'], ['float', 'a']]
 }
