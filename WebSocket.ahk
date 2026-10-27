@@ -82,7 +82,7 @@ class WebSocket {
 				|| !DllCall('Winhttp\WinHttpQueryHeaders', 'ptr', hRequest, 'uint', 19, 'ptr', 0, 'wstr', status := '00000', 'uint*', 10, 'ptr', 0, 'int')
 				|| status != '101')
 				Throw IsSet(status) ? WebSocket.Error('Invalid status: ' status) : WebSocket.Error()
-			if !self.Ptr := DllCall('Winhttp\WinHttpWebSocketCompleteUpgrade', 'ptr', hRequest, 'ptr', 0)
+			if !self.Ptr := DllCall('Winhttp\WinHttpWebSocketCompleteUpgrade', 'ptr', hRequest, 'ptr', 0, 'ptr')
 				Throw WebSocket.Error()
 			DllCall('Winhttp\WinHttpCloseHandle', 'ptr', self.HINTERNETs.Pop())
 			self.HINTERNETs.Push(self.Ptr), self.readyState := 1

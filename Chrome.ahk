@@ -9,8 +9,13 @@ class Chrome {
 	static _http := ComObject('WinHttp.WinHttpRequest.5.1'), Prototype.NewTab := this.Prototype.NewPage
 	static FindInstance(exename := 'Chrome.exe', debugport := 0) {
 		items := Map(), filter_items := Map()
-		for item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "' AND CommandLine LIKE '% --remote-debugging-port=%'")
-			(!items.Has(parentPID := ProcessGetParent(item.ProcessID)) && items[item.ProcessID] := [parentPID, item.CommandLine])
+		for item in ComObjGet('winmgmts:').ExecQuery("SELECT CommandLine, ProcessID FROM Win32_Process WHERE Name = '" exename "' AND CommandLine LIKE '% --remote-debugging-port=%'") {
+			; A process can exit after WMI took its process snapshot.
+			try parentPID := ProcessGetParent(item.ProcessID)
+			catch TargetError
+				continue
+			(!items.Has(parentPID) && items[item.ProcessID] := [parentPID, item.CommandLine])
+		}
 		for pid, item in items
 			if !items.Has(item[1]) && (!debugport || InStr(item[2], ' --remote-debugging-port=' debugport))
 				filter_items[pid] := item[2]
@@ -206,12 +211,19 @@ class Chrome {
 			; before we receive a response.
 			if !ID := this._index += 1
 				ID := this._index += 1
-			this.sendText(JSON.stringify(Map('id', ID, 'params', Params ?? {}, 'method', DomainAndMethod), 0))
+			; Native sends can dispatch a response before returning.
+			if WaitForResponse
+				this._responses[ID] := false
+			try this.sendText(JSON.stringify(Map('id', ID, 'params', Params ?? {}, 'method', DomainAndMethod), 0))
+			catch as err {
+				if WaitForResponse
+					this._responses.Delete(ID)
+				throw err
+			}
 			if (!WaitForResponse)
 				return
 
 			; Wait for the response
-			this._responses[ID] := false
 			while (this.readyState = 1 && !this._responses[ID])
 				Sleep(20)
 
